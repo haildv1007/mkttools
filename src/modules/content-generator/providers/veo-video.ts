@@ -89,10 +89,16 @@ export class VeoVideoProvider implements VideoProvider {
         const samples = data.response?.generateVideoResponse?.generatedSamples;
         const videoUri = samples?.[0]?.video?.uri;
         if (!videoUri) throw new Error('Veo: no video in result');
+        console.log(`[Veo] Video URI: ${videoUri}`);
 
-        const videoUrl = videoUri.includes('key=') ? videoUri : `${videoUri}?key=${apiKey}`;
-        const videoRes = await fetch(videoUrl);
-        if (!videoRes.ok) throw new Error(`Veo: failed to download video (${videoRes.status})`);
+        const videoRes = await fetch(videoUri, {
+          headers: { 'x-goog-api-key': apiKey },
+        });
+        if (!videoRes.ok) {
+          const errText = await videoRes.text().catch(() => '');
+          console.log(`[Veo] Download error ${videoRes.status}: ${errText.substring(0, 300)}`);
+          throw new Error(`Veo: failed to download video (${videoRes.status})`);
+        }
         return Buffer.from(await videoRes.arrayBuffer());
       }
     }
