@@ -224,6 +224,7 @@ interface ContentItemWithPage {
   scheduledAt: Date;
   topic: string;
   generatedText: string | null;
+  generatedImageUrl?: string | null;
   status?: string;
   page: { name: string; platform: string };
   campaign?: { name: string } | null;
@@ -238,20 +239,49 @@ async function sendApprovalMessage(chatId: number, item: ContentItemWithPage) {
     (item.campaign ? `📂 Campaign: ${item.campaign.name}\n` : '') +
     `\n---\n\n${item.generatedText ? extractCleanText(item.generatedText) : '(Chưa gen content)'}`;
 
+  const replyMarkup = {
+    inline_keyboard: [
+      [
+        { text: '✅ Duyệt', callback_data: `approve:${item.id}` },
+        { text: '✏️ Sửa', callback_data: `edit:${item.id}` },
+        { text: '❌ Hủy', callback_data: `reject:${item.id}` },
+      ],
+      [
+        { text: '🔄 Gen lại', callback_data: `regenerate:${item.id}` },
+      ],
+    ],
+  };
+
+  if (item.generatedImageUrl) {
+    try {
+      let photoSource: string;
+      if (item.generatedImageUrl.includes('/uploads/')) {
+        const filename = item.generatedImageUrl.split('/uploads/').pop();
+        const fs = await import('fs');
+        const path = await import('path');
+        const localPath = path.join(process.cwd(), 'public', 'uploads', filename || '');
+        if (fs.existsSync(localPath)) {
+          photoSource = localPath;
+        } else {
+          photoSource = item.generatedImageUrl;
+        }
+      } else {
+        photoSource = item.generatedImageUrl;
+      }
+      await getBot()?.sendPhoto(chatId, photoSource, {
+        caption: text.substring(0, 1024),
+        parse_mode: 'Markdown',
+        reply_markup: replyMarkup,
+      });
+      return;
+    } catch (err) {
+      console.error('Failed to send photo to Telegram:', err);
+    }
+  }
+
   getBot()?.sendMessage(chatId, text, {
     parse_mode: 'Markdown',
-    reply_markup: {
-      inline_keyboard: [
-        [
-          { text: '✅ Duyệt', callback_data: `approve:${item.id}` },
-          { text: '✏️ Sửa', callback_data: `edit:${item.id}` },
-          { text: '❌ Hủy', callback_data: `reject:${item.id}` },
-        ],
-        [
-          { text: '🔄 Gen lại', callback_data: `regenerate:${item.id}` },
-        ],
-      ],
-    },
+    reply_markup: replyMarkup,
   });
 }
 
