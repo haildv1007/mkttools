@@ -319,7 +319,8 @@ router.get('/openai-image-models', async (_req: Request, res: Response) => {
     if (!apiKey) return res.status(400).json({ error: 'OPENAI_API_KEY chưa được cấu hình' });
 
     const models = [
-      { id: 'gpt-image-2.5', name: 'GPT Image 2.5', description: '#1 overall — chi tiết sắc nét, text chính xác (9/2026)' },
+      { id: 'gpt-image-2.5-sunburst', name: 'GPT Image 2.5 Sunburst', description: '#1 — editing chính xác, chi tiết sắc nét (9/2026)' },
+      { id: 'gpt-image-2.5-flare', name: 'GPT Image 2.5 Flare', description: 'Nhanh, chất lượng cao, dùng hàng ngày (9/2026)' },
       { id: 'gpt-image-2', name: 'GPT Image 2', description: 'Chất lượng rất cao (2026)' },
       { id: 'gpt-image-1', name: 'GPT Image 1', description: 'Chất lượng tốt (2025)' },
       { id: 'dall-e-3', name: 'DALL-E 3', description: 'Text in images, ổn định' },
