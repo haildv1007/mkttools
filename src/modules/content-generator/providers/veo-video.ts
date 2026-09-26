@@ -14,20 +14,18 @@ export class VeoVideoProvider implements VideoProvider {
     const apiKey = (await getSetting('GEMINI_API_KEY')) || process.env.GEMINI_API_KEY;
     if (!apiKey) throw new Error('GEMINI_API_KEY chưa được cấu hình');
 
-    const model = (await getSetting('AI_VIDEO_MODEL')) || 'veo-3.0-generate-preview';
+    const model = (await getSetting('AI_VIDEO_MODEL')) || 'veo-3.1-generate-preview';
     const duration = options.duration || 8;
 
-    const generateUrl = `https://generativelanguage.googleapis.com/v1beta/models/${model}:predictLongRunning?key=${apiKey}`;
+    const generateUrl = `https://generativelanguage.googleapis.com/v1beta/models/${model}:predictLongRunning`;
 
     const body: Record<string, unknown> = {
       instances: [{
         prompt: options.prompt,
       }],
       parameters: {
-        sampleCount: 1,
         durationSeconds: duration,
         aspectRatio: options.aspectRatio || '16:9',
-        personGeneration: 'allow_adult',
       },
     };
 
@@ -41,7 +39,7 @@ export class VeoVideoProvider implements VideoProvider {
     console.log(`[Veo] Generating video with model ${model}, duration ${duration}s`);
     const createRes = await fetch(generateUrl, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', 'x-goog-api-key': apiKey },
       body: JSON.stringify(body),
     });
     const createData = await createRes.json() as { name?: string; error?: { message: string; code?: number } };
@@ -67,8 +65,10 @@ export class VeoVideoProvider implements VideoProvider {
     while (Date.now() - start < maxWait) {
       await new Promise(r => setTimeout(r, 15000));
 
-      const pollUrl = `https://generativelanguage.googleapis.com/v1beta/${operationName}?key=${apiKey}`;
-      const res = await fetch(pollUrl);
+      const pollUrl = `https://generativelanguage.googleapis.com/v1beta/${operationName}`;
+      const res = await fetch(pollUrl, {
+        headers: { 'x-goog-api-key': apiKey },
+      });
       const data = await res.json() as {
         done?: boolean;
         response?: {

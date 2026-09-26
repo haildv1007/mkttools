@@ -367,7 +367,7 @@ router.get('/video-models', async (req: Request, res: Response) => {
   const provider = String(req.query.provider || 'kling');
   const models: Record<string, Array<{ id: string; name: string; description: string }>> = {
     veo: [
-      { id: 'veo-3.0-generate-preview', name: 'Veo 3.0', description: 'Video + audio (nhạc, lời, SFX) — Google mới nhất' },
+      { id: 'veo-3.1-generate-preview', name: 'Veo 3.1', description: 'Video + audio (nhạc, lời, SFX) — Google mới nhất' },
       { id: 'veo-2.0-generate-001', name: 'Veo 2.0', description: 'Video only, không có audio' },
     ],
     kling: [
@@ -376,6 +376,7 @@ router.get('/video-models', async (req: Request, res: Response) => {
       { id: 'kling-v1', name: 'Kling V1', description: 'Model gốc' },
     ],
     minimax: [
+      { id: 'MiniMax-Hailuo-03', name: 'Hailuo 3.0', description: 'Video + audio (nhạc, lời) — mới nhất' },
       { id: 'MiniMax-Hailuo-02', name: 'Hailuo-02', description: 'Text-to-video, chất lượng cao' },
       { id: 'T2V-01-Director', name: 'T2V-01-Director', description: 'Điều khiển camera' },
       { id: 'I2V-01', name: 'I2V-01', description: 'Ảnh thành video' },
