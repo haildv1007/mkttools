@@ -2,7 +2,7 @@ import { Router, Request, Response } from 'express';
 import { prisma } from '../../utils/db';
 import { listProviders, setTextProvider, setImageProvider, generateText } from '../content-generator';
 import { contentQueue, publishQueue } from '../../queues';
-import { getSettings, setSettings } from '../settings';
+import { getSetting, getSettings, setSettings } from '../settings';
 const router = Router();
 
 router.get('/stats', async (_req: Request, res: Response) => {
