@@ -28,7 +28,7 @@ export const config = {
       defaultModel: process.env.AI_TEXT_MODEL || 'claude-haiku-4-5-20251001',
     },
     image: {
-      provider: process.env.AI_IMAGE_PROVIDER || 'replicate',
+      provider: process.env.AI_IMAGE_PROVIDER || 'gemini',
       replicateApiKey: process.env.REPLICATE_API_KEY || '',
       openaiApiKey: process.env.OPENAI_API_KEY || '',
       defaultModel: process.env.AI_IMAGE_MODEL || 'flux-schnell',

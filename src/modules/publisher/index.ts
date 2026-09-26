@@ -1,3 +1,4 @@
+import * as path from 'path';
 import { prisma } from '../../utils/db';
 import { publishToFacebook } from './providers/facebook';
 import { extractCleanText } from '../../utils/clean-text';
@@ -23,14 +24,24 @@ export async function publishContent(contentItemId: string): Promise<PublishResu
   let result: PublishResult;
 
   switch (item.page.platform) {
-    case 'FACEBOOK':
+    case 'FACEBOOK': {
+      let imageLocalPath: string | undefined;
+      const imageUrl = item.generatedImageUrl || undefined;
+      if (imageUrl && imageUrl.includes('/uploads/')) {
+        const filename = imageUrl.split('/uploads/').pop();
+        if (filename) {
+          imageLocalPath = path.join(process.cwd(), 'public', 'uploads', filename);
+        }
+      }
       result = await publishToFacebook({
         pageId: item.page.externalId,
         accessToken: item.page.accessToken,
         message,
-        imageUrl: item.generatedImageUrl || undefined,
+        imageUrl,
+        imageLocalPath,
       });
       break;
+    }
 
     case 'TIKTOK':
       result = { success: false, error: 'TikTok publishing not yet implemented' };
