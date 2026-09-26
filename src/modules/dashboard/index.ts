@@ -103,6 +103,23 @@ router.get('/content', async (req: Request, res: Response) => {
   res.json({ items, total });
 });
 
+router.post('/content/generate-all-drafts', async (_req: Request, res: Response) => {
+  const drafts = await prisma.contentItem.findMany({
+    where: { status: 'DRAFT' },
+    take: 50,
+  });
+
+  for (const item of drafts) {
+    await contentQueue.add('generate', { contentItemId: item.id }, {
+      jobId: `gen-${item.id}-${Date.now()}`,
+      attempts: 3,
+      backoff: { type: 'exponential', delay: 5000 },
+    });
+  }
+
+  res.json({ success: true, queued: drafts.length, message: `Queued ${drafts.length} drafts for generation` });
+});
+
 router.post('/content/:id/regenerate', async (req: Request, res: Response) => {
   const { id } = req.params;
   await contentQueue.add('generate', { contentItemId: id }, {
