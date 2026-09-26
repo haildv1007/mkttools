@@ -109,9 +109,15 @@ router.post('/pages/fb-token-exchange', async (req: Request, res: Response) => {
     const pagesRes = await fetch(
       `https://graph.facebook.com/v21.0/me/accounts?fields=id,name,access_token,picture&access_token=${llData.access_token}`
     );
-    const pagesData = await pagesRes.json() as { data?: Array<{ id: string; name: string; access_token: string; picture?: { data?: { url?: string } } }>; error?: { message: string } };
+    const pagesData = await pagesRes.json() as { data?: Array<{ id: string; name: string; access_token: string; picture?: { data?: { url?: string } } }>; error?: { message: string; code?: number } };
     if (pagesData.error || !pagesData.data) {
-      return res.status(400).json({ error: pagesData.error?.message || 'Không thể lấy danh sách pages' });
+      const fbErr = pagesData.error?.message || '';
+      if (fbErr.includes('nonexisting field') || pagesData.error?.code === 100) {
+        return res.status(400).json({
+          error: 'Token chưa có quyền truy cập Pages. Vào Graph API Explorer → bấm "Add a Permission" → chọn pages_show_list, pages_read_engagement, pages_manage_posts → bấm "Generate Access Token" lại rồi thử lại.',
+        });
+      }
+      return res.status(400).json({ error: fbErr || 'Không thể lấy danh sách pages' });
     }
 
     res.json({ pages: pagesData.data });
