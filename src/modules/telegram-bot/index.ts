@@ -211,9 +211,10 @@ async function handleRegenerate(contentItemId: string, chatId: number, feedback?
       previousFeedback: feedback,
     });
 
-    const fullText = result.text +
+    let fullText = result.text +
       (result.hashtags.length ? '\n\n' + result.hashtags.map(h => `#${h}`).join(' ') : '') +
       (result.cta ? '\n\n' + result.cta : '');
+    fullText = extractCleanText(fullText);
 
     await prisma.contentItem.update({
       where: { id: contentItemId },
