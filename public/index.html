@@ -1081,7 +1081,7 @@ function app() {
           method: 'PUT',
           body: JSON.stringify(this.settingsForm),
         });
-        this.showToast('Đã lưu cài đặt. Khởi động lại server để áp dụng.');
+        this.showToast('Đã lưu cài đặt thành công!');
         await this.loadDashboard();
       } catch (e) {
         this.showToast(e.message, 'error');
