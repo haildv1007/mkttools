@@ -15,7 +15,7 @@ export class MinimaxVideoProvider implements VideoProvider {
     const apiKey = (await getSetting('MINIMAX_API_KEY')) || process.env.MINIMAX_API_KEY;
     if (!apiKey) throw new Error('MINIMAX_API_KEY chưa được cấu hình');
 
-    const model = (await getSetting('AI_VIDEO_MODEL')) || 'video-01';
+    const model = (await getSetting('AI_VIDEO_MODEL')) || 'T2V-01';
 
     const body: Record<string, unknown> = {
       model,

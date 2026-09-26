@@ -372,8 +372,12 @@ router.get('/video-models', async (req: Request, res: Response) => {
       { id: 'kling-v1', name: 'Kling V1', description: 'Original model' },
     ],
     minimax: [
-      { id: 'video-01', name: 'Hailuo Video-01', description: 'Standard quality' },
-      { id: 'video-01-live', name: 'Hailuo Video-01-Live', description: 'Live/realistic style' },
+      { id: 'T2V-01-HD', name: 'Hailuo T2V-01-HD', description: 'HD quality, text-to-video' },
+      { id: 'T2V-01', name: 'Hailuo T2V-01', description: 'Standard text-to-video' },
+      { id: 'T2V-01-Director', name: 'Hailuo T2V-01-Director', description: 'Director mode, camera control' },
+      { id: 'I2V-01', name: 'Hailuo I2V-01', description: 'Image-to-video' },
+      { id: 'I2V-01-live', name: 'Hailuo I2V-01-Live', description: 'Image-to-video, realistic style' },
+      { id: 'S2V-01', name: 'Hailuo S2V-01', description: 'Subject-to-video' },
     ],
     runway: [
       { id: 'gen4_turbo', name: 'Gen-4 Turbo', description: 'Latest, highest quality (2025)' },
