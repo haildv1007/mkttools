@@ -376,8 +376,9 @@ router.get('/video-models', async (req: Request, res: Response) => {
       { id: 'kling-v1', name: 'Kling V1', description: 'Model gốc' },
     ],
     minimax: [
-      { id: 'MiniMax-Hailuo-03', name: 'Hailuo 3.0', description: 'Video + audio (nhạc, lời) — mới nhất' },
-      { id: 'MiniMax-Hailuo-02', name: 'Hailuo-02', description: 'Text-to-video, chất lượng cao' },
+      { id: 'MiniMax-H3', name: 'H3 (Hailuo 3.0)', description: 'Video 2K + audio — mới nhất, xịn nhất' },
+      { id: 'MiniMax-Hailuo-2.3', name: 'Hailuo 2.3', description: 'Video chất lượng cao, nhanh' },
+      { id: 'MiniMax-Hailuo-02', name: 'Hailuo-02', description: 'Text-to-video ổn định' },
       { id: 'T2V-01-Director', name: 'T2V-01-Director', description: 'Điều khiển camera' },
       { id: 'I2V-01', name: 'I2V-01', description: 'Ảnh thành video' },
       { id: 'I2V-01-live', name: 'I2V-01-Live', description: 'Ảnh thành video, realistic' },

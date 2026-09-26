@@ -25,9 +25,11 @@ export class MinimaxVideoProvider implements VideoProvider {
       body.first_frame_image = options.imageUrl;
     }
 
+    const apiVersion = model === 'MiniMax-H3' ? 'v2' : 'v1';
+    const apiUrl = `https://api.minimax.io/${apiVersion}/video_generation`;
     console.log('[Minimax] Request:', JSON.stringify(body));
-    console.log('[Minimax] API URL:', `${API_BASE}/video_generation`);
-    const createRes = await fetch(`${API_BASE}/video_generation`, {
+    console.log('[Minimax] API URL:', apiUrl);
+    const createRes = await fetch(apiUrl, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
       body: JSON.stringify(body),
