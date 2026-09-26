@@ -139,6 +139,16 @@ router.post('/content/:id/publish-now', async (req: Request, res: Response) => {
   res.json({ success: true, message: 'Queued for publishing' });
 });
 
+router.patch('/content/:id', async (req: Request, res: Response) => {
+  const { id } = req.params;
+  const { scheduledAt, status } = req.body;
+  const data: Record<string, unknown> = {};
+  if (scheduledAt) data.scheduledAt = new Date(scheduledAt);
+  if (status) data.status = status;
+  const item = await prisma.contentItem.update({ where: { id }, data });
+  res.json(item);
+});
+
 // AI Provider management
 router.get('/providers', (_req: Request, res: Response) => {
   res.json(listProviders());

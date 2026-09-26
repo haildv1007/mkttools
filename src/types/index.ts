@@ -3,6 +3,8 @@ import { ContentType } from '@prisma/client';
 export interface ExcelRow {
   date: string;
   time: string;
+  rawDate?: unknown;
+  rawTime?: unknown;
   page: string;
   topic: string;
   contentType: ContentType;

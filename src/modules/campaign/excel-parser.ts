@@ -27,19 +27,36 @@ function parseContentType(raw: string): ContentType {
   return 'IMAGE';
 }
 
+function parseTimeStr(timeVal: unknown): { hours: number; minutes: number } {
+  if (timeVal instanceof Date) {
+    return { hours: timeVal.getUTCHours(), minutes: timeVal.getUTCMinutes() };
+  }
+  if (typeof timeVal === 'number' && timeVal < 1) {
+    const totalMinutes = Math.round(timeVal * 24 * 60);
+    return { hours: Math.floor(totalMinutes / 60), minutes: totalMinutes % 60 };
+  }
+  const str = timeVal ? String(timeVal).trim() : '09:00';
+  const m = str.match(/(\d{1,2})[:\.](\d{2})/);
+  if (m) return { hours: parseInt(m[1]), minutes: parseInt(m[2]) };
+  return { hours: 9, minutes: 0 };
+}
+
 function parseDate(dateVal: unknown, timeVal: unknown): Date {
-  let dateStr: string;
+  const { hours, minutes } = parseTimeStr(timeVal);
 
   if (dateVal instanceof Date) {
-    dateStr = dayjs(dateVal).format('YYYY-MM-DD');
-  } else if (typeof dateVal === 'number') {
-    const d = XLSX.SSF.parse_date_code(dateVal);
-    dateStr = `${d.y}-${String(d.m).padStart(2, '0')}-${String(d.d).padStart(2, '0')}`;
-  } else {
-    dateStr = String(dateVal).trim();
+    const d = new Date(dateVal);
+    d.setHours(hours, minutes, 0, 0);
+    return d;
   }
 
-  const timeStr = timeVal ? String(timeVal).trim() : '09:00';
+  if (typeof dateVal === 'number') {
+    const d = XLSX.SSF.parse_date_code(dateVal);
+    return new Date(d.y, d.m - 1, d.d, hours, minutes, 0, 0);
+  }
+
+  const dateStr = String(dateVal).trim();
+  const timeStr = `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
   const combined = `${dateStr} ${timeStr}`;
 
   for (const fmt of ['YYYY-MM-DD HH:mm', 'DD/MM/YYYY HH:mm', 'DD-MM-YYYY HH:mm', 'MM/DD/YYYY HH:mm']) {
@@ -86,6 +103,8 @@ export function parseExcel(buffer: Buffer): ExcelRow[] {
     rows.push({
       date: String(mapped.date),
       time: String(mapped.time || '09:00'),
+      rawDate: mapped.date,
+      rawTime: mapped.time,
       page: String(mapped.page || ''),
       topic: String(mapped.topic),
       contentType: parseContentType(String(mapped.contentType || 'image')),
@@ -100,6 +119,6 @@ export function parseExcelToSchedule(buffer: Buffer) {
   const rows = parseExcel(buffer);
   return rows.map(row => ({
     ...row,
-    scheduledAt: parseDate(row.date, row.time),
+    scheduledAt: parseDate(row.rawDate ?? row.date, row.rawTime ?? row.time),
   }));
 }
