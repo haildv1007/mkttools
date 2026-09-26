@@ -26,6 +26,7 @@ app.use(helmet({
       connectSrc: ["'self'"],
     },
   },
+  hsts: false,
 }));
 app.use(cors());
 app.use(express.json());
