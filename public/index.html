@@ -246,10 +246,16 @@
       <div x-show="page==='pages'" class="fade-in">
         <div class="flex items-center justify-between mb-6">
           <h2 class="text-xl font-bold">Quản lý Pages</h2>
-          <button @click="showPageModal=true; editingPage=null; pageForm={platform:'FACEBOOK',name:'',externalId:'',accessToken:''}"
-            class="px-4 py-2 bg-brand-600 text-white rounded-lg text-sm font-medium hover:bg-brand-700 transition flex items-center gap-2">
-            <i class="ri-add-line"></i> Thêm Page
-          </button>
+          <div class="flex gap-2">
+            <button @click="showFbTokenModal=true; fbShortToken=''; fbPages=[]; fbTokenError=''; fbTokenLoading=false"
+              class="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition flex items-center gap-2">
+              <i class="ri-facebook-fill"></i> Lấy token từ Facebook
+            </button>
+            <button @click="showPageModal=true; editingPage=null; pageForm={platform:'FACEBOOK',name:'',externalId:'',accessToken:''}"
+              class="px-4 py-2 bg-brand-600 text-white rounded-lg text-sm font-medium hover:bg-brand-700 transition flex items-center gap-2">
+              <i class="ri-add-line"></i> Thêm Page thủ công
+            </button>
+          </div>
         </div>
 
         <div class="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
@@ -337,6 +343,63 @@
                 <button @click="savePage()" class="flex-1 py-2.5 bg-brand-600 text-white rounded-lg font-medium hover:bg-brand-700 transition">
                   <span x-text="editingPage ? 'Cập nhật' : 'Thêm Page'"></span>
                 </button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Facebook Token Exchange Modal -->
+        <div x-show="showFbTokenModal" class="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" @click.self="showFbTokenModal=false">
+          <div class="bg-white rounded-2xl shadow-xl w-full max-w-2xl p-6 fade-in">
+            <h3 class="text-lg font-bold mb-2">Lấy Page Token vĩnh viễn từ Facebook</h3>
+            <div class="bg-blue-50 border border-blue-200 rounded-lg p-3 mb-4 text-sm text-blue-700">
+              <p class="font-medium mb-1">Hướng dẫn:</p>
+              <ol class="list-decimal ml-4 space-y-1">
+                <li>Vào <a href="https://developers.facebook.com/tools/explorer/" target="_blank" class="underline font-medium">Graph API Explorer</a></li>
+                <li>Chọn App của bạn (hoặc tạo mới)</li>
+                <li>Bấm <b>Generate Access Token</b>, cấp quyền <b>pages_show_list</b>, <b>pages_read_engagement</b>, <b>pages_manage_posts</b></li>
+                <li>Copy token rồi dán vào ô bên dưới</li>
+              </ol>
+            </div>
+
+            <div class="space-y-4">
+              <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">Short-lived Token (từ Graph API Explorer)</label>
+                <textarea x-model="fbShortToken" rows="3" placeholder="Dán token từ Graph API Explorer vào đây..."
+                  class="w-full px-4 py-2.5 border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-blue-500 font-mono text-xs"></textarea>
+              </div>
+              <button @click="exchangeFbToken()" :disabled="fbTokenLoading || !fbShortToken"
+                class="w-full py-2.5 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 transition disabled:opacity-50 flex items-center justify-center gap-2">
+                <i class="ri-refresh-line" :class="fbTokenLoading && 'animate-spin'"></i>
+                <span x-text="fbTokenLoading ? 'Đang đổi token...' : 'Đổi sang token vĩnh viễn'"></span>
+              </button>
+
+              <div x-show="fbTokenError" class="text-red-500 text-sm bg-red-50 p-3 rounded-lg" x-text="fbTokenError"></div>
+
+              <!-- Results: list of pages with tokens -->
+              <div x-show="fbPages.length > 0">
+                <h4 class="font-medium text-sm mb-2 text-green-700">Tìm thấy <span x-text="fbPages.length"></span> pages:</h4>
+                <div class="space-y-2 max-h-64 overflow-y-auto">
+                  <template x-for="fp in fbPages" :key="fp.id">
+                    <div class="flex items-center justify-between bg-gray-50 p-3 rounded-lg border">
+                      <div class="flex items-center gap-3">
+                        <img :src="fp.picture?.data?.url" class="w-10 h-10 rounded-full" onerror="this.style.display='none'">
+                        <div>
+                          <div class="font-medium text-sm" x-text="fp.name"></div>
+                          <div class="text-xs text-gray-400 font-mono" x-text="'ID: ' + fp.id"></div>
+                        </div>
+                      </div>
+                      <button @click="importFbPage(fp)"
+                        class="px-3 py-1.5 bg-brand-600 text-white rounded-lg text-xs font-medium hover:bg-brand-700 transition">
+                        Thêm Page
+                      </button>
+                    </div>
+                  </template>
+                </div>
+              </div>
+
+              <div class="flex justify-end pt-2">
+                <button @click="showFbTokenModal=false" class="px-4 py-2 border border-gray-300 rounded-lg text-gray-600 hover:bg-gray-50 transition">Đóng</button>
               </div>
             </div>
           </div>
@@ -734,6 +797,11 @@ function app() {
     showPageModal: false,
     editingPage: null,
     pageForm: { platform: 'FACEBOOK', name: '', externalId: '', accessToken: '' },
+    showFbTokenModal: false,
+    fbShortToken: '',
+    fbPages: [],
+    fbTokenError: '',
+    fbTokenLoading: false,
     pageError: '',
 
     importForm: { campaignName: '', file: null },
@@ -887,6 +955,55 @@ function app() {
         this.showToast('Đã xóa page');
         await this.loadPages();
         await this.loadDashboard();
+      } catch (e) {
+        this.showToast(e.message, 'error');
+      }
+    },
+
+    async exchangeFbToken() {
+      this.fbTokenLoading = true;
+      this.fbTokenError = '';
+      this.fbPages = [];
+      try {
+        const res = await this.api('/dashboard/pages/fb-token-exchange', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ shortToken: this.fbShortToken.trim() }),
+        });
+        this.fbPages = res.pages || [];
+        if (this.fbPages.length === 0) this.fbTokenError = 'Không tìm thấy page nào. Kiểm tra lại quyền của token.';
+      } catch (e) {
+        this.fbTokenError = e.message || 'Lỗi đổi token';
+      } finally {
+        this.fbTokenLoading = false;
+      }
+    },
+
+    async importFbPage(fp) {
+      const existing = this.pages.find(p => p.externalId === fp.id);
+      try {
+        if (existing) {
+          await this.api(`/dashboard/pages/${existing.id}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ accessToken: fp.access_token }),
+          });
+          this.showToast(`Đã cập nhật token cho "${existing.name}"`);
+        } else {
+          await this.api('/dashboard/pages', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              platform: 'FACEBOOK',
+              name: fp.name,
+              externalId: fp.id,
+              accessToken: fp.access_token,
+              userId: this.user.id,
+            }),
+          });
+          this.showToast(`Đã thêm page "${fp.name}"`);
+        }
+        await this.loadPages();
       } catch (e) {
         this.showToast(e.message, 'error');
       }

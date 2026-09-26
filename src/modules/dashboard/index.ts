@@ -83,6 +83,43 @@ router.delete('/pages/:id', async (req: Request, res: Response) => {
   res.json({ success: true });
 });
 
+// Facebook token exchange: short-lived → long-lived → page tokens
+router.post('/pages/fb-token-exchange', async (req: Request, res: Response) => {
+  try {
+    const { shortToken } = req.body;
+    if (!shortToken) return res.status(400).json({ error: 'Thiếu short-lived token' });
+
+    const settings = await getSettings();
+    const appId = settings.FACEBOOK_APP_ID;
+    const appSecret = settings.FACEBOOK_APP_SECRET;
+    if (!appId || !appSecret) {
+      return res.status(400).json({ error: 'Chưa cấu hình Facebook App ID / Secret trong Cài đặt hệ thống' });
+    }
+
+    // Step 1: Exchange for long-lived user token
+    const llRes = await fetch(
+      `https://graph.facebook.com/v21.0/oauth/access_token?grant_type=fb_exchange_token&client_id=${appId}&client_secret=${appSecret}&fb_exchange_token=${shortToken}`
+    );
+    const llData = await llRes.json() as { access_token?: string; error?: { message: string } };
+    if (llData.error || !llData.access_token) {
+      return res.status(400).json({ error: llData.error?.message || 'Không thể đổi token' });
+    }
+
+    // Step 2: Get page tokens (these are permanent)
+    const pagesRes = await fetch(
+      `https://graph.facebook.com/v21.0/me/accounts?fields=id,name,access_token,picture&access_token=${llData.access_token}`
+    );
+    const pagesData = await pagesRes.json() as { data?: Array<{ id: string; name: string; access_token: string; picture?: { data?: { url?: string } } }>; error?: { message: string } };
+    if (pagesData.error || !pagesData.data) {
+      return res.status(400).json({ error: pagesData.error?.message || 'Không thể lấy danh sách pages' });
+    }
+
+    res.json({ pages: pagesData.data });
+  } catch (err) {
+    res.status(500).json({ error: err instanceof Error ? err.message : 'Lỗi đổi token' });
+  }
+});
+
 // Content items
 router.get('/content', async (req: Request, res: Response) => {
   const { status, pageId, limit = '50', offset = '0' } = req.query;
