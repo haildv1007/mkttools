@@ -1,10 +1,17 @@
 import * as XLSX from 'xlsx';
 import dayjs from 'dayjs';
 import customParseFormat from 'dayjs/plugin/customParseFormat';
+import utc from 'dayjs/plugin/utc';
+import timezone from 'dayjs/plugin/timezone';
 import { ContentType } from '@prisma/client';
 import type { ExcelRow } from '../../types';
+import { config } from '../../config';
 
 dayjs.extend(customParseFormat);
+dayjs.extend(utc);
+dayjs.extend(timezone);
+
+const TZ = config.timezone || 'Asia/Ho_Chi_Minh';
 
 const COLUMN_MAP: Record<string, string> = {
   'ngày': 'date', 'ngay': 'date', 'date': 'date', 'ngày đăng': 'date',
@@ -43,31 +50,33 @@ function parseTimeStr(timeVal: unknown): { hours: number; minutes: number } {
 
 function parseDate(dateVal: unknown, timeVal: unknown): Date {
   const { hours, minutes } = parseTimeStr(timeVal);
+  const timeStr = `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
+
+  let year: number, month: number, day: number;
 
   if (dateVal instanceof Date) {
-    const d = new Date(dateVal);
-    d.setHours(hours, minutes, 0, 0);
-    return d;
-  }
-
-  if (typeof dateVal === 'number') {
+    year = dateVal.getUTCFullYear();
+    month = dateVal.getUTCMonth() + 1;
+    day = dateVal.getUTCDate();
+  } else if (typeof dateVal === 'number') {
     const d = XLSX.SSF.parse_date_code(dateVal);
-    return new Date(d.y, d.m - 1, d.d, hours, minutes, 0, 0);
+    year = d.y;
+    month = d.m;
+    day = d.d;
+  } else {
+    const dateStr = String(dateVal).trim();
+    const combined = `${dateStr} ${timeStr}`;
+    for (const fmt of ['YYYY-MM-DD HH:mm', 'DD/MM/YYYY HH:mm', 'DD-MM-YYYY HH:mm', 'M/D/YYYY HH:mm', 'MM/DD/YYYY HH:mm']) {
+      const parsed = dayjs.tz(combined, fmt, TZ);
+      if (parsed.isValid()) return parsed.toDate();
+    }
+    const fallback = dayjs.tz(combined, TZ);
+    if (fallback.isValid()) return fallback.toDate();
+    throw new Error(`Cannot parse date: "${dateStr}" time: "${timeStr}"`);
   }
 
-  const dateStr = String(dateVal).trim();
-  const timeStr = `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
-  const combined = `${dateStr} ${timeStr}`;
-
-  for (const fmt of ['YYYY-MM-DD HH:mm', 'DD/MM/YYYY HH:mm', 'DD-MM-YYYY HH:mm', 'MM/DD/YYYY HH:mm']) {
-    const parsed = dayjs(combined, fmt);
-    if (parsed.isValid()) return parsed.toDate();
-  }
-
-  const fallback = dayjs(combined);
-  if (fallback.isValid()) return fallback.toDate();
-
-  throw new Error(`Cannot parse date: "${dateStr}" time: "${timeStr}"`);
+  const dateString = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')} ${timeStr}`;
+  return dayjs.tz(dateString, 'YYYY-MM-DD HH:mm', TZ).toDate();
 }
 
 export function parseExcel(buffer: Buffer): ExcelRow[] {
