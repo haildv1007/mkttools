@@ -1,6 +1,6 @@
 import { Router, Request, Response } from 'express';
 import { prisma } from '../../utils/db';
-import { listProviders, setTextProvider, setImageProvider, generateText } from '../content-generator';
+import { listProviders, setTextProvider, setImageProvider, setVideoProvider, generateText } from '../content-generator';
 import { contentQueue, publishQueue } from '../../queues';
 import { getSetting, getSettings, setSettings } from '../settings';
 const router = Router();
@@ -217,6 +217,15 @@ router.put('/providers/text', async (req: Request, res: Response) => {
   }
 });
 
+router.put('/providers/video', async (req: Request, res: Response) => {
+  try {
+    setVideoProvider(req.body.provider);
+    res.json({ success: true, providers: await listProviders() });
+  } catch (err) {
+    res.status(400).json({ error: err instanceof Error ? err.message : 'Invalid provider' });
+  }
+});
+
 router.put('/providers/image', async (req: Request, res: Response) => {
   try {
     setImageProvider(req.body.provider);
@@ -351,6 +360,27 @@ router.post('/test-openai-image-model', async (req: Request, res: Response) => {
   } catch (err) {
     res.json({ success: false, error: err instanceof Error ? err.message : 'Test failed' });
   }
+});
+
+// Video models
+router.get('/video-models', async (req: Request, res: Response) => {
+  const provider = String(req.query.provider || 'kling');
+  const models: Record<string, Array<{ id: string; name: string; description: string }>> = {
+    kling: [
+      { id: 'kling-v2', name: 'Kling V2', description: 'Newest, best quality (2025)' },
+      { id: 'kling-v1-5', name: 'Kling V1.5', description: 'Good quality, faster' },
+      { id: 'kling-v1', name: 'Kling V1', description: 'Original model' },
+    ],
+    minimax: [
+      { id: 'video-01', name: 'Hailuo Video-01', description: 'Standard quality' },
+      { id: 'video-01-live', name: 'Hailuo Video-01-Live', description: 'Live/realistic style' },
+    ],
+    runway: [
+      { id: 'gen4_turbo', name: 'Gen-4 Turbo', description: 'Latest, highest quality (2025)' },
+      { id: 'gen3a_turbo', name: 'Gen-3α Turbo', description: 'Fast, good quality' },
+    ],
+  };
+  res.json(models[provider] || []);
 });
 
 // Settings CRUD

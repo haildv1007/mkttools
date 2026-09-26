@@ -14,6 +14,12 @@ const SETTING_KEYS = [
   'FACEBOOK_APP_ID',
   'FACEBOOK_APP_SECRET',
   'DEFAULT_TIMEZONE',
+  'AI_VIDEO_PROVIDER',
+  'AI_VIDEO_MODEL',
+  'KLING_ACCESS_KEY',
+  'KLING_SECRET_KEY',
+  'MINIMAX_API_KEY',
+  'RUNWAY_API_KEY',
 ] as const;
 
 export async function getSetting(key: string): Promise<string | null> {
