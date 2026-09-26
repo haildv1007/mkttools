@@ -5,7 +5,10 @@ import { generateText } from '../content-generator';
 import type { TelegramApprovalPayload } from '../../types';
 let bot: TelegramBot | null = null;
 
-export function getBot(): TelegramBot {
+export function getBot(): TelegramBot | null {
+  if (!config.telegram.botToken) {
+    return null;
+  }
   if (!bot) {
     bot = new TelegramBot(config.telegram.botToken, { polling: true });
     setupHandlers(bot);
@@ -210,7 +213,7 @@ async function handleRegenerate(contentItemId: string, chatId: number, feedback?
       where: { id: contentItemId },
       data: { status: 'FAILED', errorMessage: message },
     });
-    getBot().sendMessage(chatId, `❌ Lỗi gen content: ${message}`);
+    getBot()?.sendMessage(chatId, `❌ Lỗi gen content: ${message}`);
   }
 }
 
@@ -233,7 +236,7 @@ async function sendApprovalMessage(chatId: number, item: ContentItemWithPage) {
     (item.campaign ? `📂 Campaign: ${item.campaign.name}\n` : '') +
     `\n---\n\n${item.generatedText || '(Chưa gen content)'}`;
 
-  getBot().sendMessage(chatId, text, {
+  getBot()?.sendMessage(chatId, text, {
     parse_mode: 'Markdown',
     reply_markup: {
       inline_keyboard: [
