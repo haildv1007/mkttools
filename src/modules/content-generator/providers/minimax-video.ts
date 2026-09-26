@@ -6,7 +6,7 @@ import { getSetting } from '../../settings';
 import type { VideoProvider, VideoGeneratorOptions, GeneratedVideo } from '../../../types';
 
 const UPLOAD_DIR = path.join(process.cwd(), 'public', 'uploads');
-const API_BASE = 'https://api.minimaxi.chat/v1';
+const API_BASE = 'https://api.minimax.io/v1';
 
 export class MinimaxVideoProvider implements VideoProvider {
   name = 'minimax';
@@ -15,7 +15,7 @@ export class MinimaxVideoProvider implements VideoProvider {
     const apiKey = (await getSetting('MINIMAX_API_KEY')) || process.env.MINIMAX_API_KEY;
     if (!apiKey) throw new Error('MINIMAX_API_KEY chưa được cấu hình');
 
-    const model = (await getSetting('AI_VIDEO_MODEL')) || 'T2V-01';
+    const model = (await getSetting('AI_VIDEO_MODEL')) || 'MiniMax-Hailuo-02';
 
     const body: Record<string, unknown> = {
       model,
