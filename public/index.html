@@ -695,9 +695,9 @@
                   <div>
                     <div class="flex gap-2">
                       <select x-model="settingsForm.AI_IMAGE_MODEL"
-                        class="flex-1 px-4 py-2.5 border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-brand-500 font-mono text-sm">
+                        class="flex-1 px-4 py-2.5 border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-brand-500 font-mono text-xs min-w-0">
                         <template x-for="m in geminiImageModels" :key="m.id">
-                          <option :value="m.id" x-text="m.name || m.id"></option>
+                          <option :value="m.id" x-text="m.id"></option>
                         </template>
                       </select>
                       <button @click="loadGeminiImageModels()" type="button"
