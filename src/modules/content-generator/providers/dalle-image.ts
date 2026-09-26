@@ -19,31 +19,47 @@ export class DalleImageProvider implements ImageProvider {
     const dbModel = await getSetting('AI_IMAGE_MODEL');
     const model = (dbModel && (dbModel.startsWith('dall-e') || dbModel.startsWith('gpt-image'))) ? dbModel : 'gpt-image-1';
 
+    const isGptImage = model.startsWith('gpt-image');
     const genParams: Record<string, unknown> = {
       model,
       prompt: options.prompt,
       size: '1024x1024',
       n: 1,
     };
-    if (model.startsWith('dall-e')) {
+    if (isGptImage) {
+      genParams.quality = 'low';
+    } else {
       genParams.quality = 'standard';
       genParams.response_format = 'b64_json';
-    } else {
-      genParams.quality = 'low';
     }
 
     const response = await client.images.generate(genParams as Parameters<typeof client.images.generate>[0]);
 
     const b64 = response.data?.[0]?.b64_json;
-    if (!b64) throw new Error('OpenAI returned no image');
+    const url = response.data?.[0]?.url;
 
-    const buffer = Buffer.from(b64, 'base64');
-    if (!fs.existsSync(UPLOAD_DIR)) fs.mkdirSync(UPLOAD_DIR, { recursive: true });
-    const filename = `img-${crypto.randomUUID()}.png`;
-    const filePath = path.join(UPLOAD_DIR, filename);
-    fs.writeFileSync(filePath, buffer);
+    if (b64) {
+      const buffer = Buffer.from(b64, 'base64');
+      if (!fs.existsSync(UPLOAD_DIR)) fs.mkdirSync(UPLOAD_DIR, { recursive: true });
+      const filename = `img-${crypto.randomUUID()}.png`;
+      const filePath = path.join(UPLOAD_DIR, filename);
+      fs.writeFileSync(filePath, buffer);
+      const appUrl = process.env.APP_URL || `http://localhost:${config.port}`;
+      return { url: `${appUrl}/uploads/${filename}`, localPath: filePath };
+    }
 
-    const appUrl = process.env.APP_URL || `http://localhost:${config.port}`;
-    return { url: `${appUrl}/uploads/${filename}`, localPath: filePath };
+    if (url) {
+      const res = await fetch(url);
+      const arrayBuf = await res.arrayBuffer();
+      const buffer = Buffer.from(arrayBuf);
+      if (!fs.existsSync(UPLOAD_DIR)) fs.mkdirSync(UPLOAD_DIR, { recursive: true });
+      const filename = `img-${crypto.randomUUID()}.png`;
+      const filePath = path.join(UPLOAD_DIR, filename);
+      fs.writeFileSync(filePath, buffer);
+      const appUrl = process.env.APP_URL || `http://localhost:${config.port}`;
+      return { url: `${appUrl}/uploads/${filename}`, localPath: filePath };
+    }
+
+    throw new Error('OpenAI returned no image');
   }
 }
