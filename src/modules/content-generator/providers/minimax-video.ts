@@ -29,7 +29,7 @@ export class MinimaxVideoProvider implements VideoProvider {
       if (options.imageUrl) {
         content.push({ type: 'image_url', image_url: { url: options.imageUrl } });
       }
-      body = { model, content };
+      body = { model, content, duration: options.duration || 5 };
     } else {
       body = { model, prompt: options.prompt };
       if (options.imageUrl) {
