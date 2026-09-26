@@ -1,10 +1,8 @@
 import TelegramBot from 'node-telegram-bot-api';
-import { PrismaClient } from '@prisma/client';
+import { prisma } from '../../utils/db';
 import { config } from '../../config';
 import { generateText } from '../content-generator';
 import type { TelegramApprovalPayload } from '../../types';
-
-const prisma = new PrismaClient();
 let bot: TelegramBot | null = null;
 
 export function getBot(): TelegramBot {

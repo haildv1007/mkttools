@@ -1,9 +1,7 @@
 import { Router, Request, Response } from 'express';
-import { PrismaClient } from '@prisma/client';
+import { prisma } from '../../utils/db';
 import { listProviders, setTextProvider, setImageProvider } from '../content-generator';
 import { contentQueue, publishQueue } from '../../queues';
-
-const prisma = new PrismaClient();
 const router = Router();
 
 router.get('/stats', async (_req: Request, res: Response) => {

@@ -1,12 +1,11 @@
-import { Queue, Worker, QueueEvents } from 'bullmq';
+import { Queue, Worker } from 'bullmq';
 import IORedis from 'ioredis';
-import { PrismaClient } from '@prisma/client';
+import { prisma } from '../utils/db';
 import { config } from '../config';
+import { logger } from '../utils/logger';
 import { generateText, generateImage } from '../modules/content-generator';
 import { sendContentForApproval } from '../modules/telegram-bot';
 import { publishContent } from '../modules/publisher';
-
-const prisma = new PrismaClient();
 
 const connection = new IORedis(config.redis.url, { maxRetriesPerRequest: null });
 
@@ -119,14 +118,14 @@ export function startWorkers() {
   }, { connection });
 
   contentWorker.on('failed', (job, err) => {
-    console.error(`Content generation failed [${job?.id}]:`, err.message);
+    logger.error({ jobId: job?.id, err }, 'Content generation failed');
   });
 
   publishWorker.on('failed', (job, err) => {
-    console.error(`Publishing failed [${job?.id}]:`, err.message);
+    logger.error({ jobId: job?.id, err }, 'Publishing failed');
   });
 
-  console.log('Queue workers started');
+  logger.info('Queue workers started');
   return { contentWorker, publishWorker, schedulerWorker };
 }
 
@@ -136,5 +135,5 @@ export async function startScheduler() {
   }, {
     name: 'check-schedule',
   });
-  console.log('Scheduler running (every 60s)');
+  logger.info('Scheduler running (every 60s)');
 }

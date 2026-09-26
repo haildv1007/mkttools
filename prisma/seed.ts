@@ -1,20 +1,18 @@
 import { PrismaClient } from '@prisma/client';
-import { createHash } from 'crypto';
+import bcrypt from 'bcryptjs';
 
 const prisma = new PrismaClient();
 
-function hashPassword(password: string): string {
-  return createHash('sha256').update(password).digest('hex');
-}
-
 async function main() {
+  const passwordHash = await bcrypt.hash('admin123', 12);
+
   const admin = await prisma.user.upsert({
     where: { email: 'admin@mkttools.local' },
-    update: {},
+    update: { passwordHash },
     create: {
       email: 'admin@mkttools.local',
       name: 'Admin',
-      passwordHash: hashPassword('admin123'),
+      passwordHash,
       role: 'OWNER',
     },
   });

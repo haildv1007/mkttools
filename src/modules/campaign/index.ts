@@ -1,9 +1,7 @@
 import { Router, Request, Response } from 'express';
 import multer from 'multer';
-import { PrismaClient } from '@prisma/client';
+import { prisma } from '../../utils/db';
 import { parseExcelToSchedule } from './excel-parser';
-
-const prisma = new PrismaClient();
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } });
 const router = Router();
 

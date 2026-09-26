@@ -1,8 +1,6 @@
-import { PrismaClient } from '@prisma/client';
+import { prisma } from '../../utils/db';
 import { publishToFacebook } from './providers/facebook';
 import type { PublishResult } from '../../types';
-
-const prisma = new PrismaClient();
 
 export async function publishContent(contentItemId: string): Promise<PublishResult> {
   const item = await prisma.contentItem.findUnique({
