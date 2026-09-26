@@ -33,7 +33,7 @@ router.get('/stats', async (_req: Request, res: Response) => {
     campaigns: totalCampaigns,
     today: todayMap,
     allTime: allMap,
-    providers: listProviders(),
+    providers: await listProviders(),
   });
 });
 
@@ -193,23 +193,23 @@ router.patch('/content/:id', async (req: Request, res: Response) => {
 });
 
 // AI Provider management
-router.get('/providers', (_req: Request, res: Response) => {
-  res.json(listProviders());
+router.get('/providers', async (_req: Request, res: Response) => {
+  res.json(await listProviders());
 });
 
-router.put('/providers/text', (req: Request, res: Response) => {
+router.put('/providers/text', async (req: Request, res: Response) => {
   try {
     setTextProvider(req.body.provider);
-    res.json({ success: true, providers: listProviders() });
+    res.json({ success: true, providers: await listProviders() });
   } catch (err) {
     res.status(400).json({ error: err instanceof Error ? err.message : 'Invalid provider' });
   }
 });
 
-router.put('/providers/image', (req: Request, res: Response) => {
+router.put('/providers/image', async (req: Request, res: Response) => {
   try {
     setImageProvider(req.body.provider);
-    res.json({ success: true, providers: listProviders() });
+    res.json({ success: true, providers: await listProviders() });
   } catch (err) {
     res.status(400).json({ error: err instanceof Error ? err.message : 'Invalid provider' });
   }

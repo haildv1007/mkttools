@@ -1,4 +1,5 @@
 import { config } from '../../config';
+import { getSetting } from '../settings';
 import type { TextProvider, ImageProvider, TextGeneratorOptions, ImageGeneratorOptions, GeneratedContent, GeneratedImage } from '../../types';
 import { ClaudeTextProvider } from './providers/claude';
 import { OpenAITextProvider } from './providers/openai-text';
@@ -20,22 +21,30 @@ const imageProviders: Record<string, () => ImageProvider> = {
 };
 
 let activeTextProvider: TextProvider | null = null;
+let activeTextProviderName: string | null = null;
 let activeImageProvider: ImageProvider | null = null;
+let activeImageProviderName: string | null = null;
 
-function getTextProvider(): TextProvider {
-  if (!activeTextProvider) {
-    const factory = textProviders[config.ai.text.provider];
-    if (!factory) throw new Error(`Unknown text provider: ${config.ai.text.provider}`);
+async function getTextProvider(): Promise<TextProvider> {
+  const dbProvider = await getSetting('AI_TEXT_PROVIDER');
+  const providerName = dbProvider || config.ai.text.provider;
+  if (!activeTextProvider || activeTextProviderName !== providerName) {
+    const factory = textProviders[providerName];
+    if (!factory) throw new Error(`Unknown text provider: ${providerName}`);
     activeTextProvider = factory();
+    activeTextProviderName = providerName;
   }
   return activeTextProvider;
 }
 
-function getImageProvider(): ImageProvider {
-  if (!activeImageProvider) {
-    const factory = imageProviders[config.ai.image.provider];
-    if (!factory) throw new Error(`Unknown image provider: ${config.ai.image.provider}`);
+async function getImageProvider(): Promise<ImageProvider> {
+  const dbProvider = await getSetting('AI_IMAGE_PROVIDER');
+  const providerName = dbProvider || config.ai.image.provider;
+  if (!activeImageProvider || activeImageProviderName !== providerName) {
+    const factory = imageProviders[providerName];
+    if (!factory) throw new Error(`Unknown image provider: ${providerName}`);
     activeImageProvider = factory();
+    activeImageProviderName = providerName;
   }
   return activeImageProvider;
 }
@@ -44,29 +53,31 @@ export function setTextProvider(name: string): void {
   const factory = textProviders[name];
   if (!factory) throw new Error(`Unknown text provider: ${name}. Available: ${Object.keys(textProviders).join(', ')}`);
   activeTextProvider = factory();
+  activeTextProviderName = name;
 }
 
 export function setImageProvider(name: string): void {
   const factory = imageProviders[name];
   if (!factory) throw new Error(`Unknown image provider: ${name}. Available: ${Object.keys(imageProviders).join(', ')}`);
   activeImageProvider = factory();
+  activeImageProviderName = name;
 }
 
-export function listProviders() {
+export async function listProviders() {
   return {
     text: Object.keys(textProviders),
     image: Object.keys(imageProviders),
-    activeText: getTextProvider().name,
-    activeImage: getImageProvider().name,
+    activeText: (await getTextProvider()).name,
+    activeImage: (await getImageProvider()).name,
   };
 }
 
 export async function generateText(options: TextGeneratorOptions): Promise<GeneratedContent> {
-  return getTextProvider().generate(options);
+  return (await getTextProvider()).generate(options);
 }
 
 export async function generateImage(options: ImageGeneratorOptions): Promise<GeneratedImage> {
-  return getImageProvider().generate(options);
+  return (await getImageProvider()).generate(options);
 }
 
 export function registerTextProvider(name: string, factory: () => TextProvider): void {
