@@ -14,6 +14,7 @@ import { getBot } from './modules/telegram-bot';
 import { startWorkers, startScheduler } from './queues';
 
 const app = express();
+app.set('trust proxy', 1);
 
 app.use(helmet({
   contentSecurityPolicy: {
