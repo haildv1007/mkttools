@@ -230,14 +230,19 @@ interface ContentItemWithPage {
   campaign?: { name: string } | null;
 }
 
+function escapeHtml(str: string): string {
+  return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
 async function sendApprovalMessage(chatId: number, item: ContentItemWithPage) {
   const scheduledStr = item.scheduledAt.toLocaleString('vi-VN', { timeZone: config.timezone });
-  const text = `📝 *Content chờ duyệt*\n\n` +
-    `📌 Page: ${item.page.name} (${item.page.platform})\n` +
+  const contentText = item.generatedText ? extractCleanText(item.generatedText) : '(Chưa gen content)';
+  const text = `📝 <b>Content chờ duyệt</b>\n\n` +
+    `📌 Page: ${escapeHtml(item.page.name)} (${item.page.platform})\n` +
     `📅 Lịch đăng: ${scheduledStr}\n` +
-    `💡 Chủ đề: ${item.topic}\n` +
-    (item.campaign ? `📂 Campaign: ${item.campaign.name}\n` : '') +
-    `\n---\n\n${item.generatedText ? extractCleanText(item.generatedText) : '(Chưa gen content)'}`;
+    `💡 Chủ đề: ${escapeHtml(item.topic)}\n` +
+    (item.campaign ? `📂 Campaign: ${escapeHtml(item.campaign.name)}\n` : '') +
+    `\n---\n\n${escapeHtml(contentText)}`;
 
   const replyMarkup = {
     inline_keyboard: [
@@ -270,7 +275,7 @@ async function sendApprovalMessage(chatId: number, item: ContentItemWithPage) {
       }
       await getBot()?.sendPhoto(chatId, photoSource, {
         caption: text.substring(0, 1024),
-        parse_mode: 'Markdown',
+        parse_mode: 'HTML',
         reply_markup: replyMarkup,
       });
       return;
@@ -280,7 +285,7 @@ async function sendApprovalMessage(chatId: number, item: ContentItemWithPage) {
   }
 
   getBot()?.sendMessage(chatId, text, {
-    parse_mode: 'Markdown',
+    parse_mode: 'HTML',
     reply_markup: replyMarkup,
   });
 }
