@@ -257,10 +257,12 @@ router.put('/settings', async (req: Request, res: Response) => {
     const data = req.body as Record<string, string>;
     const cleaned: Record<string, string> = {};
     for (const [key, value] of Object.entries(data)) {
-      if (value !== undefined && !value.startsWith('••••')) {
+      if (value !== undefined && typeof value === 'string' && !value.startsWith('••••')) {
         cleaned[key] = value;
       }
     }
+    console.log('[Settings] Saving keys:', Object.keys(cleaned));
+    console.log('[Settings] AI_IMAGE_PROVIDER =', cleaned['AI_IMAGE_PROVIDER']);
     await setSettings(cleaned);
     res.json({ success: true });
   } catch (err) {
