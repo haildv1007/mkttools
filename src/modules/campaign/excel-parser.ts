@@ -5,6 +5,7 @@ import utc from 'dayjs/plugin/utc';
 import timezone from 'dayjs/plugin/timezone';
 import { ContentType } from '@prisma/client';
 import type { ExcelRow } from '../../types';
+
 dayjs.extend(customParseFormat);
 dayjs.extend(utc);
 dayjs.extend(timezone);
@@ -21,8 +22,7 @@ const COLUMN_MAP: Record<string, string> = {
 };
 
 function normalizeHeader(header: string): string | undefined {
-  const lower = header.toLowerCase().trim();
-  return COLUMN_MAP[lower];
+  return COLUMN_MAP[header.toLowerCase().trim()];
 }
 
 function parseContentType(raw: string): ContentType {
@@ -32,55 +32,48 @@ function parseContentType(raw: string): ContentType {
   return 'IMAGE';
 }
 
-function parseTimeStr(timeVal: unknown): { hours: number; minutes: number } {
-  if (timeVal instanceof Date) {
-    return { hours: timeVal.getUTCHours(), minutes: timeVal.getUTCMinutes() };
-  }
-  if (typeof timeVal === 'number' && timeVal < 1) {
-    const totalMinutes = Math.round(timeVal * 24 * 60);
-    return { hours: Math.floor(totalMinutes / 60), minutes: totalMinutes % 60 };
-  }
-  const str = timeVal ? String(timeVal).trim() : '09:00';
-  const m = str.match(/(\d{1,2})[:\.](\d{2})/);
-  if (m) return { hours: parseInt(m[1]), minutes: parseInt(m[2]) };
-  return { hours: 9, minutes: 0 };
-}
-
 function parseDate(dateVal: unknown, timeVal: unknown): Date {
-  const { hours, minutes } = parseTimeStr(timeVal);
-  const timeStr = `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
+  let year: number, month: number, day: number, hours = 9, minutes = 0;
 
-  let year: number, month: number, day: number;
-
-  if (dateVal instanceof Date) {
-    year = dateVal.getUTCFullYear();
-    month = dateVal.getUTCMonth() + 1;
-    day = dateVal.getUTCDate();
-  } else if (typeof dateVal === 'number') {
+  // Parse date part
+  if (typeof dateVal === 'number') {
+    // Excel date serial number (no cellDates, so always a number for dates)
     const d = XLSX.SSF.parse_date_code(dateVal);
-    year = d.y;
-    month = d.m;
-    day = d.d;
+    year = d.y; month = d.m; day = d.d;
   } else {
-    const dateStr = String(dateVal).trim();
-    const combined = `${dateStr} ${timeStr}`;
-    for (const fmt of ['YYYY-MM-DD HH:mm', 'DD/MM/YYYY HH:mm', 'DD-MM-YYYY HH:mm', 'M/D/YYYY HH:mm', 'MM/DD/YYYY HH:mm']) {
-      const parsed = dayjs.tz(combined, fmt, TZ);
-      if (parsed.isValid()) return parsed.toDate();
+    const s = String(dateVal).trim();
+    // Try common formats
+    for (const fmt of ['YYYY-MM-DD', 'DD/MM/YYYY', 'DD-MM-YYYY', 'M/D/YYYY', 'MM/DD/YYYY']) {
+      const p = dayjs(s, fmt, true);
+      if (p.isValid()) { year = p.year(); month = p.month() + 1; day = p.date(); break; }
     }
-    const fallback = dayjs.tz(combined, TZ);
-    if (fallback.isValid()) return fallback.toDate();
-    throw new Error(`Cannot parse date: "${dateStr}" time: "${timeStr}"`);
+    if (!year!) throw new Error(`Cannot parse date: "${s}"`);
   }
 
-  const dateString = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')} ${timeStr}`;
-  return dayjs.tz(dateString, 'YYYY-MM-DD HH:mm', TZ).toDate();
+  // Parse time part
+  if (typeof timeVal === 'number') {
+    // Excel time as fraction of day (0.875 = 21:00)
+    const totalMins = Math.round(timeVal * 24 * 60);
+    hours = Math.floor(totalMins / 60);
+    minutes = totalMins % 60;
+  } else if (timeVal) {
+    const s = String(timeVal).trim();
+    const m = s.match(/(\d{1,2})[:\.](\d{2})/);
+    if (m) { hours = parseInt(m[1]); minutes = parseInt(m[2]); }
+  }
+
+  const dateStr = `${year!}-${String(month!).padStart(2, '0')}-${String(day!).padStart(2, '0')} ${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
+  console.log(`[parseDate] raw date=${dateVal}, time=${timeVal} → "${dateStr}" TZ=${TZ}`);
+  const result = dayjs.tz(dateStr, 'YYYY-MM-DD HH:mm', TZ);
+  if (!result.isValid()) throw new Error(`Invalid date: "${dateStr}"`);
+  return result.toDate();
 }
 
 export function parseExcel(buffer: Buffer): ExcelRow[] {
-  const workbook = XLSX.read(buffer, { type: 'buffer', cellDates: true });
+  // cellDates:false → dates stay as numbers, we parse them ourselves
+  const workbook = XLSX.read(buffer, { type: 'buffer', cellDates: false });
   const sheet = workbook.Sheets[workbook.SheetNames[0]];
-  const rawRows = XLSX.utils.sheet_to_json<Record<string, unknown>>(sheet);
+  const rawRows = XLSX.utils.sheet_to_json<Record<string, unknown>>(sheet, { raw: true });
 
   if (rawRows.length === 0) throw new Error('File Excel trống');
 
@@ -104,7 +97,6 @@ export function parseExcel(buffer: Buffer): ExcelRow[] {
     for (const [origKey, normalKey] of Object.entries(headerMap)) {
       mapped[normalKey] = raw[origKey];
     }
-
     if (!mapped.date || !mapped.topic) continue;
 
     rows.push({
