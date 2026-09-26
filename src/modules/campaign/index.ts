@@ -15,6 +15,13 @@ router.post('/import', upload.single('file'), async (req: Request, res: Response
     }
 
     const rows = parseExcelToSchedule(req.file.buffer);
+    console.log('[Import] Parsed rows:', rows.map(r => ({
+      topic: r.topic,
+      rawDate: String(r.rawDate),
+      rawTime: String(r.rawTime),
+      scheduledAt: r.scheduledAt.toISOString(),
+      scheduledAtVN: r.scheduledAt.toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh' }),
+    })));
     if (rows.length === 0) return res.status(400).json({ error: 'No valid rows in file' });
 
     const pageNames = [...new Set(rows.map(r => r.page).filter(Boolean))];

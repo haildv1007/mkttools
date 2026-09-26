@@ -5,13 +5,11 @@ import utc from 'dayjs/plugin/utc';
 import timezone from 'dayjs/plugin/timezone';
 import { ContentType } from '@prisma/client';
 import type { ExcelRow } from '../../types';
-import { config } from '../../config';
-
 dayjs.extend(customParseFormat);
 dayjs.extend(utc);
 dayjs.extend(timezone);
 
-const TZ = config.timezone || 'Asia/Ho_Chi_Minh';
+const TZ = process.env.DEFAULT_TIMEZONE || 'Asia/Ho_Chi_Minh';
 
 const COLUMN_MAP: Record<string, string> = {
   'ngày': 'date', 'ngay': 'date', 'date': 'date', 'ngày đăng': 'date',

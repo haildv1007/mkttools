@@ -417,7 +417,7 @@
                   <h3 class="font-medium" x-text="item.topic"></h3>
                   <p x-show="item.generatedText" class="text-sm text-gray-500 mt-2 line-clamp-2" x-text="cleanText(item.generatedText)"></p>
                   <div class="flex items-center gap-4 mt-3 text-xs text-gray-400">
-                    <span><i class="ri-calendar-line"></i> <span x-text="new Date(item.scheduledAt).toLocaleString('vi-VN')"></span></span>
+                    <span><i class="ri-calendar-line"></i> <span x-text="new Date(item.scheduledAt).toLocaleString('vi-VN', {timeZone:'Asia/Ho_Chi_Minh'})"></span></span>
                     <span x-show="item.campaign"><i class="ri-folder-line"></i> <span x-text="item.campaign?.name"></span></span>
                   </div>
                 </div>
