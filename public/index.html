@@ -809,6 +809,10 @@
                     <span x-show="testingVideo">Đang tạo...</span>
                   </button>
                 </div>
+                <div class="mt-2">
+                  <input x-model="videoTestPrompt" type="text" placeholder="Nhập prompt test video (VD: Cảnh biển hoàng hôn, sóng vỗ nhẹ...)"
+                    class="w-full px-4 py-2 border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-brand-500 text-sm">
+                </div>
                 <p x-show="videoTestResult" :class="videoTestSuccess ? 'text-green-600' : 'text-red-500'"
                   x-text="videoTestResult" class="text-xs mt-1"></p>
               </div>
@@ -952,6 +956,7 @@ function app() {
     imageModelTestResult: '',
     imageModelTestSuccess: false,
     videoModels: [],
+    videoTestPrompt: '',
     testingVideo: false,
     videoTestResult: '',
     videoTestSuccess: false,
@@ -1294,10 +1299,10 @@ function app() {
       try {
         const data = await this.api('/dashboard/test-video', {
           method: 'POST',
-          body: JSON.stringify({ prompt: 'A beautiful sunset over the ocean, waves gently rolling, cinematic quality' }),
+          body: JSON.stringify({ prompt: this.videoTestPrompt || 'A beautiful sunset over the ocean, waves gently rolling, cinematic quality' }),
         });
         this.videoTestSuccess = data.success;
-        this.videoTestResult = data.success ? 'Đã bắt đầu tạo video! Xem log trên server để theo dõi kết quả.' : (data.error || 'Lỗi');
+        this.videoTestResult = data.success ? `Video tạo thành công! ${data.url || ''}` : (data.error || 'Lỗi');
       } catch (e) {
         this.videoTestSuccess = false;
         this.videoTestResult = e.message;

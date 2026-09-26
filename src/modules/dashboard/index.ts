@@ -395,14 +395,13 @@ router.post('/test-video', async (req: Request, res: Response) => {
   try {
     const { prompt } = req.body;
     const testPrompt = prompt || 'A beautiful sunset over the ocean, waves gently rolling, cinematic';
-    res.json({ success: true, message: 'Video generation started, this takes 1-5 minutes...', taskStarted: true });
-    generateVideo({ prompt: testPrompt }).then(result => {
-      console.log('[Test Video] Success:', result.url);
-    }).catch(err => {
-      console.error('[Test Video] Failed:', err);
-    });
+    console.log(`[Test Video] Starting: ${testPrompt}`);
+    const result = await generateVideo({ prompt: testPrompt });
+    console.log('[Test Video] Success:', result.url);
+    res.json({ success: true, url: result.url });
   } catch (err) {
-    res.status(500).json({ error: err instanceof Error ? err.message : 'Failed' });
+    console.error('[Test Video] Failed:', err);
+    res.status(500).json({ success: false, error: err instanceof Error ? err.message : 'Failed' });
   }
 });
 
