@@ -2,6 +2,24 @@ import { prisma } from '../../utils/db';
 import { publishToFacebook } from './providers/facebook';
 import type { PublishResult } from '../../types';
 
+function extractCleanText(raw: string): string {
+  try {
+    let cleaned = raw.trim();
+    const jsonMatch = cleaned.match(/```(?:json)?\s*\n?([\s\S]*?)```/);
+    if (jsonMatch) cleaned = jsonMatch[1].trim();
+    const parsed = JSON.parse(cleaned);
+    if (parsed.text) {
+      let text = parsed.text;
+      if (parsed.hashtags?.length) {
+        text += '\n\n' + parsed.hashtags.map((h: string) => `#${String(h).replace(/^#/, '')}`).join(' ');
+      }
+      if (parsed.cta) text += '\n\n' + parsed.cta;
+      return text;
+    }
+  } catch {}
+  return raw;
+}
+
 export async function publishContent(contentItemId: string): Promise<PublishResult> {
   const item = await prisma.contentItem.findUnique({
     where: { id: contentItemId },
@@ -11,6 +29,8 @@ export async function publishContent(contentItemId: string): Promise<PublishResu
   if (!item) return { success: false, error: 'Content item not found' };
   if (item.status !== 'APPROVED') return { success: false, error: `Invalid status: ${item.status}` };
   if (!item.generatedText) return { success: false, error: 'No generated text' };
+
+  const message = extractCleanText(item.generatedText);
 
   await prisma.contentItem.update({
     where: { id: contentItemId },
@@ -24,7 +44,7 @@ export async function publishContent(contentItemId: string): Promise<PublishResu
       result = await publishToFacebook({
         pageId: item.page.externalId,
         accessToken: item.page.accessToken,
-        message: item.generatedText,
+        message,
         imageUrl: item.generatedImageUrl || undefined,
       });
       break;
