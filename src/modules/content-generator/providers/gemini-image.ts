@@ -14,7 +14,8 @@ export class GeminiImageProvider implements ImageProvider {
     const apiKey = (await getSetting('GEMINI_API_KEY')) || config.ai.text.geminiApiKey;
     if (!apiKey) throw new Error('GEMINI_API_KEY chưa được cấu hình');
 
-    const model = 'gemini-2.5-flash-image';
+    const dbModel = await getSetting('AI_IMAGE_MODEL');
+    const model = (dbModel && dbModel !== 'flux-schnell') ? dbModel : 'gemini-2.5-flash-image';
     const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
 
     const res = await fetch(url, {

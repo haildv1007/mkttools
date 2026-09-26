@@ -682,7 +682,7 @@
             <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
               <div>
                 <label class="block text-sm font-medium text-gray-700 mb-1">Provider mặc định</label>
-                <select x-model="settingsForm.AI_IMAGE_PROVIDER"
+                <select x-model="settingsForm.AI_IMAGE_PROVIDER" @change="onImageProviderChange()"
                   class="w-full px-4 py-2.5 border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-brand-500">
                   <option value="gemini">Gemini Imagen (Google)</option>
                   <option value="replicate">Flux (Replicate)</option>
@@ -691,8 +691,34 @@
               </div>
               <div>
                 <label class="block text-sm font-medium text-gray-700 mb-1">Model</label>
-                <input x-model="settingsForm.AI_IMAGE_MODEL" type="text" placeholder="flux-schnell"
-                  class="w-full px-4 py-2.5 border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-brand-500 font-mono text-sm">
+                <template x-if="settingsForm.AI_IMAGE_PROVIDER === 'gemini'">
+                  <div>
+                    <div class="flex gap-2">
+                      <select x-model="settingsForm.AI_IMAGE_MODEL"
+                        class="flex-1 px-4 py-2.5 border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-brand-500 font-mono text-sm">
+                        <template x-for="m in geminiImageModels" :key="m.id">
+                          <option :value="m.id" x-text="m.name || m.id"></option>
+                        </template>
+                      </select>
+                      <button @click="loadGeminiImageModels()" type="button"
+                        class="px-3 py-2 bg-gray-100 hover:bg-gray-200 rounded-lg text-sm" title="Tải lại danh sách model">
+                        <i class="ri-refresh-line"></i>
+                      </button>
+                      <button @click="testImageModel()" type="button" :disabled="testingImageModel"
+                        class="px-3 py-2 bg-brand-500 hover:bg-brand-600 text-white rounded-lg text-sm whitespace-nowrap disabled:opacity-50">
+                        <span x-show="!testingImageModel">Test</span>
+                        <span x-show="testingImageModel">Đang test...</span>
+                      </button>
+                    </div>
+                    <p x-show="imageModelTestResult" x-text="imageModelTestResult"
+                      :class="imageModelTestSuccess ? 'text-green-600' : 'text-red-600'"
+                      class="text-xs mt-1"></p>
+                  </div>
+                </template>
+                <template x-if="settingsForm.AI_IMAGE_PROVIDER !== 'gemini'">
+                  <input x-model="settingsForm.AI_IMAGE_MODEL" type="text" placeholder="flux-schnell"
+                    class="w-full px-4 py-2.5 border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-brand-500 font-mono text-sm">
+                </template>
               </div>
             </div>
             <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -815,6 +841,10 @@ function app() {
 
     settingsForm: {},
     settingsSaving: false,
+    geminiImageModels: [],
+    testingImageModel: false,
+    imageModelTestResult: '',
+    imageModelTestSuccess: false,
 
     toast: { show: false, message: '', type: 'success' },
 
@@ -1071,7 +1101,46 @@ function app() {
       try {
         const data = await this.api('/dashboard/settings');
         this.settingsForm = data.raw || {};
+        if (this.settingsForm.AI_IMAGE_PROVIDER === 'gemini') {
+          await this.loadGeminiImageModels();
+        }
       } catch {}
+    },
+
+    async loadGeminiImageModels() {
+      try {
+        this.geminiImageModels = await this.api('/dashboard/gemini-image-models');
+        if (this.geminiImageModels.length && !this.geminiImageModels.find(m => m.id === this.settingsForm.AI_IMAGE_MODEL)) {
+          this.settingsForm.AI_IMAGE_MODEL = this.geminiImageModels[0].id;
+        }
+      } catch (e) {
+        this.showToast('Không thể tải danh sách model: ' + e.message, 'error');
+      }
+    },
+
+    async onImageProviderChange() {
+      this.imageModelTestResult = '';
+      if (this.settingsForm.AI_IMAGE_PROVIDER === 'gemini') {
+        await this.loadGeminiImageModels();
+      }
+    },
+
+    async testImageModel() {
+      this.testingImageModel = true;
+      this.imageModelTestResult = '';
+      try {
+        const data = await this.api('/dashboard/test-image-model', {
+          method: 'POST',
+          body: JSON.stringify({ model: this.settingsForm.AI_IMAGE_MODEL }),
+        });
+        this.imageModelTestSuccess = data.success;
+        this.imageModelTestResult = data.success ? data.message : data.error;
+      } catch (e) {
+        this.imageModelTestSuccess = false;
+        this.imageModelTestResult = e.message;
+      } finally {
+        this.testingImageModel = false;
+      }
     },
 
     async saveSettings() {

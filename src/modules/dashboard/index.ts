@@ -238,6 +238,60 @@ router.get('/users', async (_req: Request, res: Response) => {
   res.json(users);
 });
 
+// Gemini image models
+router.get('/gemini-image-models', async (_req: Request, res: Response) => {
+  try {
+    const apiKey = (await getSetting('GEMINI_API_KEY')) || process.env.GEMINI_API_KEY;
+    if (!apiKey) return res.status(400).json({ error: 'GEMINI_API_KEY chưa được cấu hình' });
+
+    const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${apiKey}`);
+    const data = await r.json() as { models?: Array<{ name: string; displayName: string; description: string; supportedGenerationMethods: string[] }> };
+
+    const imageModels = (data.models || [])
+      .filter(m => m.name.includes('image') || m.description?.toLowerCase().includes('image'))
+      .map(m => ({ id: m.name.replace('models/', ''), name: m.displayName, description: m.description }));
+
+    res.json(imageModels);
+  } catch (err) {
+    res.status(500).json({ error: err instanceof Error ? err.message : 'Failed to list models' });
+  }
+});
+
+router.post('/test-image-model', async (req: Request, res: Response) => {
+  try {
+    const { model } = req.body;
+    if (!model) return res.status(400).json({ error: 'Chưa chọn model' });
+
+    const apiKey = (await getSetting('GEMINI_API_KEY')) || process.env.GEMINI_API_KEY;
+    if (!apiKey) return res.status(400).json({ error: 'GEMINI_API_KEY chưa được cấu hình' });
+
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+    const r = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        contents: [{ parts: [{ text: 'Generate a simple test image: a blue circle on white background' }] }],
+        generationConfig: { responseModalities: ['TEXT', 'IMAGE'] },
+      }),
+    });
+
+    const data = await r.json() as { candidates?: Array<{ content: { parts: Array<{ inlineData?: { mimeType: string } }> } }>; error?: { message: string } };
+
+    if (data.error) {
+      return res.json({ success: false, error: data.error.message });
+    }
+
+    const hasImage = data.candidates?.[0]?.content?.parts?.some(p => p.inlineData);
+    if (hasImage) {
+      res.json({ success: true, message: `Model ${model} tạo ảnh thành công!` });
+    } else {
+      res.json({ success: false, error: `Model ${model} không trả về ảnh` });
+    }
+  } catch (err) {
+    res.status(500).json({ success: false, error: err instanceof Error ? err.message : 'Test failed' });
+  }
+});
+
 // Settings CRUD
 router.get('/settings', async (_req: Request, res: Response) => {
   const settings = await getSettings();
