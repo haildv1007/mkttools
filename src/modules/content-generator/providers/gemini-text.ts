@@ -7,8 +7,12 @@ export class GeminiTextProvider implements TextProvider {
   async generate(options: TextGeneratorOptions): Promise<GeneratedContent> {
     const systemPrompt = `Bạn là chuyên gia content marketing mạng xã hội tại Việt Nam.
 Viết content hấp dẫn, tự nhiên, phù hợp với nền tảng mạng xã hội.
-Luôn trả về JSON với format: {"text": "...", "hashtags": ["..."], "cta": "..."}
-Chỉ trả về JSON, không thêm gì khác.`;
+Trả về theo format sau (KHÔNG bọc trong code block, KHÔNG thêm markdown):
+TEXT_START
+[nội dung bài đăng ở đây]
+TEXT_END
+HASHTAGS: #tag1 #tag2 #tag3
+CTA: [câu kêu gọi hành động]`;
 
     const userPrompt = this.buildPrompt(options);
 
@@ -55,12 +59,27 @@ Loại content: ${options.contentType}`;
   }
 
   private parseResponse(raw: string): GeneratedContent {
+    // Try TEXT_START/TEXT_END format first
+    const textMatch = raw.match(/TEXT_START\s*\n([\s\S]*?)\nTEXT_END/);
+    const hashtagMatch = raw.match(/HASHTAGS:\s*(.+)/);
+    const ctaMatch = raw.match(/CTA:\s*(.+)/);
+
+    if (textMatch) {
+      const hashtags = hashtagMatch
+        ? hashtagMatch[1].match(/#\w+/g)?.map(h => h.replace(/^#/, '')) || []
+        : [];
+      return {
+        text: textMatch[1].trim(),
+        hashtags,
+        cta: ctaMatch?.[1]?.trim(),
+      };
+    }
+
+    // Fallback: try JSON
     try {
       let cleaned = raw.trim();
       const jsonMatch = cleaned.match(/```(?:json)?\s*\n?([\s\S]*?)```/);
-      if (jsonMatch) {
-        cleaned = jsonMatch[1].trim();
-      }
+      if (jsonMatch) cleaned = jsonMatch[1].trim();
       const parsed = JSON.parse(cleaned);
       return {
         text: parsed.text || raw,
@@ -68,7 +87,9 @@ Loại content: ${options.contentType}`;
         cta: parsed.cta,
       };
     } catch {
-      return { text: raw, hashtags: [] };
+      // Final fallback: use raw text, strip any markdown
+      const clean = raw.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
+      return { text: clean, hashtags: [] };
     }
   }
 }
