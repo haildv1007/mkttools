@@ -182,6 +182,17 @@ router.post('/content/:id/publish-now', async (req: Request, res: Response) => {
   res.json({ success: true, message: 'Queued for publishing' });
 });
 
+router.delete('/content/:id', async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    await prisma.approvalLog.deleteMany({ where: { contentItemId: id } });
+    await prisma.contentItem.delete({ where: { id } });
+    res.json({ success: true });
+  } catch (err) {
+    res.status(400).json({ error: err instanceof Error ? err.message : 'Failed to delete' });
+  }
+});
+
 router.patch('/content/:id', async (req: Request, res: Response) => {
   const { id } = req.params;
   const { scheduledAt, status } = req.body;
@@ -289,6 +300,49 @@ router.post('/test-image-model', async (req: Request, res: Response) => {
     }
   } catch (err) {
     res.status(500).json({ success: false, error: err instanceof Error ? err.message : 'Test failed' });
+  }
+});
+
+// OpenAI image models
+router.get('/openai-image-models', async (_req: Request, res: Response) => {
+  try {
+    const apiKey = (await getSetting('OPENAI_API_KEY')) || process.env.OPENAI_API_KEY;
+    if (!apiKey) return res.status(400).json({ error: 'OPENAI_API_KEY chưa được cấu hình' });
+
+    const models = [
+      { id: 'dall-e-3', name: 'DALL-E 3', description: 'Highest quality, supports text in images' },
+      { id: 'dall-e-2', name: 'DALL-E 2', description: 'Faster, lower cost' },
+    ];
+    res.json(models);
+  } catch (err) {
+    res.status(500).json({ error: err instanceof Error ? err.message : 'Failed to list models' });
+  }
+});
+
+router.post('/test-openai-image-model', async (req: Request, res: Response) => {
+  try {
+    const { model } = req.body;
+    if (!model) return res.status(400).json({ error: 'Chưa chọn model' });
+
+    const apiKey = (await getSetting('OPENAI_API_KEY')) || process.env.OPENAI_API_KEY;
+    if (!apiKey) return res.status(400).json({ error: 'OPENAI_API_KEY chưa được cấu hình' });
+
+    const OpenAI = (await import('openai')).default;
+    const client = new OpenAI({ apiKey });
+    const response = await client.images.generate({
+      model,
+      prompt: 'A simple blue circle on white background, minimal',
+      size: '1024x1024',
+      n: 1,
+    });
+
+    if (response.data?.[0]?.url) {
+      res.json({ success: true, message: `Model ${model} tạo ảnh thành công!` });
+    } else {
+      res.json({ success: false, error: `Model ${model} không trả về ảnh` });
+    }
+  } catch (err) {
+    res.json({ success: false, error: err instanceof Error ? err.message : 'Test failed' });
   }
 });
 

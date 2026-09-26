@@ -19,6 +19,8 @@ const COLUMN_MAP: Record<string, string> = {
   'chủ đề': 'topic', 'chu_de': 'topic', 'topic': 'topic', 'nội dung': 'topic', 'tiêu đề': 'topic',
   'loại': 'contentType', 'loai': 'contentType', 'type': 'contentType', 'loại content': 'contentType',
   'ghi chú': 'notes', 'ghi_chu': 'notes', 'notes': 'notes', 'note': 'notes', 'mô tả': 'notes',
+  'mô tả ảnh': 'imageDescriptions', 'mo_ta_anh': 'imageDescriptions', 'image': 'imageDescriptions',
+  'image descriptions': 'imageDescriptions', 'ảnh': 'imageDescriptions', 'anh': 'imageDescriptions',
 };
 
 function normalizeHeader(header: string): string | undefined {
@@ -108,6 +110,7 @@ export function parseExcel(buffer: Buffer): ExcelRow[] {
       topic: String(mapped.topic),
       contentType: parseContentType(String(mapped.contentType || 'image')),
       notes: mapped.notes ? String(mapped.notes) : undefined,
+      imageDescriptions: mapped.imageDescriptions ? String(mapped.imageDescriptions) : undefined,
     });
   }
 

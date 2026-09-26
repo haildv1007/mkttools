@@ -25,6 +25,7 @@ export async function publishContent(contentItemId: string): Promise<PublishResu
 
   switch (item.page.platform) {
     case 'FACEBOOK': {
+      const multiImages = item.generatedImages as Array<{url: string; localPath?: string}> | null;
       let imageLocalPath: string | undefined;
       const imageUrl = item.generatedImageUrl || undefined;
       if (imageUrl && imageUrl.includes('/uploads/')) {
@@ -33,12 +34,14 @@ export async function publishContent(contentItemId: string): Promise<PublishResu
           imageLocalPath = path.join(process.cwd(), 'public', 'uploads', filename);
         }
       }
+      const images = multiImages && multiImages.length > 1 ? multiImages : undefined;
       result = await publishToFacebook({
         pageId: item.page.externalId,
         accessToken: item.page.accessToken,
         message,
-        imageUrl,
-        imageLocalPath,
+        imageUrl: images ? undefined : imageUrl,
+        imageLocalPath: images ? undefined : imageLocalPath,
+        images,
       });
       break;
     }

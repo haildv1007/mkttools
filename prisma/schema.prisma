@@ -108,6 +108,8 @@ model ContentItem {
   aiImageModel     String?       @map("ai_image_model")
   generatedText    String?       @map("generated_text")
   generatedImageUrl String?      @map("generated_image_url")
+  generatedImages   Json?        @map("generated_images")
+  imageDescriptions String?      @map("image_descriptions")
   generatedVideoUrl String?      @map("generated_video_url")
   status           ContentStatus @default(DRAFT)
   telegramMsgId    String?       @map("telegram_msg_id")

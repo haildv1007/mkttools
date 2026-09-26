@@ -42,14 +42,36 @@ export function startWorkers() {
     fullText = extractCleanText(fullText);
 
     let imageUrl: string | null = null;
+    let generatedImages: Array<{url: string; localPath?: string; description?: string}> | null = null;
+
     if (item.contentType === 'IMAGE' || item.contentType === 'VIDEO') {
-      try {
-        const imageResult = await generateImage({
-          prompt: `Social media post image for: ${item.topic}. Style: professional marketing, vibrant colors.`,
-        });
-        imageUrl = imageResult.url;
-      } catch (err) {
-        console.error(`Image generation failed for ${contentItemId}:`, err);
+      const descriptions = item.imageDescriptions
+        ? item.imageDescriptions.split('|').map(d => d.trim()).filter(Boolean)
+        : [];
+
+      if (descriptions.length > 1) {
+        generatedImages = [];
+        for (const desc of descriptions) {
+          try {
+            const imgResult = await generateImage({
+              prompt: desc,
+            });
+            generatedImages.push({ url: imgResult.url, localPath: imgResult.localPath, description: desc });
+          } catch (err) {
+            console.error(`Image generation failed for description "${desc}":`, err);
+          }
+        }
+        if (generatedImages.length > 0) {
+          imageUrl = generatedImages[0].url;
+        }
+      } else {
+        try {
+          const prompt = descriptions[0] || `Social media post image for: ${item.topic}. Style: professional marketing, vibrant colors.`;
+          const imageResult = await generateImage({ prompt });
+          imageUrl = imageResult.url;
+        } catch (err) {
+          console.error(`Image generation failed for ${contentItemId}:`, err);
+        }
       }
     }
 
@@ -58,6 +80,7 @@ export function startWorkers() {
       data: {
         generatedText: fullText,
         generatedImageUrl: imageUrl,
+        generatedImages: generatedImages ? JSON.parse(JSON.stringify(generatedImages)) : undefined,
         status: 'PENDING_REVIEW',
         aiModel: config.ai.text.provider,
         aiImageModel: imageUrl ? config.ai.image.provider : null,

@@ -53,6 +53,7 @@ router.post('/import', upload.single('file'), async (req: Request, res: Response
           topic: row.topic,
           notes: row.notes,
           contentType: row.contentType,
+          imageDescriptions: row.imageDescriptions || null,
           status: 'DRAFT',
         },
       });

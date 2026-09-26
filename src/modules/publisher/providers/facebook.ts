@@ -7,13 +7,58 @@ interface FacebookPostOptions {
   message: string;
   imageUrl?: string;
   imageLocalPath?: string;
+  images?: Array<{url: string; localPath?: string}>;
   scheduledTime?: number;
 }
 
 const GRAPH_API = 'https://graph.facebook.com/v21.0';
 
+async function uploadUnpublishedPhoto(pageId: string, accessToken: string, localPath: string): Promise<string> {
+  const endpoint = `${GRAPH_API}/${pageId}/photos`;
+  const form = new FormData();
+  const fileBuffer = fs.readFileSync(localPath);
+  form.append('source', new Blob([fileBuffer], { type: 'image/png' }), 'image.png');
+  form.append('published', 'false');
+  form.append('access_token', accessToken);
+  const res = await fetch(endpoint, { method: 'POST', body: form });
+  const data = await res.json() as { id?: string; error?: { message: string } };
+  if (data.error || !data.id) throw new Error(data.error?.message || 'Failed to upload photo');
+  return data.id;
+}
+
 export async function publishToFacebook(options: FacebookPostOptions): Promise<PublishResult> {
   try {
+    // Multi-image album post
+    if (options.images && options.images.length > 1) {
+      const photoIds: string[] = [];
+      for (const img of options.images) {
+        const localPath = img.localPath && fs.existsSync(img.localPath) ? img.localPath : null;
+        if (localPath) {
+          const id = await uploadUnpublishedPhoto(options.pageId, options.accessToken, localPath);
+          photoIds.push(id);
+        }
+      }
+      if (photoIds.length === 0) {
+        return { success: false, error: 'No images uploaded for album' };
+      }
+      const endpoint = `${GRAPH_API}/${options.pageId}/feed`;
+      const params = new URLSearchParams({
+        message: options.message,
+        access_token: options.accessToken,
+      });
+      photoIds.forEach((id, i) => {
+        params.append(`attached_media[${i}]`, JSON.stringify({ media_fbid: id }));
+      });
+      const res = await fetch(endpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: params,
+      });
+      const data = await res.json() as { id?: string; error?: { message: string } };
+      if (data.error) return { success: false, error: data.error.message };
+      return { success: true, postId: data.id || '', url: `https://facebook.com/${data.id}` };
+    }
+
     let endpoint: string;
     let fetchBody: BodyInit;
     let headers: Record<string, string> = {};

@@ -9,6 +9,7 @@ export interface ExcelRow {
   topic: string;
   contentType: ContentType;
   notes?: string;
+  imageDescriptions?: string;
 }
 
 export interface GeneratedContent {

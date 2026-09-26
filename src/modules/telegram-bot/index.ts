@@ -225,6 +225,7 @@ interface ContentItemWithPage {
   topic: string;
   generatedText: string | null;
   generatedImageUrl?: string | null;
+  generatedImages?: unknown;
   status?: string;
   page: { name: string; platform: string };
   campaign?: { name: string } | null;
@@ -257,15 +258,43 @@ async function sendApprovalMessage(chatId: number, item: ContentItemWithPage) {
     ],
   };
 
+  const multiImages = item.generatedImages as Array<{url: string; localPath?: string}> | undefined;
+  if (multiImages && multiImages.length > 1) {
+    try {
+      const fsModule = await import('fs');
+      const pathModule = await import('path');
+      const media: Array<{type: 'photo'; media: string; caption?: string; parse_mode?: string}> = multiImages.map((img, i) => {
+        let source = img.url;
+        if (img.localPath && fsModule.existsSync(img.localPath)) {
+          source = img.localPath;
+        } else if (img.url.includes('/uploads/')) {
+          const fn = img.url.split('/uploads/').pop();
+          const lp = pathModule.join(process.cwd(), 'public', 'uploads', fn || '');
+          if (fsModule.existsSync(lp)) source = lp;
+        }
+        return {
+          type: 'photo' as const,
+          media: source,
+          ...(i === 0 ? { caption: text.substring(0, 1024), parse_mode: 'HTML' } : {}),
+        };
+      });
+      await getBot()?.sendMediaGroup(chatId, media as never);
+      await getBot()?.sendMessage(chatId, 'Chọn hành động:', { reply_markup: replyMarkup });
+      return;
+    } catch (err) {
+      console.error('Failed to send media group to Telegram:', err);
+    }
+  }
+
   if (item.generatedImageUrl) {
     try {
       let photoSource: string;
       if (item.generatedImageUrl.includes('/uploads/')) {
         const filename = item.generatedImageUrl.split('/uploads/').pop();
-        const fs = await import('fs');
-        const path = await import('path');
-        const localPath = path.join(process.cwd(), 'public', 'uploads', filename || '');
-        if (fs.existsSync(localPath)) {
+        const fsModule = await import('fs');
+        const pathModule = await import('path');
+        const localPath = pathModule.join(process.cwd(), 'public', 'uploads', filename || '');
+        if (fsModule.existsSync(localPath)) {
           photoSource = localPath;
         } else {
           photoSource = item.generatedImageUrl;
