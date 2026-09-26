@@ -25,14 +25,17 @@ export class MinimaxVideoProvider implements VideoProvider {
       body.first_frame_image = options.imageUrl;
     }
 
+    console.log('[Minimax] Request:', JSON.stringify(body));
+    console.log('[Minimax] API URL:', `${API_BASE}/video_generation`);
     const createRes = await fetch(`${API_BASE}/video_generation`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
       body: JSON.stringify(body),
     });
     const createData = await createRes.json() as { task_id?: string; base_resp?: { status_code: number; status_msg: string } };
+    console.log('[Minimax] Response:', JSON.stringify(createData));
     if (!createData.task_id) {
-      throw new Error(`Minimax API error: ${createData.base_resp?.status_msg || 'Unknown error'}`);
+      throw new Error(`Minimax API error: ${createData.base_resp?.status_msg || JSON.stringify(createData)}`);
     }
 
     const videoUrl = await this.pollForResult(apiKey, createData.task_id);
