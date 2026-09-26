@@ -17,7 +17,7 @@ export class DalleImageProvider implements ImageProvider {
 
     const client = new OpenAI({ apiKey });
     const dbModel = await getSetting('AI_IMAGE_MODEL');
-    const model = (dbModel && (dbModel.startsWith('dall-e') || dbModel.startsWith('gpt-image'))) ? dbModel : 'gpt-image-1';
+    const model = (dbModel && (dbModel.startsWith('dall-e') || dbModel.startsWith('gpt-image'))) ? dbModel : 'gpt-image-2.5';
 
     const isGptImage = model.startsWith('gpt-image');
     const genParams: Record<string, unknown> = {
