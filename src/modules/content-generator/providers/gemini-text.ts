@@ -21,7 +21,7 @@ Trả về JSON với format: {"text": "nội dung bài đăng", "hashtags": ["t
         system_instruction: { parts: [{ text: systemPrompt }] },
         contents: [{ parts: [{ text: userPrompt }] }],
         generationConfig: {
-          maxOutputTokens: 1024,
+          maxOutputTokens: 4096,
           responseMimeType: 'application/json',
         },
       }),

@@ -6,24 +6,7 @@ import { logger } from '../utils/logger';
 import { generateText, generateImage } from '../modules/content-generator';
 import { sendContentForApproval } from '../modules/telegram-bot';
 import { publishContent } from '../modules/publisher';
-
-function extractCleanText(raw: string): string {
-  try {
-    let cleaned = raw.trim();
-    const jsonMatch = cleaned.match(/```(?:json)?\s*\n?([\s\S]*?)```/);
-    if (jsonMatch) cleaned = jsonMatch[1].trim();
-    const parsed = JSON.parse(cleaned);
-    if (parsed.text) {
-      let text = parsed.text;
-      if (parsed.hashtags?.length) {
-        text += '\n\n' + parsed.hashtags.map((h: string) => `#${String(h).replace(/^#/, '')}`).join(' ');
-      }
-      if (parsed.cta) text += '\n\n' + parsed.cta;
-      return text;
-    }
-  } catch {}
-  return raw;
-}
+import { extractCleanText } from '../utils/clean-text';
 
 const connection = new IORedis(config.redis.url, { maxRetriesPerRequest: null });
 

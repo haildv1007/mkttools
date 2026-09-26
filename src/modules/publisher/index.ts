@@ -1,24 +1,7 @@
 import { prisma } from '../../utils/db';
 import { publishToFacebook } from './providers/facebook';
+import { extractCleanText } from '../../utils/clean-text';
 import type { PublishResult } from '../../types';
-
-function extractCleanText(raw: string): string {
-  try {
-    let cleaned = raw.trim();
-    const jsonMatch = cleaned.match(/```(?:json)?\s*\n?([\s\S]*?)```/);
-    if (jsonMatch) cleaned = jsonMatch[1].trim();
-    const parsed = JSON.parse(cleaned);
-    if (parsed.text) {
-      let text = parsed.text;
-      if (parsed.hashtags?.length) {
-        text += '\n\n' + parsed.hashtags.map((h: string) => `#${String(h).replace(/^#/, '')}`).join(' ');
-      }
-      if (parsed.cta) text += '\n\n' + parsed.cta;
-      return text;
-    }
-  } catch {}
-  return raw;
-}
 
 export async function publishContent(contentItemId: string): Promise<PublishResult> {
   const item = await prisma.contentItem.findUnique({
