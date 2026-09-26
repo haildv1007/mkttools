@@ -310,7 +310,8 @@ router.get('/openai-image-models', async (_req: Request, res: Response) => {
     if (!apiKey) return res.status(400).json({ error: 'OPENAI_API_KEY chưa được cấu hình' });
 
     const models = [
-      { id: 'dall-e-3', name: 'DALL-E 3', description: 'Highest quality, supports text in images' },
+      { id: 'gpt-image-1', name: 'GPT Image 1', description: 'Newest, best quality (2025)' },
+      { id: 'dall-e-3', name: 'DALL-E 3', description: 'High quality, text in images' },
       { id: 'dall-e-2', name: 'DALL-E 2', description: 'Faster, lower cost' },
     ];
     res.json(models);
@@ -329,14 +330,20 @@ router.post('/test-openai-image-model', async (req: Request, res: Response) => {
 
     const OpenAI = (await import('openai')).default;
     const client = new OpenAI({ apiKey });
-    const response = await client.images.generate({
+    const genParams: Record<string, unknown> = {
       model,
       prompt: 'A simple blue circle on white background, minimal',
       size: '1024x1024',
       n: 1,
-    });
+    };
+    if (model.startsWith('dall-e')) {
+      genParams.quality = 'standard';
+    } else {
+      genParams.quality = 'low';
+    }
+    const response = await client.images.generate(genParams as Parameters<typeof client.images.generate>[0]);
 
-    if (response.data?.[0]?.url) {
+    if (response.data?.[0]?.url || response.data?.[0]?.b64_json) {
       res.json({ success: true, message: `Model ${model} tạo ảnh thành công!` });
     } else {
       res.json({ success: false, error: `Model ${model} không trả về ảnh` });

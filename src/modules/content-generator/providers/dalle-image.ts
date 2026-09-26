@@ -17,19 +17,25 @@ export class DalleImageProvider implements ImageProvider {
 
     const client = new OpenAI({ apiKey });
     const dbModel = await getSetting('AI_IMAGE_MODEL');
-    const model = (dbModel && dbModel.startsWith('dall-e')) ? dbModel : 'dall-e-3';
+    const model = (dbModel && (dbModel.startsWith('dall-e') || dbModel.startsWith('gpt-image'))) ? dbModel : 'gpt-image-1';
 
-    const response = await client.images.generate({
+    const genParams: Record<string, unknown> = {
       model,
       prompt: options.prompt,
       size: '1024x1024',
-      quality: 'standard',
       n: 1,
-      response_format: 'b64_json',
-    });
+    };
+    if (model.startsWith('dall-e')) {
+      genParams.quality = 'standard';
+      genParams.response_format = 'b64_json';
+    } else {
+      genParams.quality = 'low';
+    }
+
+    const response = await client.images.generate(genParams as Parameters<typeof client.images.generate>[0]);
 
     const b64 = response.data?.[0]?.b64_json;
-    if (!b64) throw new Error('DALL-E returned no image');
+    if (!b64) throw new Error('OpenAI returned no image');
 
     const buffer = Buffer.from(b64, 'base64');
     if (!fs.existsSync(UPLOAD_DIR)) fs.mkdirSync(UPLOAD_DIR, { recursive: true });
