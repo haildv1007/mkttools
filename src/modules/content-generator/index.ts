@@ -2,12 +2,14 @@ import { config } from '../../config';
 import type { TextProvider, ImageProvider, TextGeneratorOptions, ImageGeneratorOptions, GeneratedContent, GeneratedImage } from '../../types';
 import { ClaudeTextProvider } from './providers/claude';
 import { OpenAITextProvider } from './providers/openai-text';
+import { GeminiTextProvider } from './providers/gemini-text';
 import { ReplicateImageProvider } from './providers/replicate-image';
 import { DalleImageProvider } from './providers/dalle-image';
 
 const textProviders: Record<string, () => TextProvider> = {
   claude: () => new ClaudeTextProvider(),
   openai: () => new OpenAITextProvider(),
+  gemini: () => new GeminiTextProvider(),
 };
 
 const imageProviders: Record<string, () => ImageProvider> = {

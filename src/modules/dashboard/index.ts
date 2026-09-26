@@ -1,6 +1,6 @@
 import { Router, Request, Response } from 'express';
 import { prisma } from '../../utils/db';
-import { listProviders, setTextProvider, setImageProvider } from '../content-generator';
+import { listProviders, setTextProvider, setImageProvider, generateText } from '../content-generator';
 import { contentQueue, publishQueue } from '../../queues';
 const router = Router();
 
@@ -141,6 +141,21 @@ router.put('/providers/image', (req: Request, res: Response) => {
     res.json({ success: true, providers: listProviders() });
   } catch (err) {
     res.status(400).json({ error: err instanceof Error ? err.message : 'Invalid provider' });
+  }
+});
+
+// Test AI generation
+router.post('/test-generate', async (req: Request, res: Response) => {
+  try {
+    const { topic, pageName, contentType } = req.body;
+    const result = await generateText({
+      topic: topic || 'Khuyến mãi cuối tuần',
+      pageName: pageName || 'Test Page',
+      contentType: contentType || 'post',
+    });
+    res.json({ success: true, result });
+  } catch (err) {
+    res.status(500).json({ error: err instanceof Error ? err.message : 'Generation failed' });
   }
 });
 
