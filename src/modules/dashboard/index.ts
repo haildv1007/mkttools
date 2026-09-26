@@ -1,6 +1,6 @@
 import { Router, Request, Response } from 'express';
 import { prisma } from '../../utils/db';
-import { listProviders, setTextProvider, setImageProvider, setVideoProvider, generateText } from '../content-generator';
+import { listProviders, setTextProvider, setImageProvider, setVideoProvider, generateText, generateVideo } from '../content-generator';
 import { contentQueue, publishQueue } from '../../queues';
 import { getSetting, getSettings, setSettings } from '../settings';
 const router = Router();
@@ -385,6 +385,21 @@ router.get('/video-models', async (req: Request, res: Response) => {
     ],
   };
   res.json(models[provider] || []);
+});
+
+router.post('/test-video', async (req: Request, res: Response) => {
+  try {
+    const { prompt } = req.body;
+    const testPrompt = prompt || 'A beautiful sunset over the ocean, waves gently rolling, cinematic';
+    res.json({ success: true, message: 'Video generation started, this takes 1-5 minutes...', taskStarted: true });
+    generateVideo({ prompt: testPrompt }).then(result => {
+      console.log('[Test Video] Success:', result.url);
+    }).catch(err => {
+      console.error('[Test Video] Failed:', err);
+    });
+  } catch (err) {
+    res.status(500).json({ error: err instanceof Error ? err.message : 'Failed' });
+  }
 });
 
 // Settings CRUD

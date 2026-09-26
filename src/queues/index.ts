@@ -3,7 +3,7 @@ import IORedis from 'ioredis';
 import { prisma } from '../utils/db';
 import { config } from '../config';
 import { logger } from '../utils/logger';
-import { generateText, generateImage } from '../modules/content-generator';
+import { generateText, generateImage, generateVideo } from '../modules/content-generator';
 import { sendContentForApproval } from '../modules/telegram-bot';
 import { publishContent } from '../modules/publisher';
 import { extractCleanText } from '../utils/clean-text';
@@ -75,12 +75,25 @@ export function startWorkers() {
       }
     }
 
+    let videoUrl: string | null = null;
+    if (item.contentType === 'VIDEO') {
+      try {
+        const videoPrompt = item.imageDescriptions?.split('|')[0]?.trim() || `Short promotional video for: ${item.topic}`;
+        const videoResult = await generateVideo({ prompt: videoPrompt });
+        videoUrl = videoResult.url;
+        console.log(`[Queue] Video generated: ${videoUrl}`);
+      } catch (err) {
+        console.error(`Video generation failed for ${contentItemId}:`, err);
+      }
+    }
+
     await prisma.contentItem.update({
       where: { id: contentItemId },
       data: {
         generatedText: fullText,
         generatedImageUrl: imageUrl,
         generatedImages: generatedImages ? JSON.parse(JSON.stringify(generatedImages)) : undefined,
+        generatedVideoUrl: videoUrl,
         status: 'PENDING_REVIEW',
         aiModel: config.ai.text.provider,
         aiImageModel: imageUrl ? config.ai.image.provider : null,
