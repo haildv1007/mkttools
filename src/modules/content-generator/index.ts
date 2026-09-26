@@ -10,6 +10,7 @@ import { GeminiImageProvider } from './providers/gemini-image';
 import { KlingVideoProvider } from './providers/kling-video';
 import { MinimaxVideoProvider } from './providers/minimax-video';
 import { RunwayVideoProvider } from './providers/runway-video';
+import { VeoVideoProvider } from './providers/veo-video';
 
 const textProviders: Record<string, () => TextProvider> = {
   claude: () => new ClaudeTextProvider(),
@@ -24,6 +25,7 @@ const imageProviders: Record<string, () => ImageProvider> = {
 };
 
 const videoProviders: Record<string, () => VideoProvider> = {
+  veo: () => new VeoVideoProvider(),
   kling: () => new KlingVideoProvider(),
   minimax: () => new MinimaxVideoProvider(),
   runway: () => new RunwayVideoProvider(),
