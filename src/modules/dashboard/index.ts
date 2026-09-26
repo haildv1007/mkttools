@@ -2,6 +2,7 @@ import { Router, Request, Response } from 'express';
 import { prisma } from '../../utils/db';
 import { listProviders, setTextProvider, setImageProvider, generateText } from '../content-generator';
 import { contentQueue, publishQueue } from '../../queues';
+import { getSettings, setSettings } from '../settings';
 const router = Router();
 
 router.get('/stats', async (_req: Request, res: Response) => {
@@ -182,6 +183,36 @@ router.get('/users', async (_req: Request, res: Response) => {
     select: { id: true, email: true, name: true, role: true, telegramChatId: true, isActive: true, createdAt: true },
   });
   res.json(users);
+});
+
+// Settings CRUD
+router.get('/settings', async (_req: Request, res: Response) => {
+  const settings = await getSettings();
+  const masked: Record<string, string> = {};
+  for (const [key, value] of Object.entries(settings)) {
+    if (key.includes('KEY') || key.includes('SECRET') || key.includes('TOKEN')) {
+      masked[key] = value ? '••••' + value.slice(-6) : '';
+    } else {
+      masked[key] = value;
+    }
+  }
+  res.json({ settings: masked, raw: settings });
+});
+
+router.put('/settings', async (req: Request, res: Response) => {
+  try {
+    const data = req.body as Record<string, string>;
+    const cleaned: Record<string, string> = {};
+    for (const [key, value] of Object.entries(data)) {
+      if (value !== undefined && !value.startsWith('••••')) {
+        cleaned[key] = value;
+      }
+    }
+    await setSettings(cleaned);
+    res.json({ success: true });
+  } catch (err) {
+    res.status(400).json({ error: err instanceof Error ? err.message : 'Failed to save settings' });
+  }
 });
 
 export { router as dashboardRouter };

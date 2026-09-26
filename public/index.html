@@ -134,9 +134,9 @@
           class="sidebar-link flex items-center gap-3 px-3 py-2.5 rounded-lg cursor-pointer hover:bg-gray-50 text-gray-600 transition">
           <i class="ri-file-excel-2-line text-lg"></i> <span class="text-sm font-medium">Import Excel</span>
         </a>
-        <a @click="page='settings'" :class="page==='settings' && 'active'"
+        <a @click="page='settings'; loadSettings()" :class="page==='settings' && 'active'"
           class="sidebar-link flex items-center gap-3 px-3 py-2.5 rounded-lg cursor-pointer hover:bg-gray-50 text-gray-600 transition">
-          <i class="ri-settings-3-line text-lg"></i> <span class="text-sm font-medium">Cài đặt AI</span>
+          <i class="ri-settings-3-line text-lg"></i> <span class="text-sm font-medium">Cài đặt hệ thống</span>
         </a>
       </nav>
 
@@ -520,50 +520,183 @@
 
       <!-- Settings -->
       <div x-show="page==='settings'" class="fade-in">
-        <h2 class="text-xl font-bold mb-6">Cài đặt AI Provider</h2>
+        <div class="flex items-center justify-between mb-6">
+          <h2 class="text-xl font-bold">Cài đặt hệ thống</h2>
+          <button @click="saveSettings()" :disabled="settingsSaving"
+            class="px-5 py-2 bg-brand-600 text-white rounded-lg text-sm font-medium hover:bg-brand-700 disabled:opacity-50 transition flex items-center gap-2">
+            <i class="ri-save-line" x-show="!settingsSaving"></i>
+            <i class="ri-loader-4-line animate-spin" x-show="settingsSaving"></i>
+            <span x-text="settingsSaving ? 'Đang lưu...' : 'Lưu tất cả'"></span>
+          </button>
+        </div>
 
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-3xl">
+        <div class="space-y-6 max-w-4xl">
+
+          <!-- Telegram Bot -->
           <div class="bg-white rounded-xl border border-gray-100 shadow-sm p-6">
-            <div class="flex items-center gap-3 mb-4">
+            <div class="flex items-center gap-3 mb-5">
+              <div class="w-10 h-10 bg-sky-50 rounded-xl flex items-center justify-center">
+                <i class="ri-telegram-line text-sky-500 text-xl"></i>
+              </div>
+              <div>
+                <h3 class="font-semibold">Telegram Bot</h3>
+                <p class="text-xs text-gray-400">Bot duyệt content qua Telegram</p>
+              </div>
+            </div>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">Bot Token</label>
+                <input x-model="settingsForm.TELEGRAM_BOT_TOKEN" type="text" placeholder="123456:ABC-DEF..."
+                  class="w-full px-4 py-2.5 border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-brand-500 font-mono text-sm">
+                <p class="text-xs text-gray-400 mt-1">Lấy từ @BotFather trên Telegram</p>
+              </div>
+              <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">Admin Chat IDs</label>
+                <input x-model="settingsForm.TELEGRAM_ADMIN_CHAT_IDS" type="text" placeholder="-100123456,789012..."
+                  class="w-full px-4 py-2.5 border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-brand-500 font-mono text-sm">
+                <p class="text-xs text-gray-400 mt-1">Các chat ID admin, cách nhau bằng dấu phẩy</p>
+              </div>
+            </div>
+          </div>
+
+          <!-- AI Text Provider -->
+          <div class="bg-white rounded-xl border border-gray-100 shadow-sm p-6">
+            <div class="flex items-center gap-3 mb-5">
               <div class="w-10 h-10 bg-blue-50 rounded-xl flex items-center justify-center">
                 <i class="ri-quill-pen-line text-blue-600 text-xl"></i>
               </div>
               <div>
-                <h3 class="font-semibold">Text Generator</h3>
-                <p class="text-xs text-gray-400">AI viết bài đăng</p>
+                <h3 class="font-semibold">AI Text (Viết bài)</h3>
+                <p class="text-xs text-gray-400">API keys cho các AI viết content</p>
               </div>
             </div>
-            <select x-model="selectedTextProvider" @change="changeProvider('text', selectedTextProvider)"
-              class="w-full px-4 py-2.5 border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-brand-500">
-              <template x-for="p in stats.providers?.text || []" :key="p">
-                <option :value="p" x-text="providerLabel(p)"></option>
-              </template>
-            </select>
-            <p class="text-xs text-gray-400 mt-2">
-              Đang dùng: <strong class="text-brand-600" x-text="providerLabel(stats.providers?.activeText)"></strong>
-            </p>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+              <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">Provider mặc định</label>
+                <select x-model="settingsForm.AI_TEXT_PROVIDER"
+                  class="w-full px-4 py-2.5 border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-brand-500">
+                  <option value="claude">Claude (Anthropic)</option>
+                  <option value="openai">GPT (OpenAI)</option>
+                  <option value="gemini">Gemini (Google)</option>
+                </select>
+              </div>
+              <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">Model</label>
+                <input x-model="settingsForm.AI_TEXT_MODEL" type="text" placeholder="claude-haiku-4-5-20251001"
+                  class="w-full px-4 py-2.5 border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-brand-500 font-mono text-sm">
+              </div>
+            </div>
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">Anthropic API Key</label>
+                <input x-model="settingsForm.ANTHROPIC_API_KEY" type="text" placeholder="sk-ant-..."
+                  class="w-full px-4 py-2.5 border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-brand-500 font-mono text-sm">
+              </div>
+              <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">OpenAI API Key</label>
+                <input x-model="settingsForm.OPENAI_API_KEY" type="text" placeholder="sk-..."
+                  class="w-full px-4 py-2.5 border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-brand-500 font-mono text-sm">
+              </div>
+              <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">Gemini API Key</label>
+                <input x-model="settingsForm.GEMINI_API_KEY" type="text" placeholder="AIza..."
+                  class="w-full px-4 py-2.5 border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-brand-500 font-mono text-sm">
+              </div>
+            </div>
           </div>
 
+          <!-- AI Image Provider -->
           <div class="bg-white rounded-xl border border-gray-100 shadow-sm p-6">
-            <div class="flex items-center gap-3 mb-4">
+            <div class="flex items-center gap-3 mb-5">
               <div class="w-10 h-10 bg-purple-50 rounded-xl flex items-center justify-center">
                 <i class="ri-image-line text-purple-600 text-xl"></i>
               </div>
               <div>
-                <h3 class="font-semibold">Image Generator</h3>
-                <p class="text-xs text-gray-400">AI tạo ảnh</p>
+                <h3 class="font-semibold">AI Image (Tạo ảnh)</h3>
+                <p class="text-xs text-gray-400">API keys cho các AI tạo ảnh</p>
               </div>
             </div>
-            <select x-model="selectedImageProvider" @change="changeProvider('image', selectedImageProvider)"
-              class="w-full px-4 py-2.5 border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-brand-500">
-              <template x-for="p in stats.providers?.image || []" :key="p">
-                <option :value="p" x-text="providerLabel(p)"></option>
-              </template>
-            </select>
-            <p class="text-xs text-gray-400 mt-2">
-              Đang dùng: <strong class="text-purple-600" x-text="providerLabel(stats.providers?.activeImage)"></strong>
-            </p>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+              <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">Provider mặc định</label>
+                <select x-model="settingsForm.AI_IMAGE_PROVIDER"
+                  class="w-full px-4 py-2.5 border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-brand-500">
+                  <option value="replicate">Flux (Replicate)</option>
+                  <option value="dalle">DALL-E (OpenAI)</option>
+                </select>
+              </div>
+              <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">Model</label>
+                <input x-model="settingsForm.AI_IMAGE_MODEL" type="text" placeholder="flux-schnell"
+                  class="w-full px-4 py-2.5 border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-brand-500 font-mono text-sm">
+              </div>
+            </div>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">Replicate API Key</label>
+                <input x-model="settingsForm.REPLICATE_API_KEY" type="text" placeholder="r8_..."
+                  class="w-full px-4 py-2.5 border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-brand-500 font-mono text-sm">
+              </div>
+              <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">OpenAI API Key (cho DALL-E)</label>
+                <input x-model="settingsForm.OPENAI_API_KEY" type="text" placeholder="sk-..." disabled
+                  class="w-full px-4 py-2.5 border border-gray-200 rounded-lg bg-gray-50 font-mono text-sm text-gray-400">
+                <p class="text-xs text-gray-400 mt-1">Dùng chung key OpenAI ở mục Text</p>
+              </div>
+            </div>
           </div>
+
+          <!-- Facebook App -->
+          <div class="bg-white rounded-xl border border-gray-100 shadow-sm p-6">
+            <div class="flex items-center gap-3 mb-5">
+              <div class="w-10 h-10 bg-blue-50 rounded-xl flex items-center justify-center">
+                <i class="ri-facebook-fill text-blue-600 text-xl"></i>
+              </div>
+              <div>
+                <h3 class="font-semibold">Facebook App</h3>
+                <p class="text-xs text-gray-400">Cấu hình ứng dụng Facebook để đăng bài</p>
+              </div>
+            </div>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">App ID</label>
+                <input x-model="settingsForm.FACEBOOK_APP_ID" type="text" placeholder="1234567890"
+                  class="w-full px-4 py-2.5 border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-brand-500 font-mono text-sm">
+              </div>
+              <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">App Secret</label>
+                <input x-model="settingsForm.FACEBOOK_APP_SECRET" type="text" placeholder="abcdef123456..."
+                  class="w-full px-4 py-2.5 border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-brand-500 font-mono text-sm">
+              </div>
+            </div>
+            <p class="text-xs text-gray-400 mt-3">Lấy từ <a href="https://developers.facebook.com" target="_blank" class="text-brand-600 hover:underline">developers.facebook.com</a> → App Settings → Basic</p>
+          </div>
+
+          <!-- General -->
+          <div class="bg-white rounded-xl border border-gray-100 shadow-sm p-6">
+            <div class="flex items-center gap-3 mb-5">
+              <div class="w-10 h-10 bg-gray-100 rounded-xl flex items-center justify-center">
+                <i class="ri-global-line text-gray-600 text-xl"></i>
+              </div>
+              <div>
+                <h3 class="font-semibold">Cài đặt chung</h3>
+                <p class="text-xs text-gray-400">Múi giờ và cấu hình khác</p>
+              </div>
+            </div>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">Múi giờ</label>
+                <select x-model="settingsForm.DEFAULT_TIMEZONE"
+                  class="w-full px-4 py-2.5 border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-brand-500">
+                  <option value="Asia/Ho_Chi_Minh">Asia/Ho_Chi_Minh (UTC+7)</option>
+                  <option value="Asia/Bangkok">Asia/Bangkok (UTC+7)</option>
+                  <option value="Asia/Tokyo">Asia/Tokyo (UTC+9)</option>
+                  <option value="UTC">UTC</option>
+                </select>
+              </div>
+            </div>
+          </div>
+
         </div>
       </div>
 
@@ -610,6 +743,9 @@ function app() {
 
     selectedTextProvider: '',
     selectedImageProvider: '',
+
+    settingsForm: {},
+    settingsSaving: false,
 
     toast: { show: false, message: '', type: 'success' },
 
@@ -813,6 +949,29 @@ function app() {
       }
     },
 
+    async loadSettings() {
+      try {
+        const data = await this.api('/dashboard/settings');
+        this.settingsForm = data.raw || {};
+      } catch {}
+    },
+
+    async saveSettings() {
+      this.settingsSaving = true;
+      try {
+        await this.api('/dashboard/settings', {
+          method: 'PUT',
+          body: JSON.stringify(this.settingsForm),
+        });
+        this.showToast('Đã lưu cài đặt. Khởi động lại server để áp dụng.');
+        await this.loadDashboard();
+      } catch (e) {
+        this.showToast(e.message, 'error');
+      } finally {
+        this.settingsSaving = false;
+      }
+    },
+
     async changeProvider(type, provider) {
       try {
         await this.api(`/dashboard/providers/${type}`, {
@@ -852,7 +1011,7 @@ function app() {
     },
 
     providerLabel(name) {
-      const map = { claude: 'Claude (Anthropic)', openai: 'GPT (OpenAI)', replicate: 'Flux (Replicate)', dalle: 'DALL-E (OpenAI)' };
+      const map = { claude: 'Claude (Anthropic)', openai: 'GPT (OpenAI)', gemini: 'Gemini (Google)', replicate: 'Flux (Replicate)', dalle: 'DALL-E (OpenAI)' };
       return map[name] || name || '—';
     },
   };
