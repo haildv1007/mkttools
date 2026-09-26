@@ -33,7 +33,9 @@ Chỉ trả về JSON, không thêm gì khác.`;
     }
 
     const data = await response.json();
-    const text = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
+    const parts = data.candidates?.[0]?.content?.parts || [];
+    const textPart = parts.filter((p: { thought?: boolean }) => !p.thought).pop();
+    const text = textPart?.text || parts[parts.length - 1]?.text || '';
     return this.parseResponse(text);
   }
 
@@ -54,11 +56,15 @@ Loại content: ${options.contentType}`;
 
   private parseResponse(raw: string): GeneratedContent {
     try {
-      const cleaned = raw.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
+      let cleaned = raw.trim();
+      const jsonMatch = cleaned.match(/```(?:json)?\s*\n?([\s\S]*?)```/);
+      if (jsonMatch) {
+        cleaned = jsonMatch[1].trim();
+      }
       const parsed = JSON.parse(cleaned);
       return {
         text: parsed.text || raw,
-        hashtags: parsed.hashtags || [],
+        hashtags: (parsed.hashtags || []).map((h: string) => h.replace(/^#/, '')),
         cta: parsed.cta,
       };
     } catch {
