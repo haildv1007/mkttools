@@ -15,6 +15,8 @@ Chỉ trả về JSON, không thêm gì khác.`;
     const model = config.ai.text.defaultModel || 'gemini-2.0-flash';
     const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${config.ai.text.geminiApiKey}`;
 
+    console.log('[Gemini Debug] model:', model, 'key:', config.ai.text.geminiApiKey?.substring(0, 15) + '...', 'url:', url.replace(config.ai.text.geminiApiKey, 'KEY_HIDDEN'));
+
     const response = await fetch(url, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
