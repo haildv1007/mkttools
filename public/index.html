@@ -167,6 +167,9 @@
           <div>
             <h2 class="text-xl font-bold">Tổng quan</h2>
             <p class="text-xs text-gray-400">Dữ liệu hiệu suất từ Facebook <span x-show="db?.synced_at" x-text="' · cập nhật '+ (db?.synced_at ? new Date(db.synced_at).toLocaleTimeString('vi-VN',{hour:'2-digit',minute:'2-digit'}) : '')"></span></p>
+            <template x-if="db?.fb_errors?.length">
+              <p class="text-xs text-red-500 mt-0.5"><i class="ri-error-warning-line"></i> <span x-text="db.fb_errors[0]"></span><span x-show="db.fb_errors.length>1" x-text="' (+' + (db.fb_errors.length-1) + ' lỗi khác)'"></span></p>
+            </template>
           </div>
           <div class="flex flex-wrap items-center gap-2">
             <select x-model="dbFilter.pageId" @change="loadDashboard()" class="text-xs border rounded-lg px-2 py-1.5 bg-white">

@@ -73,7 +73,7 @@ async function fetchFbMetricsForItems(
     campaignId: string;
     page: { id: string; name: string; externalId: string; accessToken: string; platform: string };
   }>
-): Promise<FbPostMetrics[]> {
+): Promise<{ metrics: FbPostMetrics[]; errors: string[] }> {
   // Group by page, Facebook only
   const byPage = new Map<string, { page: typeof items[0]['page']; items: typeof items }>();
   for (const item of items) {
@@ -84,6 +84,7 @@ async function fetchFbMetricsForItems(
   }
 
   const allMetrics: FbPostMetrics[] = [];
+  const fbErrors: string[] = [];
 
   for (const [pageId, { page, items: pageItems }] of byPage) {
     const cacheKey = `dashboard_fb_${pageId}`;
@@ -113,30 +114,39 @@ async function fetchFbMetricsForItems(
         const ids = batch.join(',');
         const url = `https://graph.facebook.com/v21.0/?ids=${encodeURIComponent(ids)}&fields=reactions.summary(true),comments.summary(true),shares,insights.metric(post_impressions,post_engaged_users)&access_token=${encodeURIComponent(token)}`;
         const batchRes = await fetch(url);
-        if (batchRes.ok) {
-          const data = await batchRes.json() as Record<string, {
+        const rawJson = await batchRes.json() as Record<string, unknown>;
+        if (!batchRes.ok) {
+          const errMsg = (rawJson as { error?: { message?: string } })?.error?.message || `HTTP ${batchRes.status}`;
+          fbErrors.push(`${page.name}: ${errMsg}`);
+          continue;
+        }
+        for (const [postId, postInfoRaw] of Object.entries(rawJson)) {
+          const postInfo = postInfoRaw as {
             reactions?: { summary?: { total_count?: number } };
             comments?: { summary?: { total_count?: number } };
             shares?: { count?: number };
             insights?: { data?: Array<{ name: string; values?: Array<{ value: number }> }> };
-          }>;
-          for (const [postId, postInfo] of Object.entries(data)) {
-            const reactions = postInfo.reactions?.summary?.total_count ?? 0;
-            const comments = postInfo.comments?.summary?.total_count ?? 0;
-            const shares = postInfo.shares?.count ?? 0;
-            let reach = 0, engagedUsers = 0;
-            if (postInfo.insights?.data) {
-              for (const metric of postInfo.insights.data) {
-                const val = metric.values?.[0]?.value ?? 0;
-                // post_impressions = total impressions; used as "Reach" proxy since post_impressions_unique deprecated 06/2026
-                if (metric.name === 'post_impressions') reach = val;
-                if (metric.name === 'post_engaged_users') engagedUsers = val;
-              }
-            }
-            postDataMap.set(postId, { reactions, comments, shares, reach, engagedUsers });
+            error?: { message?: string };
+          };
+          if (postInfo.error) {
+            fbErrors.push(`Post ${postId}: ${postInfo.error.message}`);
+            continue;
           }
+          const reactions = postInfo.reactions?.summary?.total_count ?? 0;
+          const comments = postInfo.comments?.summary?.total_count ?? 0;
+          const shares = postInfo.shares?.count ?? 0;
+          let reach = 0, engagedUsers = 0;
+          if (postInfo.insights?.data) {
+            for (const metric of postInfo.insights.data) {
+              const val = metric.values?.[0]?.value ?? 0;
+              // post_impressions = total impressions; used as "Reach" proxy since post_impressions_unique deprecated 06/2026
+              if (metric.name === 'post_impressions') reach = val;
+              if (metric.name === 'post_engaged_users') engagedUsers = val;
+            }
+          }
+          postDataMap.set(postId, { reactions, comments, shares, reach, engagedUsers });
         }
-      } catch { /* skip batch on error */ }
+      } catch (e) { fbErrors.push(`${page.name}: ${e instanceof Error ? e.message : 'fetch error'}`); }
     }
 
     fbCache.set(cacheKey, { data: postDataMap, ts: Date.now() });
@@ -151,7 +161,7 @@ async function fetchFbMetricsForItems(
     }
   }
 
-  return allMetrics;
+  return { metrics: allMetrics, errors: fbErrors };
 }
 
 router.get('/stats', async (_req: Request, res: Response) => {
@@ -275,12 +285,16 @@ router.get('/stats/dashboard', async (req: Request, res: Response) => {
     // --- Fetch FB metrics (gracefully handle failures) ---
     let fbCurrent: FbPostMetrics[] = [];
     let fbPrev: FbPostMetrics[] = [];
+    let fb_errors: string[] = [];
     try {
-      [fbCurrent, fbPrev] = await Promise.all([
+      const [curResult, prevResult] = await Promise.all([
         fetchFbMetricsForItems(currentItems),
         fetchFbMetricsForItems(prevItems),
       ]);
-    } catch { /* FB failed, continue with empty metrics */ }
+      fbCurrent = curResult.metrics;
+      fbPrev = prevResult.metrics;
+      fb_errors = [...curResult.errors, ...prevResult.errors];
+    } catch (e) { fb_errors.push(e instanceof Error ? e.message : 'FB fetch failed'); }
 
     // --- Pipeline summary ---
     const countByStatus = (items: Array<{ status: string; scheduledAt?: Date | null }>, status: string) => {
@@ -466,7 +480,9 @@ router.get('/stats/dashboard', async (req: Request, res: Response) => {
     // Enrich with FB metrics
     let recentFb: FbPostMetrics[] = [];
     try {
-      recentFb = await fetchFbMetricsForItems(recentPublished);
+      const recentResult = await fetchFbMetricsForItems(recentPublished);
+      recentFb = recentResult.metrics;
+      fb_errors.push(...recentResult.errors);
     } catch { /* ignore */ }
     const recentFbMap = new Map(recentFb.map(m => [m.contentItemId, m]));
     const recent_posts = recentPublished.map(item => {
@@ -481,6 +497,7 @@ router.get('/stats/dashboard', async (req: Request, res: Response) => {
 
     res.json({
       synced_at: new Date().toISOString(),
+      fb_errors: fb_errors.length ? fb_errors : undefined,
       filters: {
         dateFrom: currentFrom.toISOString(),
         dateTo: currentTo.toISOString(),
