@@ -188,31 +188,39 @@
         </div>
       </div>
 
-      <nav class="flex-1 p-3 space-y-1 overflow-y-auto">
-        <a @click="page='dashboard'" :class="page==='dashboard' && 'active'"
-          class="sidebar-link flex items-center gap-3 px-3 py-2.5 rounded-lg cursor-pointer hover:bg-gray-50 text-gray-600 transition">
-          <i class="ri-dashboard-3-line text-lg"></i> <span class="text-sm font-medium">Tổng quan</span>
-        </a>
-        <a @click="page='pages'; loadPages()" :class="page==='pages' && 'active'"
-          class="sidebar-link flex items-center gap-3 px-3 py-2.5 rounded-lg cursor-pointer hover:bg-gray-50 text-gray-600 transition">
-          <i class="ri-pages-line text-lg"></i> <span class="text-sm font-medium">Quản lý Pages</span>
-        </a>
-        <a @click="page='campaigns'; loadCampaigns()" :class="page==='campaigns' && 'active'"
-          class="sidebar-link flex items-center gap-3 px-3 py-2.5 rounded-lg cursor-pointer hover:bg-gray-50 text-gray-600 transition">
-          <i class="ri-calendar-schedule-line text-lg"></i> <span class="text-sm font-medium">Campaigns</span>
-        </a>
-        <a @click="page='content'; loadContent(); loadCampaigns()" :class="page==='content' && 'active'"
-          class="sidebar-link flex items-center gap-3 px-3 py-2.5 rounded-lg cursor-pointer hover:bg-gray-50 text-gray-600 transition">
-          <i class="ri-article-line text-lg"></i> <span class="text-sm font-medium">Content</span>
-        </a>
-        <a @click="page='import'" :class="page==='import' && 'active'"
-          class="sidebar-link flex items-center gap-3 px-3 py-2.5 rounded-lg cursor-pointer hover:bg-gray-50 text-gray-600 transition">
-          <i class="ri-file-excel-2-line text-lg"></i> <span class="text-sm font-medium">Import Excel</span>
-        </a>
-        <a @click="page='settings'; loadSettings()" :class="page==='settings' && 'active'"
-          class="sidebar-link flex items-center gap-3 px-3 py-2.5 rounded-lg cursor-pointer hover:bg-gray-50 text-gray-600 transition">
-          <i class="ri-settings-3-line text-lg"></i> <span class="text-sm font-medium">Cài đặt hệ thống</span>
-        </a>
+      <nav class="flex-1 px-3 pt-3 pb-2 overflow-y-auto">
+        <p class="text-[10px] text-gray-400 uppercase tracking-wider px-3 mb-1">Vận hành</p>
+        <div class="space-y-0.5 mb-4">
+          <a @click="page='dashboard'" :class="page==='dashboard' && 'active'"
+            class="sidebar-link flex items-center gap-3 px-3 py-2.5 rounded-lg cursor-pointer hover:bg-gray-50 text-gray-600 transition">
+            <i class="ri-dashboard-3-line text-lg"></i> <span class="text-sm font-medium">Tổng quan</span>
+          </a>
+          <a @click="page='campaigns'; loadCampaigns()" :class="page==='campaigns' && 'active'"
+            class="sidebar-link flex items-center gap-3 px-3 py-2.5 rounded-lg cursor-pointer hover:bg-gray-50 text-gray-600 transition">
+            <i class="ri-calendar-schedule-line text-lg"></i> <span class="text-sm font-medium">Campaigns</span>
+          </a>
+          <a @click="page='content'; loadContent(); loadCampaigns()" :class="page==='content' && 'active'"
+            class="sidebar-link flex items-center gap-3 px-3 py-2.5 rounded-lg cursor-pointer hover:bg-gray-50 text-gray-600 transition">
+            <i class="ri-article-line text-lg"></i> <span class="text-sm font-medium">Content</span>
+          </a>
+          <a @click="page='import'" :class="page==='import' && 'active'"
+            class="sidebar-link flex items-center gap-3 px-3 py-2.5 rounded-lg cursor-pointer hover:bg-gray-50 text-gray-600 transition">
+            <i class="ri-file-excel-2-line text-lg"></i> <span class="text-sm font-medium">Import Excel</span>
+          </a>
+        </div>
+        <div class="border-t border-gray-100 pt-3">
+          <p class="text-[10px] text-gray-400 uppercase tracking-wider px-3 mb-1">Quản trị</p>
+          <div class="space-y-0.5">
+            <a @click="page='pages'; loadPages()" :class="page==='pages' && 'active'"
+              class="sidebar-link flex items-center gap-3 px-3 py-2.5 rounded-lg cursor-pointer hover:bg-gray-50 text-gray-600 transition">
+              <i class="ri-pages-line text-lg"></i> <span class="text-sm font-medium">Quản lý Pages & Nhóm</span>
+            </a>
+            <a @click="page='settings'; loadSettings()" :class="page==='settings' && 'active'"
+              class="sidebar-link flex items-center gap-3 px-3 py-2.5 rounded-lg cursor-pointer hover:bg-gray-50 text-gray-600 transition">
+              <i class="ri-settings-3-line text-lg"></i> <span class="text-sm font-medium">Cài đặt hệ thống</span>
+            </a>
+          </div>
+        </div>
       </nav>
 
       <div class="p-3 border-t border-gray-100">
