@@ -184,7 +184,7 @@ router.post('/content/:id/publish-now', async (req: Request, res: Response) => {
 
 router.delete('/content/:id', async (req: Request, res: Response) => {
   try {
-    const { id } = req.params;
+    const id = req.params.id as string;
     await prisma.approvalLog.deleteMany({ where: { contentItemId: id } });
     await prisma.contentItem.delete({ where: { id } });
     res.json({ success: true });
@@ -194,7 +194,7 @@ router.delete('/content/:id', async (req: Request, res: Response) => {
 });
 
 router.patch('/content/:id', async (req: Request, res: Response) => {
-  const { id } = req.params;
+  const id = req.params.id as string;
   const { scheduledAt, status } = req.body;
   const data: Record<string, unknown> = {};
   if (scheduledAt) data.scheduledAt = new Date(scheduledAt);
@@ -352,7 +352,7 @@ router.post('/test-openai-image-model', async (req: Request, res: Response) => {
     } else {
       genParams.quality = 'low';
     }
-    const response = await client.images.generate(genParams as Parameters<typeof client.images.generate>[0]);
+    const response = await client.images.generate(genParams as unknown as Parameters<typeof client.images.generate>[0]);
 
     if (response.data?.[0]?.url || response.data?.[0]?.b64_json) {
       res.json({ success: true, message: `Model ${model} tạo ảnh thành công!` });

@@ -60,7 +60,7 @@ export async function publishToFacebook(options: FacebookPostOptions): Promise<P
     }
 
     let endpoint: string;
-    let fetchBody: BodyInit;
+    let fetchBody: string | FormData | URLSearchParams;
     let headers: Record<string, string> = {};
 
     if (options.imageLocalPath && fs.existsSync(options.imageLocalPath)) {

@@ -33,7 +33,7 @@ export class DalleImageProvider implements ImageProvider {
       genParams.response_format = 'b64_json';
     }
 
-    const response = await client.images.generate(genParams as Parameters<typeof client.images.generate>[0]);
+    const response = await client.images.generate(genParams as unknown as Parameters<typeof client.images.generate>[0]);
 
     const b64 = response.data?.[0]?.b64_json;
     const url = response.data?.[0]?.url;

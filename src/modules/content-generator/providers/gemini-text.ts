@@ -32,7 +32,7 @@ Trả về JSON với format: {"text": "nội dung bài đăng", "hashtags": ["t
       throw new Error(`Gemini API error: ${response.status} ${err}`);
     }
 
-    const data = await response.json();
+    const data = await response.json() as { candidates?: { content?: { parts?: { text?: string; thought?: boolean }[] } }[] };
     const parts = data.candidates?.[0]?.content?.parts || [];
     const textPart = parts.filter((p: { thought?: boolean }) => !p.thought).pop();
     const raw = textPart?.text || parts[parts.length - 1]?.text || '';
