@@ -169,7 +169,9 @@ router.get('/stats/campaigns', async (_req: Request, res: Response) => {
       })
     );
 
-    res.json(results);
+    const filtered = results.filter(c => c.totalContent > 0);
+    filtered.sort((a, b) => b.published - a.published || b.totalContent - a.totalContent);
+    res.json(filtered.slice(0, 7));
   } catch (err) {
     res.status(500).json({ error: err instanceof Error ? err.message : 'Failed to fetch campaign stats' });
   }
@@ -266,6 +268,7 @@ router.get('/stats/fb-insights', async (_req: Request, res: Response) => {
         topic: true,
         publishedAt: true,
         pageId: true,
+        campaignId: true,
         page: {
           select: { id: true, name: true, externalId: true, accessToken: true, platform: true },
         },
@@ -299,12 +302,14 @@ router.get('/stats/fb-insights', async (_req: Request, res: Response) => {
         socialPostId: string;
         topic: string;
         publishedAt: Date | null;
+        campaignId: string;
         reactions: number;
         comments: number;
         shares: number;
         reach: number;
         engagedUsers: number;
       }>;
+      externalId: string;
       errors: string[];
     }> = [];
 
@@ -312,6 +317,7 @@ router.get('/stats/fb-insights', async (_req: Request, res: Response) => {
       const pageResult = {
         pageId,
         pageName: page.name,
+        externalId: page.externalId,
         followers: null as number | null,
         fanCount: null as number | null,
         totalReactions: 0,
@@ -323,6 +329,7 @@ router.get('/stats/fb-insights', async (_req: Request, res: Response) => {
           socialPostId: string;
           topic: string;
           publishedAt: Date | null;
+          campaignId: string;
           reactions: number;
           comments: number;
           shares: number;
@@ -419,6 +426,7 @@ router.get('/stats/fb-insights', async (_req: Request, res: Response) => {
           socialPostId: item.socialPostId!,
           topic: item.topic,
           publishedAt: item.publishedAt,
+          campaignId: item.campaignId,
           ...metrics,
         });
       }
@@ -427,7 +435,17 @@ router.get('/stats/fb-insights', async (_req: Request, res: Response) => {
       results.push(pageResult);
     }
 
-    res.json(results);
+    const globalTotals = {
+      totalReactions: results.reduce((s, p) => s + p.totalReactions, 0),
+      totalComments: results.reduce((s, p) => s + p.totalComments, 0),
+      totalShares: results.reduce((s, p) => s + p.totalShares, 0),
+      totalReach: results.reduce((s, p) => s + p.totalReach, 0),
+      totalEngagement: results.reduce((s, p) => s + p.totalReactions + p.totalComments + p.totalShares, 0),
+      totalFollowers: results.reduce((s, p) => s + (p.followers || 0), 0),
+      totalPosts: results.reduce((s, p) => s + p.posts.length, 0),
+    };
+
+    res.json({ pages: results, totals: globalTotals });
   } catch (err) {
     res.status(500).json({ error: err instanceof Error ? err.message : 'Failed to fetch Facebook insights' });
   }
