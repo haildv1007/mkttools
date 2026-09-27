@@ -21,6 +21,10 @@ const COLUMN_MAP: Record<string, string> = {
   'ghi chú': 'notes', 'ghi_chu': 'notes', 'notes': 'notes', 'note': 'notes', 'mô tả': 'notes',
   'mô tả ảnh': 'imageDescriptions', 'mo_ta_anh': 'imageDescriptions', 'image': 'imageDescriptions',
   'image descriptions': 'imageDescriptions', 'ảnh': 'imageDescriptions', 'anh': 'imageDescriptions',
+  'bài viết': 'generatedText', 'bai_viet': 'generatedText', 'text': 'generatedText', 'nội dung bài': 'generatedText',
+  'content text': 'generatedText', 'caption': 'generatedText',
+  'link ảnh': 'imageUrl', 'link_anh': 'imageUrl', 'image url': 'imageUrl', 'url ảnh': 'imageUrl',
+  'link video': 'videoUrl', 'link_video': 'videoUrl', 'video url': 'videoUrl', 'url video': 'videoUrl', 'video': 'videoUrl',
 };
 
 function normalizeHeader(header: string): string | undefined {
@@ -111,6 +115,9 @@ export function parseExcel(buffer: Buffer): ExcelRow[] {
       contentType: parseContentType(String(mapped.contentType || 'image')),
       notes: mapped.notes ? String(mapped.notes) : undefined,
       imageDescriptions: mapped.imageDescriptions ? String(mapped.imageDescriptions) : undefined,
+      generatedText: mapped.generatedText ? String(mapped.generatedText) : undefined,
+      imageUrl: mapped.imageUrl ? String(mapped.imageUrl) : undefined,
+      videoUrl: mapped.videoUrl ? String(mapped.videoUrl) : undefined,
     });
   }
 

@@ -10,6 +10,9 @@ export interface ExcelRow {
   contentType: ContentType;
   notes?: string;
   imageDescriptions?: string;
+  generatedText?: string;
+  imageUrl?: string;
+  videoUrl?: string;
 }
 
 export interface GeneratedContent {

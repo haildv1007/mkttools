@@ -148,10 +148,11 @@ router.post('/pages/fb-token-exchange', async (req: Request, res: Response) => {
 
 // Content items
 router.get('/content', async (req: Request, res: Response) => {
-  const { status, pageId, limit = '50', offset = '0', search, dateFrom, dateTo } = req.query;
+  const { status, pageId, limit = '50', offset = '0', search, dateFrom, dateTo, source } = req.query;
   const where: Record<string, unknown> = {};
   if (status) where.status = String(status);
   if (pageId) where.pageId = String(pageId);
+  if (source) where.source = String(source);
   if (search) where.topic = { contains: String(search), mode: 'insensitive' };
   if (dateFrom || dateTo) {
     const dateFilter: Record<string, Date> = {};
@@ -226,7 +227,7 @@ router.delete('/content/:id', async (req: Request, res: Response) => {
 
 router.patch('/content/:id', async (req: Request, res: Response) => {
   const id = req.params.id as string;
-  const { scheduledAt, status, topic, notes, contentType, imageDescriptions } = req.body;
+  const { scheduledAt, status, topic, notes, contentType, imageDescriptions, generatedText, imageUrl, videoUrl } = req.body;
   const data: Record<string, unknown> = {};
   if (scheduledAt) data.scheduledAt = new Date(scheduledAt);
   if (status) data.status = status;
@@ -234,13 +235,16 @@ router.patch('/content/:id', async (req: Request, res: Response) => {
   if (notes !== undefined) data.notes = notes;
   if (contentType) data.contentType = contentType;
   if (imageDescriptions !== undefined) data.imageDescriptions = imageDescriptions;
+  if (generatedText !== undefined) data.generatedText = generatedText;
+  if (imageUrl !== undefined) data.generatedImageUrl = imageUrl;
+  if (videoUrl !== undefined) data.generatedVideoUrl = videoUrl;
   const item = await prisma.contentItem.update({ where: { id }, data, include: { page: true, campaign: true } });
   res.json(item);
 });
 
 router.post('/content', async (req: Request, res: Response) => {
   try {
-    const { pageId, topic, contentType, scheduledAt, notes, imageDescriptions, campaignId } = req.body;
+    const { pageId, topic, contentType, scheduledAt, notes, imageDescriptions, campaignId, generatedText, imageUrl, videoUrl } = req.body;
     if (!pageId || !topic || !scheduledAt) {
       return res.status(400).json({ error: 'Thiếu thông tin: pageId, topic, scheduledAt là bắt buộc' });
     }
@@ -254,6 +258,7 @@ router.post('/content', async (req: Request, res: Response) => {
       }
       cId = defaultCampaign.id;
     }
+    const hasContent = !!(generatedText || imageUrl || videoUrl);
     const item = await prisma.contentItem.create({
       data: {
         campaignId: cId,
@@ -263,13 +268,69 @@ router.post('/content', async (req: Request, res: Response) => {
         scheduledAt: new Date(scheduledAt),
         notes: notes || null,
         imageDescriptions: imageDescriptions || null,
-        status: 'DRAFT',
+        generatedText: generatedText || null,
+        generatedImageUrl: imageUrl || null,
+        generatedVideoUrl: videoUrl || null,
+        source: hasContent ? 'MANUAL' : 'AI',
+        status: hasContent ? 'PENDING_REVIEW' : 'DRAFT',
       },
       include: { page: true, campaign: true },
     });
     res.json(item);
   } catch (err) {
     res.status(400).json({ error: err instanceof Error ? err.message : 'Failed to create content' });
+  }
+});
+
+// Approval actions
+router.post('/content/:id/approve', async (req: Request, res: Response) => {
+  try {
+    const id = req.params.id as string;
+    const item = await prisma.contentItem.update({
+      where: { id },
+      data: { status: 'APPROVED' },
+      include: { page: true, campaign: true },
+    });
+    await prisma.approvalLog.create({
+      data: { contentItemId: id, userId: req.body.userId || 'system', action: 'APPROVE' },
+    });
+    res.json(item);
+  } catch (err) {
+    res.status(400).json({ error: err instanceof Error ? err.message : 'Failed to approve' });
+  }
+});
+
+router.post('/content/:id/reject', async (req: Request, res: Response) => {
+  try {
+    const id = req.params.id as string;
+    const item = await prisma.contentItem.update({
+      where: { id },
+      data: { status: 'CANCELLED' },
+      include: { page: true, campaign: true },
+    });
+    await prisma.approvalLog.create({
+      data: { contentItemId: id, userId: req.body.userId || 'system', action: 'REJECT', feedback: req.body.feedback },
+    });
+    res.json(item);
+  } catch (err) {
+    res.status(400).json({ error: err instanceof Error ? err.message : 'Failed to reject' });
+  }
+});
+
+router.post('/content/:id/request-edit', async (req: Request, res: Response) => {
+  try {
+    const id = req.params.id as string;
+    const item = await prisma.contentItem.update({
+      where: { id },
+      data: { status: 'REVISION_REQUESTED' },
+      include: { page: true, campaign: true },
+    });
+    await prisma.approvalLog.create({
+      data: { contentItemId: id, userId: req.body.userId || 'system', action: 'REQUEST_EDIT', feedback: req.body.feedback },
+    });
+    res.json(item);
+  } catch (err) {
+    res.status(400).json({ error: err instanceof Error ? err.message : 'Failed' });
   }
 });
 

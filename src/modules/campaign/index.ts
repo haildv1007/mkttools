@@ -45,6 +45,7 @@ router.post('/import', upload.single('file'), async (req: Request, res: Response
       const pageId = pageMap.get(row.page);
       if (!pageId) { skipped++; continue; }
 
+      const hasContent = !!(row.generatedText || row.imageUrl || row.videoUrl);
       await prisma.contentItem.create({
         data: {
           campaignId: campaign.id,
@@ -54,7 +55,11 @@ router.post('/import', upload.single('file'), async (req: Request, res: Response
           notes: row.notes,
           contentType: row.contentType,
           imageDescriptions: row.imageDescriptions || null,
-          status: 'DRAFT',
+          generatedText: row.generatedText || null,
+          generatedImageUrl: row.imageUrl || null,
+          generatedVideoUrl: row.videoUrl || null,
+          source: 'IMPORT',
+          status: hasContent ? 'PENDING_REVIEW' : 'DRAFT',
         },
       });
       created++;

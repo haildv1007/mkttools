@@ -36,6 +36,12 @@ enum ContentStatus {
   CANCELLED
 }
 
+enum ContentSource {
+  AI
+  MANUAL
+  IMPORT
+}
+
 enum ApprovalAction {
   APPROVE
   REJECT
@@ -111,6 +117,7 @@ model ContentItem {
   generatedImages   Json?        @map("generated_images")
   imageDescriptions String?      @map("image_descriptions")
   generatedVideoUrl String?      @map("generated_video_url")
+  source           ContentSource @default(AI)
   status           ContentStatus @default(DRAFT)
   telegramMsgId    String?       @map("telegram_msg_id")
   socialPostId     String?       @map("social_post_id")
