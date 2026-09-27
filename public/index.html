@@ -572,13 +572,13 @@
                   <td class="px-3 py-2 border-r border-gray-50">
                     <div class="font-medium text-gray-800 text-xs leading-snug cursor-pointer hover:text-brand-600 transition"
                       style="display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden"
-                      x-text="item.topic" @click="showTextPopup('Chủ đề', item.topic)"></div>
+                      x-text="item.topic" @click="viewResult(item)"></div>
                   </td>
                   <!-- Ghi chú -->
                   <td class="px-3 py-2 border-r border-gray-50">
                     <div x-show="item.notes" class="text-[11px] text-gray-500 leading-snug cursor-pointer hover:text-gray-800 transition"
                       style="display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden"
-                      x-text="item.notes" @click="showTextPopup('Ghi chú', item.notes)"></div>
+                      x-text="item.notes" @click="viewResult(item)"></div>
                     <span x-show="!item.notes" class="text-[11px] text-gray-300">—</span>
                   </td>
                   <!-- Định dạng -->
