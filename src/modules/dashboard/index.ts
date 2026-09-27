@@ -418,10 +418,10 @@ router.post('/test-video', async (req: Request, res: Response) => {
     if (!connCheck.ok) {
       return res.status(400).json({ success: false, error: `Kết nối thất bại: ${connCheck.error}` });
     }
-    const { prompt } = req.body;
+    const { prompt, imageUrl } = req.body;
     const testPrompt = prompt || 'A beautiful sunset over the ocean, waves gently rolling, cinematic';
-    console.log(`[Test Video] Starting: ${testPrompt}`);
-    const result = await generateVideo({ prompt: testPrompt });
+    console.log(`[Test Video] Starting: ${testPrompt}${imageUrl ? ` (image: ${imageUrl})` : ''}`);
+    const result = await generateVideo({ prompt: testPrompt, imageUrl });
     console.log('[Test Video] Success:', result.url);
     res.json({ success: true, url: result.url });
   } catch (err) {
