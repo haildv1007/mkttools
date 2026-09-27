@@ -1846,52 +1846,70 @@ function app() {
     },
 
     renderPerfChart() {
-      if (typeof Chart === 'undefined') return;
+      if (typeof Chart === 'undefined') { console.warn('[chart] Chart.js not loaded'); return; }
       const wrap = document.getElementById('perfChartWrap');
-      if (!wrap) return;
-      if (this._charts.perf) { this._charts.perf.destroy(); this._charts.perf = null; }
-      wrap.innerHTML = '';
+      if (!wrap) { console.warn('[chart] wrap not found'); return; }
       const data = this.db?.chart_performance;
       const hasData = data && data.some(d => d.reach || d.media_views || d.engagement || d.posts_count);
-      if (!data || !hasData) {
-        const emptyMsg = (this.db?.top_contents||[]).length
+      console.log('[chart] hasData=', hasData, 'data length=', data?.length);
+      const emptyEl = wrap.querySelector('.chart-empty');
+      let canvas = wrap.querySelector('canvas');
+      if (this._charts.perf) {
+        this._charts.perf.destroy();
+        this._charts.perf = null;
+      }
+      if (!canvas) {
+        canvas = document.createElement('canvas');
+        wrap.appendChild(canvas);
+      }
+      if (!emptyEl) {
+        const div = document.createElement('div');
+        div.className = 'chart-empty';
+        div.style.cssText = 'position:absolute;inset:0;display:flex;align-items:center;justify-content:center;';
+        div.innerHTML = '<div style="text-align:center;color:#9ca3af;font-size:12px"><i class="ri-bar-chart-box-line" style="font-size:2rem;display:block;margin-bottom:8px"></i><p class="chart-empty-msg"></p></div>';
+        wrap.appendChild(div);
+      }
+      const emptyDiv = wrap.querySelector('.chart-empty');
+      const emptyMsgEl = wrap.querySelector('.chart-empty-msg');
+      if (!hasData) {
+        canvas.style.display = 'none';
+        emptyDiv.style.display = 'flex';
+        emptyMsgEl.textContent = (this.db?.top_contents||[]).length
           ? 'Không có dữ liệu FB trong khoảng thời gian này. Bấm Sync FB để cập nhật.'
           : 'Chưa có bài đăng nào. Tạo content và đăng bài trước.';
-        wrap.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100%"><div style="text-align:center;color:#9ca3af;font-size:12px"><i class="ri-bar-chart-box-line" style="font-size:2rem;display:block;margin-bottom:8px"></i><p>' + emptyMsg + '</p></div></div>';
         return;
       }
-      const canvas = document.createElement('canvas');
-      const w = wrap.clientWidth || wrap.offsetWidth || 600;
-      const h = wrap.clientHeight || wrap.offsetHeight || 340;
-      canvas.setAttribute('width', w);
-      canvas.setAttribute('height', h);
-      wrap.appendChild(canvas);
+      canvas.style.display = '';
+      emptyDiv.style.display = 'none';
       const labels = data.map(d => {
         const [y, m, dd] = d.date.split('-');
         return dd + '/' + m;
       });
-      this._charts.perf = new Chart(canvas.getContext('2d'), {
-        type: 'bar',
-        data: {
-          labels,
-          datasets: [
-            { type: 'line', label: 'Tiếp cận', data: data.map(d => d.reach), borderColor: '#3b82f6', backgroundColor: 'rgba(59,130,246,0.08)', fill: true, tension: 0.3, pointRadius: 2, yAxisID: 'y', order: 1 },
-            { type: 'line', label: 'Lượt xem', data: data.map(d => d.media_views), borderColor: '#06b6d4', backgroundColor: 'rgba(6,182,212,0.08)', fill: false, tension: 0.3, pointRadius: 2, yAxisID: 'y', order: 2, borderDash: [4,2] },
-            { type: 'line', label: 'Engagement', data: data.map(d => d.engagement), borderColor: '#8b5cf6', backgroundColor: 'rgba(139,92,246,0.08)', fill: true, tension: 0.3, pointRadius: 2, yAxisID: 'y', order: 2 },
-            { type: 'bar', label: 'Bài đăng', data: data.map(d => d.posts_count), backgroundColor: 'rgba(99,102,241,0.3)', borderRadius: 4, yAxisID: 'y1', order: 3 },
-          ]
-        },
-        options: {
-          responsive: false,
-          interaction: { mode: 'index', intersect: false },
-          plugins: { legend: { position: 'bottom', labels: { boxWidth: 10, font: { size: 10 }, padding: 12 } } },
-          scales: {
-            y: { beginAtZero: true, position: 'left', ticks: { font: { size: 10 } }, grid: { color: 'rgba(0,0,0,0.04)' } },
-            y1: { beginAtZero: true, position: 'right', grid: { display: false }, ticks: { font: { size: 10 }, stepSize: 1 } },
-            x: { ticks: { font: { size: 9 }, maxRotation: 0 }, grid: { display: false } }
+      try {
+        this._charts.perf = new Chart(canvas, {
+          type: 'bar',
+          data: {
+            labels,
+            datasets: [
+              { type: 'line', label: 'Tiếp cận', data: data.map(d => d.reach), borderColor: '#3b82f6', backgroundColor: 'rgba(59,130,246,0.08)', fill: true, tension: 0.3, pointRadius: 2, yAxisID: 'y', order: 1 },
+              { type: 'line', label: 'Lượt xem', data: data.map(d => d.media_views), borderColor: '#06b6d4', backgroundColor: 'rgba(6,182,212,0.08)', fill: false, tension: 0.3, pointRadius: 2, yAxisID: 'y', order: 2, borderDash: [4,2] },
+              { type: 'line', label: 'Engagement', data: data.map(d => d.engagement), borderColor: '#8b5cf6', backgroundColor: 'rgba(139,92,246,0.08)', fill: true, tension: 0.3, pointRadius: 2, yAxisID: 'y', order: 2 },
+              { type: 'bar', label: 'Bài đăng', data: data.map(d => d.posts_count), backgroundColor: 'rgba(99,102,241,0.3)', borderRadius: 4, yAxisID: 'y1', order: 3 },
+            ]
+          },
+          options: {
+            responsive: true, maintainAspectRatio: false,
+            interaction: { mode: 'index', intersect: false },
+            plugins: { legend: { position: 'bottom', labels: { boxWidth: 10, font: { size: 10 }, padding: 12 } } },
+            scales: {
+              y: { beginAtZero: true, position: 'left', ticks: { font: { size: 10 } }, grid: { color: 'rgba(0,0,0,0.04)' } },
+              y1: { beginAtZero: true, position: 'right', grid: { display: false }, ticks: { font: { size: 10 }, stepSize: 1 } },
+              x: { ticks: { font: { size: 9 }, maxRotation: 0 }, grid: { display: false } }
+            }
           }
-        }
-      });
+        });
+        console.log('[chart] created OK, size=', canvas.width, canvas.height);
+      } catch(e) { console.error('[chart] error:', e); }
     },
 
     getCampaignEngagement(campaignId, type) {
