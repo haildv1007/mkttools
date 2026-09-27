@@ -1850,14 +1850,11 @@ function app() {
       if (typeof Chart === 'undefined') return;
       const wrap = document.getElementById('perfChartWrap');
       if (!wrap) return;
+      if (this._charts.perf) { this._charts.perf.destroy(); this._charts.perf = null; }
+      wrap.querySelectorAll('canvas').forEach(c => c.remove());
       const data = this.db?.chart_performance;
       const hasData = data && data.some(d => d.reach || d.media_views || d.engagement || d.posts_count);
-      let canvas = wrap.querySelector('canvas');
       let emptyDiv = wrap.querySelector('.chart-empty');
-      if (!canvas) {
-        canvas = document.createElement('canvas');
-        wrap.appendChild(canvas);
-      }
       if (!emptyDiv) {
         emptyDiv = document.createElement('div');
         emptyDiv.className = 'chart-empty';
@@ -1866,26 +1863,21 @@ function app() {
         wrap.appendChild(emptyDiv);
       }
       if (!hasData) {
-        if (this._charts.perf) { this._charts.perf.data.labels = []; this._charts.perf.data.datasets.forEach(ds => ds.data = []); this._charts.perf.update('none'); }
-        canvas.style.display = 'none';
         emptyDiv.style.display = 'flex';
         wrap.querySelector('.chart-empty-msg').textContent = (this.db?.top_contents||[]).length
           ? 'Không có dữ liệu FB trong khoảng thời gian này. Bấm Sync FB để cập nhật.'
           : 'Chưa có bài đăng nào. Tạo content và đăng bài trước.';
         return;
       }
-      canvas.style.display = '';
       emptyDiv.style.display = 'none';
+      const canvas = document.createElement('canvas');
+      const w = wrap.clientWidth || 600;
+      const h = (wrap.clientHeight || 340) - 4;
+      canvas.width = w;
+      canvas.height = h;
+      wrap.insertBefore(canvas, wrap.firstChild);
       const labels = data.map(d => { const p = d.date.split('-'); return p[2] + '/' + p[1]; });
-      if (this._charts.perf) {
-        this._charts.perf.destroy();
-        this._charts.perf = null;
-        const oldC = wrap.querySelector('canvas');
-        if (oldC) oldC.remove();
-        canvas = document.createElement('canvas');
-        wrap.insertBefore(canvas, wrap.firstChild);
-      }
-      this._charts.perf = new Chart(canvas, {
+      this._charts.perf = new Chart(canvas.getContext('2d'), {
         type: 'bar',
         data: {
           labels,
@@ -1897,7 +1889,7 @@ function app() {
           ]
         },
         options: {
-          responsive: true, maintainAspectRatio: false,
+          responsive: false,
           animation: false,
           interaction: { mode: 'index', intersect: false },
           plugins: { legend: { position: 'bottom', labels: { boxWidth: 10, font: { size: 10 }, padding: 12 } } },
