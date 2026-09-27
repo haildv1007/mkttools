@@ -181,6 +181,8 @@
               <template x-for="c in campaigns" :key="c.id"><option :value="c.id" x-text="c.name"></option></template>
             </select>
             <select x-model="dbFilter.preset" @change="onTimePresetChange()" class="text-xs border rounded-lg px-2 py-1.5 bg-white">
+              <option value="today">Hôm nay</option>
+              <option value="yesterday">Hôm qua</option>
               <option value="7d">7 ngày qua</option>
               <option value="14d">14 ngày qua</option>
               <option value="30d">30 ngày qua</option>
@@ -209,13 +211,13 @@
           <div class="lg:col-span-2 bg-white rounded-xl border border-gray-100 shadow-sm p-5">
             <h3 class="font-semibold text-sm mb-3">Hiệu suất theo thời gian</h3>
             <div style="height:340px; position:relative">
-              <canvas id="perfChart"></canvas>
-              <div x-show="db && (!db.chart_performance || !db.chart_performance.some(d => d.reach || d.media_views || d.engagement || d.posts_count))" class="absolute inset-0 flex items-center justify-center">
+              <div x-show="!db || !db.chart_performance || !db.chart_performance.some(d => d.reach || d.media_views || d.engagement || d.posts_count)" class="absolute inset-0 flex items-center justify-center z-10 bg-white">
                 <div class="text-center text-gray-400 text-xs">
                   <i class="ri-bar-chart-box-line text-3xl mb-2 block"></i>
                   <p x-text="(db?.top_contents||[]).length ? 'Không có dữ liệu FB trong khoảng thời gian này. Bấm Sync FB để cập nhật.' : 'Chưa có bài đăng nào. Tạo content và đăng bài trước.'"></p>
                 </div>
               </div>
+              <canvas id="perfChart"></canvas>
             </div>
           </div>
           <!-- Pipeline -->
@@ -1778,6 +1780,13 @@ function app() {
       const today = new Date(nowLocal.getFullYear(), nowLocal.getMonth(), nowLocal.getDate());
       const fmt = d => d.toISOString().slice(0, 10);
       const p = this.dbFilter.preset;
+      if (p === 'today') {
+        return { dateFrom: fmt(today), dateTo: fmt(today) };
+      }
+      if (p === 'yesterday') {
+        const yd = new Date(today.getTime() - 86400000);
+        return { dateFrom: fmt(yd), dateTo: fmt(yd) };
+      }
       if (p === 'custom') {
         return { dateFrom: this.dbFilter.customFrom || fmt(new Date(today.getTime() - 30*86400000)), dateTo: this.dbFilter.customTo || fmt(today) };
       }
