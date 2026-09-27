@@ -540,7 +540,7 @@
               class="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition flex items-center gap-2">
               <i class="ri-facebook-fill"></i> Lấy token từ Facebook
             </button>
-            <button @click="showPageModal=true; editingPage=null; pageForm={platform:'FACEBOOK',name:'',externalId:'',accessToken:'',context:''}"
+            <button @click="showPageModal=true; editingPage=null; pageForm={platform:'FACEBOOK',name:'',externalId:'',accessToken:'',context:'',telegramGroupId:''}"
               class="px-4 py-2 bg-brand-600 text-white rounded-lg text-sm font-medium hover:bg-brand-700 transition flex items-center gap-2">
               <i class="ri-add-line"></i> Thêm Page thủ công
             </button>
@@ -635,9 +635,15 @@
               </div>
               <div>
                 <label class="block text-sm font-medium text-gray-700 mb-1">Context / ADN thương hiệu</label>
-                <textarea x-model="pageForm.context" rows="4" placeholder="VD: Shop thời trang nữ, phong cách trẻ trung, target 18-30 tuổi. Tone vui vẻ, gần gũi. Hay dùng emoji. Sản phẩm chính: váy, áo croptop, quần jean."
+                <textarea x-model="pageForm.context" rows="3" placeholder="VD: Shop thời trang nữ, phong cách trẻ trung, target 18-30 tuổi. Tone vui vẻ, gần gũi."
                   class="w-full px-4 py-2.5 border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-brand-500 text-sm"></textarea>
-                <p class="text-xs text-gray-400 mt-1">Mô tả về page để AI hiểu phong cách khi tạo content (ngành hàng, tone giọng, đối tượng, đặc trưng...)</p>
+                <p class="text-xs text-gray-400 mt-1">Mô tả về page để AI hiểu phong cách khi tạo content</p>
+              </div>
+              <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1"><i class="ri-telegram-line text-blue-500 mr-1"></i>Telegram Group ID</label>
+                <input x-model="pageForm.telegramGroupId" type="text" placeholder="VD: -1001234567890"
+                  class="w-full px-4 py-2.5 border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-brand-500 text-sm">
+                <p class="text-xs text-gray-400 mt-1">ID nhóm Telegram nhận thông báo duyệt content cho page này. Bỏ trống = dùng nhóm mặc định.</p>
               </div>
               <div x-show="pageError" class="text-red-500 text-sm" x-text="pageError"></div>
               <div class="flex gap-3 pt-2">
@@ -730,6 +736,29 @@
                   <button @click="deleteCampaign(c)" class="text-gray-400 hover:text-red-500 transition" title="Xóa">
                     <i class="ri-delete-bin-line text-lg"></i>
                   </button>
+                </div>
+              </div>
+              <div class="flex items-center gap-4 mt-3 pt-3 border-t border-gray-100">
+                <div class="flex items-center gap-2">
+                  <i class="ri-timer-line text-gray-400 text-sm"></i>
+                  <span class="text-xs text-gray-500">Lead time:</span>
+                  <select :value="c.genLeadTime ?? 30" @change="updateCampaign(c.id, {genLeadTime: +$event.target.value})"
+                    class="text-xs border rounded px-1.5 py-1 bg-white">
+                    <option value="15">15 phút</option>
+                    <option value="30">30 phút</option>
+                    <option value="60">1 giờ</option>
+                    <option value="120">2 giờ</option>
+                    <option value="240">4 giờ</option>
+                    <option value="480">8 giờ</option>
+                    <option value="1440">24 giờ</option>
+                  </select>
+                </div>
+                <div class="flex items-center gap-2">
+                  <label class="flex items-center gap-1.5 cursor-pointer">
+                    <input type="checkbox" :checked="c.autoApprove" @change="updateCampaign(c.id, {autoApprove: $event.target.checked})"
+                      class="w-4 h-4 rounded border-gray-300 text-brand-600 focus:ring-brand-500">
+                    <span class="text-xs text-gray-500">Tự động duyệt</span>
+                  </label>
                 </div>
               </div>
             </div>
@@ -1816,7 +1845,7 @@ function app() {
 
     showPageModal: false,
     editingPage: null,
-    pageForm: { platform: 'FACEBOOK', name: '', externalId: '', accessToken: '', context: '' },
+    pageForm: { platform: 'FACEBOOK', name: '', externalId: '', accessToken: '', context: '', telegramGroupId: '' },
     showFbTokenModal: false,
     fbShortToken: '',
     fbPages: [],
@@ -2202,7 +2231,7 @@ function app() {
 
     editPage(p) {
       this.editingPage = p;
-      this.pageForm = { platform: p.platform, name: p.name, externalId: p.externalId, accessToken: p.accessToken, context: p.context || '' };
+      this.pageForm = { platform: p.platform, name: p.name, externalId: p.externalId, accessToken: p.accessToken, context: p.context || '', telegramGroupId: p.telegramGroupId || '' };
       this.pageError = '';
       this.showPageModal = true;
     },
@@ -2287,6 +2316,19 @@ function app() {
           this.showToast(`Đã thêm page "${fp.name}"`);
         }
         await this.loadPages();
+      } catch (e) {
+        this.showToast(e.message, 'error');
+      }
+    },
+
+    async updateCampaign(id, data) {
+      try {
+        await this.api(`/campaigns/${id}`, {
+          method: 'PUT',
+          body: JSON.stringify(data),
+        });
+        await this.loadCampaigns();
+        this.showToast('Đã cập nhật campaign');
       } catch (e) {
         this.showToast(e.message, 'error');
       }

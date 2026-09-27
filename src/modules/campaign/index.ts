@@ -150,6 +150,21 @@ router.get('/:id', async (req: Request, res: Response) => {
   res.json(campaign);
 });
 
+router.put('/:id', async (req: Request, res: Response) => {
+  try {
+    const id = String(req.params.id);
+    const { name, genLeadTime, autoApprove } = req.body;
+    const data: Record<string, unknown> = {};
+    if (name !== undefined) data.name = name;
+    if (genLeadTime !== undefined) data.genLeadTime = Number(genLeadTime);
+    if (autoApprove !== undefined) data.autoApprove = Boolean(autoApprove);
+    const campaign = await prisma.campaign.update({ where: { id }, data });
+    res.json(campaign);
+  } catch (err) {
+    res.status(400).json({ error: err instanceof Error ? err.message : 'Failed to update campaign' });
+  }
+});
+
 router.delete('/:id', async (req: Request, res: Response) => {
   await prisma.contentItem.deleteMany({ where: { campaignId: String(req.params.id) } });
   await prisma.campaign.delete({ where: { id: String(req.params.id) } });

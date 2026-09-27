@@ -20,7 +20,7 @@ export function startWorkers() {
 
     const item = await prisma.contentItem.findUnique({
       where: { id: contentItemId },
-      include: { page: true },
+      include: { page: true, campaign: true },
     });
     if (!item) throw new Error(`Content item ${contentItemId} not found`);
 
@@ -76,27 +76,31 @@ export function startWorkers() {
       }
     }
 
+    const shouldAutoApprove = item.campaign?.autoApprove === true;
+
     await prisma.contentItem.update({
       where: { id: contentItemId },
       data: {
         generatedText: fullText,
         generatedImageUrl: imageUrl,
         generatedImages: generatedImages ? JSON.parse(JSON.stringify(generatedImages)) : undefined,
-        status: 'PENDING_REVIEW',
+        status: shouldAutoApprove ? 'APPROVED' : 'PENDING_REVIEW',
         aiModel: config.ai.text.provider,
         aiImageModel: imageUrl ? config.ai.image.provider : null,
       },
     });
 
-    await sendContentForApproval({
-      contentItemId,
-      pageInfo: `${item.page.name} (${item.page.platform})`,
-      scheduledAt: item.scheduledAt.toISOString(),
-      generatedText: fullText,
-      imageUrl: imageUrl || undefined,
-    });
+    if (!shouldAutoApprove) {
+      await sendContentForApproval({
+        contentItemId,
+        pageInfo: `${item.page.name} (${item.page.platform})`,
+        scheduledAt: item.scheduledAt.toISOString(),
+        generatedText: fullText,
+        imageUrl: imageUrl || undefined,
+      });
+    }
 
-    return { contentItemId, status: 'pending_review' };
+    return { contentItemId, status: shouldAutoApprove ? 'auto_approved' : 'pending_review' };
   }, { connection, concurrency: 3 });
 
   const publishWorker = new Worker('content-publishing', async (job) => {
@@ -106,22 +110,25 @@ export function startWorkers() {
 
   const schedulerWorker = new Worker('content-scheduler', async () => {
     const now = new Date();
-    const ahead = new Date(now.getTime() + 30 * 60 * 1000);
 
     const draftItems = await prisma.contentItem.findMany({
-      where: {
-        status: 'DRAFT',
-        scheduledAt: { lte: ahead },
-      },
-      take: 20,
+      where: { status: 'DRAFT' },
+      include: { campaign: { select: { genLeadTime: true } } },
+      take: 50,
     });
 
+    let generatedCount = 0;
     for (const item of draftItems) {
+      const leadMinutes = item.campaign?.genLeadTime ?? 30;
+      const ahead = new Date(now.getTime() + leadMinutes * 60 * 1000);
+      if (item.scheduledAt > ahead) continue;
+
       await contentQueue.add('generate', { contentItemId: item.id }, {
         jobId: `gen-${item.id}`,
         attempts: 3,
         backoff: { type: 'exponential', delay: 5000 },
       });
+      generatedCount++;
     }
 
     const approvedItems = await prisma.contentItem.findMany({
@@ -140,7 +147,7 @@ export function startWorkers() {
       });
     }
 
-    return { generated: draftItems.length, published: approvedItems.length };
+    return { generated: generatedCount, published: approvedItems.length };
   }, { connection });
 
   contentWorker.on('failed', (job, err) => {

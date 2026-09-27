@@ -72,10 +72,11 @@ model Page {
   name        String
   externalId  String   @map("external_id")
   accessToken String   @map("access_token")
-  context     String?
-  isActive    Boolean  @default(true) @map("is_active")
-  metadata    Json?
-  userId      String   @map("user_id")
+  context         String?
+  isActive        Boolean  @default(true) @map("is_active")
+  metadata        Json?
+  telegramGroupId String?  @map("telegram_group_id")
+  userId          String   @map("user_id")
   createdAt   DateTime @default(now()) @map("created_at")
   updatedAt   DateTime @updatedAt @map("updated_at")
 
@@ -93,10 +94,12 @@ model Campaign {
   description String?
   startDate   DateTime  @map("start_date")
   endDate     DateTime? @map("end_date")
-  isActive    Boolean   @default(true) @map("is_active")
-  userId      String    @map("user_id")
-  createdAt   DateTime  @default(now()) @map("created_at")
-  updatedAt   DateTime  @updatedAt @map("updated_at")
+  isActive      Boolean   @default(true) @map("is_active")
+  genLeadTime   Int       @default(30) @map("gen_lead_time")
+  autoApprove   Boolean   @default(false) @map("auto_approve")
+  userId        String    @map("user_id")
+  createdAt     DateTime  @default(now()) @map("created_at")
+  updatedAt     DateTime  @updatedAt @map("updated_at")
 
   user         User          @relation(fields: [userId], references: [id])
   contentItems ContentItem[]
