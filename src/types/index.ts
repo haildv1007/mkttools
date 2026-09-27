@@ -13,6 +13,7 @@ export interface ExcelRow {
   generatedText?: string;
   imageUrl?: string;
   videoUrl?: string;
+  source?: string;
 }
 
 export interface GeneratedContent {

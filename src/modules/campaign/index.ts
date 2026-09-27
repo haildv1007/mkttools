@@ -1,9 +1,29 @@
 import { Router, Request, Response } from 'express';
 import multer from 'multer';
+import * as XLSX from 'xlsx';
 import { prisma } from '../../utils/db';
 import { parseExcelToSchedule } from './excel-parser';
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } });
 const router = Router();
+
+router.get('/template', (_req: Request, res: Response) => {
+  const headers = [
+    'Ngày', 'Giờ đăng', 'Page', 'Chủ đề', 'Loại',
+    'Ghi chú', 'Mô tả ảnh', 'Bài viết', 'Link ảnh', 'Link video',
+  ];
+  const example = [
+    '2025-01-15', '09:00', 'My Fanpage', 'Khuyến mãi Tết', 'image',
+    'Bài post chào Tết', 'Ảnh pháo hoa rực rỡ', 'Chúc mừng năm mới! 🎉', 'https://example.com/tet.jpg', '',
+  ];
+  const ws = XLSX.utils.aoa_to_sheet([headers, example]);
+  ws['!cols'] = headers.map(() => ({ wch: 20 }));
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Template');
+  const buf = XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' });
+  res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+  res.setHeader('Content-Disposition', 'attachment; filename="mkttools-template.xlsx"');
+  res.send(buf);
+});
 
 router.post('/import', upload.single('file'), async (req: Request, res: Response) => {
   try {
@@ -46,6 +66,9 @@ router.post('/import', upload.single('file'), async (req: Request, res: Response
       if (!pageId) { skipped++; continue; }
 
       const hasContent = !!(row.generatedText || row.imageUrl || row.videoUrl);
+      const isManualSource = row.source?.includes('sẵn') || row.source?.includes('san') || row.source === 'manual' || row.source === 'có sẵn';
+      const isAiSource = row.source === 'ai' || row.source?.includes('ai');
+      const resolvedSource = isManualSource || (!isAiSource && hasContent) ? 'IMPORT' : 'IMPORT';
       await prisma.contentItem.create({
         data: {
           campaignId: campaign.id,
@@ -58,7 +81,7 @@ router.post('/import', upload.single('file'), async (req: Request, res: Response
           generatedText: row.generatedText || null,
           generatedImageUrl: row.imageUrl || null,
           generatedVideoUrl: row.videoUrl || null,
-          source: 'IMPORT',
+          source: resolvedSource,
           status: hasContent ? 'PENDING_REVIEW' : 'DRAFT',
         },
       });

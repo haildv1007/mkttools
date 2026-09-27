@@ -7,8 +7,11 @@ import { listProviders, setTextProvider, setImageProvider, generateText, testCon
 import { contentQueue, publishQueue } from '../../queues';
 import { getSetting, getSettings, setSettings } from '../settings';
 
-const VIDEO_DIR = path.join(process.cwd(), 'public', 'uploads', 'videos');
+const UPLOAD_DIR = path.join(process.cwd(), 'public', 'uploads');
+const VIDEO_DIR = path.join(UPLOAD_DIR, 'videos');
+const IMAGE_DIR = path.join(UPLOAD_DIR, 'images');
 if (!fs.existsSync(VIDEO_DIR)) fs.mkdirSync(VIDEO_DIR, { recursive: true });
+if (!fs.existsSync(IMAGE_DIR)) fs.mkdirSync(IMAGE_DIR, { recursive: true });
 
 const videoUpload = multer({
   storage: multer.diskStorage({
@@ -18,6 +21,19 @@ const videoUpload = multer({
   limits: { fileSize: 500 * 1024 * 1024 },
   fileFilter: (_req, file, cb) => {
     const allowed = ['.mp4', '.mov', '.avi', '.webm', '.mkv'];
+    const ext = path.extname(file.originalname).toLowerCase();
+    cb(null, allowed.includes(ext));
+  },
+});
+
+const imageUpload = multer({
+  storage: multer.diskStorage({
+    destination: (_req, _file, cb) => cb(null, IMAGE_DIR),
+    filename: (_req, file, cb) => cb(null, `${Date.now()}-${file.originalname.replace(/[^a-zA-Z0-9._-]/g, '_')}`),
+  }),
+  limits: { fileSize: 20 * 1024 * 1024 },
+  fileFilter: (_req, file, cb) => {
+    const allowed = ['.jpg', '.jpeg', '.png', '.gif', '.webp'];
     const ext = path.extname(file.originalname).toLowerCase();
     cb(null, allowed.includes(ext));
   },
@@ -335,6 +351,26 @@ router.post('/content/:id/request-edit', async (req: Request, res: Response) => 
 });
 
 // Video upload
+// Image upload
+router.post('/content/:id/upload-image', imageUpload.single('image'), async (req: Request, res: Response) => {
+  try {
+    const id = req.params.id as string;
+    if (!req.file) return res.status(400).json({ error: 'Không có file ảnh' });
+
+    const appUrl = process.env.APP_URL || `${req.protocol}://${req.get('host')}`;
+    const imageUrl = `${appUrl}/uploads/images/${req.file.filename}`;
+
+    await prisma.contentItem.update({
+      where: { id },
+      data: { generatedImageUrl: imageUrl },
+    });
+
+    res.json({ success: true, imageUrl, filename: req.file.filename, size: req.file.size });
+  } catch (err) {
+    res.status(400).json({ error: err instanceof Error ? err.message : 'Upload failed' });
+  }
+});
+
 router.post('/content/:id/upload-video', videoUpload.single('video'), async (req: Request, res: Response) => {
   try {
     const id = req.params.id as string;

@@ -683,39 +683,96 @@
               <textarea x-model="contentForm.generatedText" rows="4" placeholder="Nhập nội dung bài viết đầy đủ..."
                 class="w-full px-4 py-2.5 border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-brand-500 text-sm"></textarea>
             </div>
-            <div x-show="contentForm.mode==='manual' && contentForm.contentType === 'IMAGE'">
-              <label class="block text-sm font-medium text-gray-700 mb-1">Link ảnh</label>
-              <input x-model="contentForm.imageUrl" type="url" placeholder="https://... (link ảnh trực tiếp)"
-                class="w-full px-4 py-2.5 border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-brand-500 text-sm">
+
+            <!-- Image: upload hoặc URL (cả 2 mode, khi contentType=IMAGE) -->
+            <div x-show="contentForm.contentType === 'IMAGE'">
+              <label class="block text-sm font-medium text-gray-700 mb-1">Ảnh</label>
+              <div x-show="!contentForm.imageUrl && !contentForm.imageFile">
+                <div class="flex gap-2 mb-2">
+                  <button @click="contentForm.imageInputMode='upload'" type="button"
+                    :class="contentForm.imageInputMode==='upload' ? 'bg-brand-50 text-brand-600 border-brand-300' : 'bg-white text-gray-500 border-gray-200'"
+                    class="flex-1 py-1.5 text-xs font-medium border rounded-lg transition flex items-center justify-center gap-1">
+                    <i class="ri-upload-2-line"></i> Upload file
+                  </button>
+                  <button @click="contentForm.imageInputMode='url'" type="button"
+                    :class="contentForm.imageInputMode==='url' ? 'bg-brand-50 text-brand-600 border-brand-300' : 'bg-white text-gray-500 border-gray-200'"
+                    class="flex-1 py-1.5 text-xs font-medium border rounded-lg transition flex items-center justify-center gap-1">
+                    <i class="ri-link"></i> Nhập URL
+                  </button>
+                </div>
+                <div x-show="contentForm.imageInputMode==='upload'">
+                  <div class="border-2 border-dashed border-gray-300 rounded-xl p-4 text-center hover:border-brand-400 transition cursor-pointer"
+                    @click="$refs.imageInput.click()" @dragover.prevent @drop.prevent="contentForm.imageFile=$event.dataTransfer.files[0]">
+                    <input type="file" x-ref="imageInput" accept=".jpg,.jpeg,.png,.gif,.webp" @change="contentForm.imageFile=$event.target.files[0]" class="hidden">
+                    <i class="ri-image-add-line text-2xl text-gray-300 mb-1"></i>
+                    <p x-show="!contentForm.imageFile" class="text-xs text-gray-400">Kéo thả ảnh hoặc click để chọn</p>
+                    <p x-show="contentForm.imageFile" class="text-xs text-brand-600 font-medium" x-text="contentForm.imageFile?.name"></p>
+                  </div>
+                  <p class="text-xs text-gray-400 mt-1">JPG, PNG, GIF, WebP — tối đa 20MB</p>
+                </div>
+                <div x-show="contentForm.imageInputMode==='url'">
+                  <input x-model="contentForm.imageUrl" type="url" placeholder="https://... (link ảnh trực tiếp)"
+                    class="w-full px-4 py-2.5 border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-brand-500 text-sm">
+                </div>
+              </div>
+              <div x-show="contentForm.imageUrl || contentForm.imageFile" class="space-y-2">
+                <div x-show="contentForm.imageUrl" class="flex items-center gap-2">
+                  <img :src="contentForm.imageUrl" class="h-20 rounded-lg object-cover" onerror="this.style.display='none'">
+                  <div>
+                    <span class="text-xs text-green-600 flex items-center gap-1"><i class="ri-check-line"></i> Đã có ảnh</span>
+                    <button @click="contentForm.imageUrl=''" type="button" class="text-xs text-red-500 hover:text-red-700">Xóa</button>
+                  </div>
+                </div>
+                <div x-show="contentForm.imageFile && !contentForm.imageUrl" class="flex items-center gap-2">
+                  <span class="text-xs text-brand-600" x-text="contentForm.imageFile?.name"></span>
+                  <button @click="contentForm.imageFile=null" type="button" class="text-xs text-red-500 hover:text-red-700">Xóa</button>
+                </div>
+              </div>
             </div>
-            <div x-show="contentForm.mode==='manual' && contentForm.contentType === 'VIDEO'">
-              <label class="block text-sm font-medium text-gray-700 mb-1">Link video</label>
-              <input x-model="contentForm.manualVideoUrl" type="url" placeholder="https://... (link video trực tiếp)"
-                class="w-full px-4 py-2.5 border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-brand-500 text-sm">
-              <p class="text-xs text-gray-400 mt-1">Hoặc upload video bên dưới</p>
-            </div>
+
+            <!-- Video: upload hoặc URL (cả 2 mode, khi contentType=VIDEO) -->
             <div x-show="contentForm.contentType === 'VIDEO'">
               <label class="block text-sm font-medium text-gray-700 mb-1">Video</label>
-              <!-- Show upload area when creating new or editing without video -->
-              <div x-show="!contentForm.videoUrl">
-                <div class="border-2 border-dashed border-gray-300 rounded-xl p-6 text-center hover:border-brand-400 transition cursor-pointer"
-                  @click="$refs.videoInput.click()" @dragover.prevent @drop.prevent="contentForm.videoFile=$event.dataTransfer.files[0]">
-                  <input type="file" x-ref="videoInput" accept=".mp4,.mov,.avi,.webm,.mkv" @change="contentForm.videoFile=$event.target.files[0]" class="hidden">
-                  <i class="ri-video-upload-line text-3xl text-gray-300 mb-2"></i>
-                  <p x-show="!contentForm.videoFile" class="text-sm text-gray-400">Kéo thả video vào đây hoặc click để chọn</p>
-                  <p x-show="contentForm.videoFile" class="text-sm text-brand-600 font-medium" x-text="contentForm.videoFile?.name"></p>
-                  <p x-show="contentForm.videoFile" class="text-xs text-gray-400 mt-1" x-text="contentForm.videoFile ? (contentForm.videoFile.size / 1024 / 1024).toFixed(1) + ' MB' : ''"></p>
+              <div x-show="!contentForm.videoUrl && !contentForm.videoFile">
+                <div class="flex gap-2 mb-2">
+                  <button @click="contentForm.videoInputMode='upload'" type="button"
+                    :class="contentForm.videoInputMode==='upload' ? 'bg-brand-50 text-brand-600 border-brand-300' : 'bg-white text-gray-500 border-gray-200'"
+                    class="flex-1 py-1.5 text-xs font-medium border rounded-lg transition flex items-center justify-center gap-1">
+                    <i class="ri-upload-2-line"></i> Upload file
+                  </button>
+                  <button @click="contentForm.videoInputMode='url'" type="button"
+                    :class="contentForm.videoInputMode==='url' ? 'bg-brand-50 text-brand-600 border-brand-300' : 'bg-white text-gray-500 border-gray-200'"
+                    class="flex-1 py-1.5 text-xs font-medium border rounded-lg transition flex items-center justify-center gap-1">
+                    <i class="ri-link"></i> Nhập URL
+                  </button>
                 </div>
-                <p class="text-xs text-gray-400 mt-1">Hỗ trợ: MP4, MOV, AVI, WebM, MKV — tối đa 500MB</p>
-                <p class="text-xs text-gray-300 mt-0.5">Sau này sẽ hỗ trợ đồng bộ từ tools tạo video qua GPU cá nhân</p>
+                <div x-show="contentForm.videoInputMode==='upload'">
+                  <div class="border-2 border-dashed border-gray-300 rounded-xl p-4 text-center hover:border-brand-400 transition cursor-pointer"
+                    @click="$refs.videoInput.click()" @dragover.prevent @drop.prevent="contentForm.videoFile=$event.dataTransfer.files[0]">
+                    <input type="file" x-ref="videoInput" accept=".mp4,.mov,.avi,.webm,.mkv" @change="contentForm.videoFile=$event.target.files[0]" class="hidden">
+                    <i class="ri-video-upload-line text-2xl text-gray-300 mb-1"></i>
+                    <p x-show="!contentForm.videoFile" class="text-xs text-gray-400">Kéo thả video hoặc click để chọn</p>
+                    <p x-show="contentForm.videoFile" class="text-xs text-brand-600 font-medium" x-text="contentForm.videoFile?.name"></p>
+                    <p x-show="contentForm.videoFile" class="text-xs text-gray-400 mt-0.5" x-text="contentForm.videoFile ? (contentForm.videoFile.size / 1024 / 1024).toFixed(1) + ' MB' : ''"></p>
+                  </div>
+                  <p class="text-xs text-gray-400 mt-1">MP4, MOV, AVI, WebM, MKV — tối đa 500MB</p>
+                </div>
+                <div x-show="contentForm.videoInputMode==='url'">
+                  <input x-model="contentForm.manualVideoUrl" type="url" placeholder="https://... (link video trực tiếp)"
+                    class="w-full px-4 py-2.5 border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-brand-500 text-sm">
+                </div>
               </div>
-              <!-- Show current video when editing with existing video -->
               <div x-show="contentForm.videoUrl" class="space-y-2">
                 <video :src="contentForm.videoUrl" controls class="rounded-lg w-full max-h-48 bg-black"></video>
                 <div class="flex items-center gap-2">
                   <span class="text-xs text-green-600 flex items-center gap-1"><i class="ri-check-line"></i> Đã có video</span>
                   <button @click="contentForm.videoUrl=''" type="button" class="text-xs text-red-500 hover:text-red-700">Xóa video</button>
                 </div>
+              </div>
+              <div x-show="contentForm.videoFile && !contentForm.videoUrl" class="flex items-center gap-2 mt-1">
+                <span class="text-xs text-brand-600" x-text="contentForm.videoFile?.name"></span>
+                <span class="text-xs text-gray-400" x-text="contentForm.videoFile ? (contentForm.videoFile.size / 1024 / 1024).toFixed(1) + ' MB' : ''"></span>
+                <button @click="contentForm.videoFile=null" type="button" class="text-xs text-red-500 hover:text-red-700">Xóa</button>
               </div>
             </div>
             <div x-show="contentFormError" class="text-red-500 text-sm" x-text="contentFormError"></div>
@@ -823,9 +880,17 @@
 
       <!-- Import Excel -->
       <div x-show="page==='import'" class="fade-in">
-        <h2 class="text-xl font-bold mb-6">Import Kịch bản Marketing</h2>
+        <div class="flex items-center justify-between mb-6">
+          <div>
+            <h2 class="text-xl font-bold">Import Content</h2>
+            <p class="text-sm text-gray-400 mt-0.5">Nhập content từ file Excel hoặc Google Sheets</p>
+          </div>
+          <a href="/api/campaigns/template" download class="px-3 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-600 hover:bg-gray-50 transition flex items-center gap-1">
+            <i class="ri-download-line"></i> Tải file mẫu
+          </a>
+        </div>
 
-        <div class="bg-white rounded-xl border border-gray-100 shadow-sm p-6 max-w-2xl">
+        <div class="bg-white rounded-xl border border-gray-100 shadow-sm p-6 max-w-3xl">
           <div class="space-y-5">
             <div>
               <label class="block text-sm font-medium text-gray-700 mb-1">Tên Campaign</label>
@@ -845,55 +910,41 @@
             </div>
 
             <div class="bg-gray-50 rounded-lg p-4">
-              <h4 class="text-sm font-semibold mb-2">Format file Excel:</h4>
-              <p class="text-xs text-gray-500 mb-2">Có 2 kiểu import: <b>Kịch bản AI</b> (chỉ cần chủ đề, AI sẽ tạo nội dung) hoặc <b>Content có sẵn</b> (có bài viết, ảnh, video rồi → chỉ lên lịch đăng)</p>
+              <h4 class="text-sm font-semibold mb-3">Các cột trong file Excel (tất cả đều cố định):</h4>
               <div class="overflow-x-auto">
-                <table class="text-xs w-full">
+                <table class="text-xs w-full border-collapse">
                   <thead>
-                    <tr class="text-gray-500">
-                      <th class="text-left p-1.5 bg-gray-100 rounded">Ngày</th>
-                      <th class="text-left p-1.5 bg-gray-100 rounded">Giờ đăng</th>
-                      <th class="text-left p-1.5 bg-gray-100 rounded">Page</th>
-                      <th class="text-left p-1.5 bg-gray-100 rounded">Chủ đề</th>
-                      <th class="text-left p-1.5 bg-gray-100 rounded">Loại</th>
-                      <th class="text-left p-1.5 bg-gray-100 rounded">Ghi chú</th>
-                      <th class="text-left p-1.5 bg-blue-50 rounded text-blue-600">Bài viết</th>
-                      <th class="text-left p-1.5 bg-blue-50 rounded text-blue-600">Link ảnh</th>
-                      <th class="text-left p-1.5 bg-blue-50 rounded text-blue-600">Link video</th>
-                      <th class="text-left p-1.5 bg-gray-100 rounded">Mô tả ảnh</th>
+                    <tr>
+                      <th class="text-left p-2 bg-gray-100 border border-gray-200 font-semibold">Tên cột</th>
+                      <th class="text-left p-2 bg-gray-100 border border-gray-200 font-semibold">Bắt buộc</th>
+                      <th class="text-left p-2 bg-gray-100 border border-gray-200 font-semibold">Mô tả</th>
+                      <th class="text-left p-2 bg-gray-100 border border-gray-200 font-semibold">Ví dụ</th>
                     </tr>
                   </thead>
                   <tbody class="text-gray-600">
-                    <tr>
-                      <td class="p-1.5">2026-10-01</td>
-                      <td class="p-1.5">09:00</td>
-                      <td class="p-1.5">Shop ABC</td>
-                      <td class="p-1.5">Khuyến mãi mùa thu</td>
-                      <td class="p-1.5">image</td>
-                      <td class="p-1.5">Tone vui vẻ</td>
-                      <td class="p-1.5 text-blue-500"></td>
-                      <td class="p-1.5 text-blue-500"></td>
-                      <td class="p-1.5 text-blue-500"></td>
-                      <td class="p-1.5">Ảnh SP | Ảnh KH</td>
-                    </tr>
-                    <tr class="bg-blue-50/30">
-                      <td class="p-1.5">2026-10-02</td>
-                      <td class="p-1.5">18:00</td>
-                      <td class="p-1.5">Shop ABC</td>
-                      <td class="p-1.5">Review sản phẩm X</td>
-                      <td class="p-1.5">image</td>
-                      <td class="p-1.5"></td>
-                      <td class="p-1.5 text-blue-600">Nội dung bài viết...</td>
-                      <td class="p-1.5 text-blue-600">https://link-anh.jpg</td>
-                      <td class="p-1.5"></td>
-                      <td class="p-1.5"></td>
-                    </tr>
+                    <tr><td class="p-2 border border-gray-200 font-medium">Ngày</td><td class="p-2 border border-gray-200 text-red-500">✓</td><td class="p-2 border border-gray-200">Ngày đăng bài</td><td class="p-2 border border-gray-200">2026-10-01</td></tr>
+                    <tr><td class="p-2 border border-gray-200 font-medium">Giờ đăng</td><td class="p-2 border border-gray-200 text-gray-400">—</td><td class="p-2 border border-gray-200">Mặc định 09:00</td><td class="p-2 border border-gray-200">18:00</td></tr>
+                    <tr><td class="p-2 border border-gray-200 font-medium">Page</td><td class="p-2 border border-gray-200 text-red-500">✓</td><td class="p-2 border border-gray-200">Tên page (phải trùng với page đã thêm)</td><td class="p-2 border border-gray-200">BeKiddo</td></tr>
+                    <tr><td class="p-2 border border-gray-200 font-medium">Chủ đề</td><td class="p-2 border border-gray-200 text-red-500">✓</td><td class="p-2 border border-gray-200">Chủ đề / tiêu đề content</td><td class="p-2 border border-gray-200">Khuyến mãi mùa thu</td></tr>
+                    <tr><td class="p-2 border border-gray-200 font-medium">Loại</td><td class="p-2 border border-gray-200 text-gray-400">—</td><td class="p-2 border border-gray-200">image / video / text. Mặc định: image</td><td class="p-2 border border-gray-200">image</td></tr>
+                    <tr><td class="p-2 border border-gray-200 font-medium">Ghi chú</td><td class="p-2 border border-gray-200 text-gray-400">—</td><td class="p-2 border border-gray-200">Yêu cầu cho AI hoặc ghi chú</td><td class="p-2 border border-gray-200">Tone vui vẻ</td></tr>
+                    <tr><td class="p-2 border border-gray-200 font-medium">Mô tả ảnh</td><td class="p-2 border border-gray-200 text-gray-400">—</td><td class="p-2 border border-gray-200">Mô tả ảnh cho AI gen (nhiều ảnh cách bằng |)</td><td class="p-2 border border-gray-200">Ảnh SP | Ảnh KH</td></tr>
+                    <tr class="bg-teal-50/50"><td class="p-2 border border-gray-200 font-medium text-teal-700">Bài viết</td><td class="p-2 border border-gray-200 text-gray-400">—</td><td class="p-2 border border-gray-200">Nội dung bài viết có sẵn (nếu có → chờ duyệt)</td><td class="p-2 border border-gray-200 text-teal-600">Nội dung caption...</td></tr>
+                    <tr class="bg-teal-50/50"><td class="p-2 border border-gray-200 font-medium text-teal-700">Link ảnh</td><td class="p-2 border border-gray-200 text-gray-400">—</td><td class="p-2 border border-gray-200">URL ảnh có sẵn</td><td class="p-2 border border-gray-200 text-teal-600">https://...jpg</td></tr>
+                    <tr class="bg-teal-50/50"><td class="p-2 border border-gray-200 font-medium text-teal-700">Link video</td><td class="p-2 border border-gray-200 text-gray-400">—</td><td class="p-2 border border-gray-200">URL video có sẵn</td><td class="p-2 border border-gray-200 text-teal-600">https://...mp4</td></tr>
                   </tbody>
                 </table>
               </div>
-              <div class="mt-2 space-y-1">
-                <p class="text-xs text-gray-400">Hỗ trợ tiếng Việt có dấu cho tên cột. Cột "Mô tả ảnh": mô tả từng ảnh cách nhau bằng dấu <b>|</b></p>
-                <p class="text-xs text-blue-500">Cột <b>Bài viết / Link ảnh / Link video</b> (màu xanh) là tùy chọn — nếu có thì content sẽ vào trạng thái <b>Chờ duyệt</b>, nếu không có thì <b>Nháp</b> (chờ AI gen)</p>
+              <div class="mt-3 p-3 bg-white rounded-lg border border-gray-200">
+                <p class="text-xs font-medium text-gray-700 mb-1">Cách hoạt động:</p>
+                <div class="flex gap-4">
+                  <div class="flex-1">
+                    <p class="text-xs text-purple-600"><i class="ri-magic-line"></i> <b>AI gen:</b> Điền Chủ đề + Ghi chú, để trống Bài viết/Link → trạng thái <b>Nháp</b> (AI sẽ tạo nội dung)</p>
+                  </div>
+                  <div class="flex-1">
+                    <p class="text-xs text-teal-600"><i class="ri-file-text-line"></i> <b>Có sẵn:</b> Điền luôn Bài viết, Link ảnh/video → trạng thái <b>Chờ duyệt</b> (chỉ cần duyệt và đăng)</p>
+                  </div>
+                </div>
               </div>
             </div>
 
@@ -914,6 +965,20 @@
               <span x-show="!importLoading"><i class="ri-upload-line"></i> Import</span>
               <span x-show="importLoading"><i class="ri-loader-4-line animate-spin"></i> Đang xử lý...</span>
             </button>
+          </div>
+        </div>
+
+        <!-- Google Sheets sync (coming soon) -->
+        <div class="bg-white rounded-xl border border-gray-100 shadow-sm p-6 max-w-3xl mt-6">
+          <div class="flex items-center gap-3">
+            <div class="w-10 h-10 bg-green-50 rounded-xl flex items-center justify-center">
+              <i class="ri-google-fill text-green-600 text-xl"></i>
+            </div>
+            <div>
+              <h3 class="font-semibold text-gray-800">Đồng bộ từ Google Sheets</h3>
+              <p class="text-xs text-gray-400">Kết nối trực tiếp với Google Sheets, mỗi tab = 1 campaign. Đang phát triển...</p>
+            </div>
+            <span class="ml-auto px-2 py-1 bg-amber-50 text-amber-600 text-xs font-medium rounded-full">Sắp ra mắt</span>
           </div>
         </div>
       </div>
@@ -1233,7 +1298,7 @@ function app() {
 
     showContentForm: false,
     editingContent: null,
-    contentForm: { pageId: '', topic: '', contentType: 'IMAGE', scheduledDate: '', scheduledTime: '09:00', notes: '', imageDescriptions: '', videoFile: null, videoUrl: '', mode: 'ai', generatedText: '', imageUrl: '', manualVideoUrl: '' },
+    contentForm: { pageId: '', topic: '', contentType: 'IMAGE', scheduledDate: '', scheduledTime: '09:00', notes: '', imageDescriptions: '', videoFile: null, videoUrl: '', mode: 'ai', generatedText: '', imageUrl: '', manualVideoUrl: '', imageFile: null, imageInputMode: 'upload', videoInputMode: 'upload' },
     contentFormError: '',
     contentFormSaving: false,
 
@@ -1682,6 +1747,9 @@ function app() {
         generatedText: '',
         imageUrl: '',
         manualVideoUrl: '',
+        imageFile: null,
+        imageInputMode: 'upload',
+        videoInputMode: 'upload',
       };
       this.contentFormError = '';
       this.showContentForm = true;
@@ -1705,6 +1773,9 @@ function app() {
         generatedText: item.generatedText || '',
         imageUrl: item.generatedImageUrl || '',
         manualVideoUrl: item.generatedVideoUrl || '',
+        imageFile: null,
+        imageInputMode: item.generatedImageUrl ? 'url' : 'upload',
+        videoInputMode: item.generatedVideoUrl ? 'url' : 'upload',
       };
       this.contentFormError = '';
       this.showContentForm = true;
@@ -1754,11 +1825,15 @@ function app() {
           contentId = created.id;
           this.showToast(isManual ? 'Thêm content có sẵn → Chờ duyệt' : 'Thêm content thành công');
         }
+        if (this.contentForm.imageFile && contentId) {
+          const form = new FormData();
+          form.append('image', this.contentForm.imageFile);
+          await this.api(`/dashboard/content/${contentId}/upload-image`, { method: 'POST', body: form });
+        }
         if (this.contentForm.videoFile && contentId) {
           const form = new FormData();
           form.append('video', this.contentForm.videoFile);
           await this.api(`/dashboard/content/${contentId}/upload-video`, { method: 'POST', body: form });
-          this.showToast('Upload video thành công');
         }
         this.showContentForm = false;
         await this.loadContent();

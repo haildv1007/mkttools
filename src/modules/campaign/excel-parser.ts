@@ -25,6 +25,7 @@ const COLUMN_MAP: Record<string, string> = {
   'content text': 'generatedText', 'caption': 'generatedText',
   'link ảnh': 'imageUrl', 'link_anh': 'imageUrl', 'image url': 'imageUrl', 'url ảnh': 'imageUrl',
   'link video': 'videoUrl', 'link_video': 'videoUrl', 'video url': 'videoUrl', 'url video': 'videoUrl', 'video': 'videoUrl',
+  'nguồn': 'source', 'nguon': 'source', 'source': 'source', 'loại nguồn': 'source',
 };
 
 function normalizeHeader(header: string): string | undefined {
@@ -118,6 +119,7 @@ export function parseExcel(buffer: Buffer): ExcelRow[] {
       generatedText: mapped.generatedText ? String(mapped.generatedText) : undefined,
       imageUrl: mapped.imageUrl ? String(mapped.imageUrl) : undefined,
       videoUrl: mapped.videoUrl ? String(mapped.videoUrl) : undefined,
+      source: mapped.source ? String(mapped.source).toLowerCase() : undefined,
     });
   }
 
