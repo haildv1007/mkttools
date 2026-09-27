@@ -310,15 +310,16 @@ router.get('/stats/dashboard', async (req: Request, res: Response) => {
       engagement_rate: { value: curER, delta_percent: curER !== null && prevER !== null ? deltaPercent(curER, prevER) : 0 },
     };
 
-    // --- Chart performance: group by published date ---
+    // --- Chart performance: group by published date (VN timezone) ---
+    const toVnDate = (dt: Date) => dt.toLocaleString('sv-SE', { timeZone: 'Asia/Ho_Chi_Minh' }).slice(0, 10);
     const chartMap = new Map<string, { reach: number; media_views: number; engagement: number; posts_count: number }>();
     const d = new Date(currentFrom);
     while (d <= currentTo) {
-      chartMap.set(d.toISOString().slice(0, 10), { reach: 0, media_views: 0, engagement: 0, posts_count: 0 });
+      chartMap.set(toVnDate(d), { reach: 0, media_views: 0, engagement: 0, posts_count: 0 });
       d.setDate(d.getDate() + 1);
     }
     for (const m of fbCurrent) {
-      const dateKey = m.publishedAt ? new Date(m.publishedAt).toISOString().slice(0, 10) : null;
+      const dateKey = m.publishedAt ? toVnDate(new Date(m.publishedAt)) : null;
       if (!dateKey) continue;
       const entry = chartMap.get(dateKey) ?? { reach: 0, media_views: 0, engagement: 0, posts_count: 0 };
       entry.reach += m.reach;
@@ -328,7 +329,7 @@ router.get('/stats/dashboard', async (req: Request, res: Response) => {
       chartMap.set(dateKey, entry);
     }
     for (const item of currentItems) {
-      const dateKey = item.publishedAt ? new Date(item.publishedAt).toISOString().slice(0, 10) : null;
+      const dateKey = item.publishedAt ? toVnDate(new Date(item.publishedAt)) : null;
       if (!dateKey) continue;
       if (!fbCurrent.some(f => f.contentItemId === item.id)) {
         const entry = chartMap.get(dateKey) ?? { reach: 0, media_views: 0, engagement: 0, posts_count: 0 };
