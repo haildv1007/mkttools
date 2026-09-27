@@ -1,3 +1,4 @@
+import { Prisma } from '@prisma/client';
 import { Router, Request, Response } from 'express';
 import multer from 'multer';
 import path from 'path';
@@ -41,36 +42,395 @@ const imageUpload = multer({
 
 const router = Router();
 
+// --- Facebook insights cache ---
+const fbCache = new Map<string, { data: unknown; ts: number }>();
+const FB_CACHE_TTL = 5 * 60 * 1000;
+
 router.get('/stats', async (_req: Request, res: Response) => {
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  const tomorrow = new Date(today);
-  tomorrow.setDate(tomorrow.getDate() + 1);
+  try {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const tomorrow = new Date(today);
+    tomorrow.setDate(tomorrow.getDate() + 1);
 
-  const [totalPages, totalCampaigns, todayStats, allTimeStats] = await Promise.all([
-    prisma.page.count({ where: { isActive: true } }),
-    prisma.campaign.count({ where: { isActive: true } }),
-    prisma.contentItem.groupBy({
-      by: ['status'],
-      where: { scheduledAt: { gte: today, lt: tomorrow } },
-      _count: true,
-    }),
-    prisma.contentItem.groupBy({
-      by: ['status'],
-      _count: true,
-    }),
-  ]);
+    const [
+      totalPages,
+      totalCampaigns,
+      totalContent,
+      statusBreakdown,
+      sourceBreakdown,
+      contentTypeBreakdown,
+      todayCreated,
+      todayPublished,
+      providers,
+    ] = await Promise.all([
+      prisma.page.count({ where: { isActive: true } }),
+      prisma.campaign.count({ where: { isActive: true } }),
+      prisma.contentItem.count(),
+      prisma.contentItem.groupBy({ by: ['status'], _count: true }),
+      prisma.contentItem.groupBy({ by: ['source'], _count: true }),
+      prisma.contentItem.groupBy({ by: ['contentType'], _count: true }),
+      prisma.contentItem.count({ where: { createdAt: { gte: today, lt: tomorrow } } }),
+      prisma.contentItem.count({ where: { publishedAt: { gte: today, lt: tomorrow } } }),
+      listProviders(),
+    ]);
 
-  const todayMap = Object.fromEntries(todayStats.map(s => [s.status, s._count]));
-  const allMap = Object.fromEntries(allTimeStats.map(s => [s.status, s._count]));
+    const statusMap = Object.fromEntries(statusBreakdown.map(s => [s.status, s._count]));
+    const sourceMap = Object.fromEntries(sourceBreakdown.map(s => [s.source, s._count]));
+    const typeMap = Object.fromEntries(contentTypeBreakdown.map(s => [s.contentType, s._count]));
+    const published = statusMap['PUBLISHED'] ?? 0;
+    const successRate = totalContent > 0 ? Math.round((published / totalContent) * 10000) / 100 : 0;
 
-  res.json({
-    pages: totalPages,
-    campaigns: totalCampaigns,
-    today: todayMap,
-    allTime: allMap,
-    providers: await listProviders(),
-  });
+    res.json({
+      totalPages,
+      totalCampaigns,
+      totalContent,
+      statusBreakdown: statusMap,
+      sourceBreakdown: sourceMap,
+      contentTypeBreakdown: typeMap,
+      todayCreated,
+      todayPublished,
+      successRate,
+      providers,
+    });
+  } catch (err) {
+    res.status(500).json({ error: err instanceof Error ? err.message : 'Failed to fetch stats' });
+  }
+});
+
+router.get('/stats/timeline', async (req: Request, res: Response) => {
+  try {
+    const days = Math.max(1, Math.min(365, parseInt(req.query.days as string, 10) || 30));
+
+    const rows = await prisma.$queryRaw<Array<{ date: string; created: number; published: number }>>(
+      Prisma.sql`
+        SELECT DATE("created_at") as date,
+               COUNT(*)::int as created,
+               SUM(CASE WHEN status = 'PUBLISHED' THEN 1 ELSE 0 END)::int as published
+        FROM content_items
+        WHERE "created_at" >= NOW() - make_interval(days => ${days})
+        GROUP BY DATE("created_at")
+        ORDER BY date
+      `
+    );
+
+    res.json(rows);
+  } catch (err) {
+    res.status(500).json({ error: err instanceof Error ? err.message : 'Failed to fetch timeline' });
+  }
+});
+
+router.get('/stats/campaigns', async (_req: Request, res: Response) => {
+  try {
+    const campaigns = await prisma.campaign.findMany({
+      where: { isActive: true },
+      include: {
+        contentItems: {
+          select: { status: true, pageId: true },
+        },
+      },
+    });
+
+    const results = await Promise.all(
+      campaigns.map(async (campaign) => {
+        const items = campaign.contentItems;
+        const totalContent = items.length;
+        const published = items.filter(i => i.status === 'PUBLISHED').length;
+        const draft = items.filter(i => i.status === 'DRAFT').length;
+        const pending = items.filter(i => i.status === 'PENDING_REVIEW').length;
+        const failed = items.filter(i => i.status === 'FAILED').length;
+        const successRate = totalContent > 0 ? Math.round((published / totalContent) * 10000) / 100 : 0;
+
+        // Find the most-used page
+        const pageCounts = new Map<string, number>();
+        for (const item of items) {
+          pageCounts.set(item.pageId, (pageCounts.get(item.pageId) ?? 0) + 1);
+        }
+        let topPageName: string | null = null;
+        if (pageCounts.size > 0) {
+          const topPageId = [...pageCounts.entries()].sort((a, b) => b[1] - a[1])[0][0];
+          const topPage = await prisma.page.findUnique({ where: { id: topPageId }, select: { name: true } });
+          topPageName = topPage?.name ?? null;
+        }
+
+        return {
+          id: campaign.id,
+          name: campaign.name,
+          startDate: campaign.startDate,
+          endDate: campaign.endDate,
+          totalContent,
+          published,
+          draft,
+          pending,
+          failed,
+          successRate,
+          topPageName,
+        };
+      })
+    );
+
+    res.json(results);
+  } catch (err) {
+    res.status(500).json({ error: err instanceof Error ? err.message : 'Failed to fetch campaign stats' });
+  }
+});
+
+router.get('/stats/pages', async (_req: Request, res: Response) => {
+  try {
+    const pages = await prisma.page.findMany({
+      where: { isActive: true },
+      include: {
+        _count: { select: { contentItems: true } },
+        contentItems: {
+          where: { status: 'PUBLISHED' },
+          select: { id: true },
+        },
+      },
+    });
+
+    const results = pages.map(page => {
+      const totalContent = page._count.contentItems;
+      const published = page.contentItems.length;
+      const successRate = totalContent > 0 ? Math.round((published / totalContent) * 10000) / 100 : 0;
+      return {
+        id: page.id,
+        name: page.name,
+        platform: page.platform,
+        externalId: page.externalId,
+        totalContent,
+        published,
+        successRate,
+      };
+    });
+
+    res.json(results);
+  } catch (err) {
+    res.status(500).json({ error: err instanceof Error ? err.message : 'Failed to fetch page stats' });
+  }
+});
+
+router.get('/stats/upcoming', async (_req: Request, res: Response) => {
+  try {
+    const now = new Date();
+    const nextWeek = new Date(now);
+    nextWeek.setDate(nextWeek.getDate() + 7);
+
+    const items = await prisma.contentItem.findMany({
+      where: {
+        scheduledAt: { gte: now, lte: nextWeek },
+        status: { in: ['DRAFT', 'PENDING_REVIEW', 'APPROVED', 'GENERATING'] },
+      },
+      include: {
+        page: { select: { id: true, name: true, platform: true } },
+        campaign: { select: { id: true, name: true } },
+      },
+      orderBy: { scheduledAt: 'asc' },
+      take: 20,
+    });
+
+    res.json(items);
+  } catch (err) {
+    res.status(500).json({ error: err instanceof Error ? err.message : 'Failed to fetch upcoming content' });
+  }
+});
+
+router.get('/stats/recent-published', async (_req: Request, res: Response) => {
+  try {
+    const items = await prisma.contentItem.findMany({
+      where: { status: 'PUBLISHED' },
+      include: {
+        page: { select: { id: true, name: true, platform: true } },
+        campaign: { select: { id: true, name: true } },
+      },
+      orderBy: { publishedAt: 'desc' },
+      take: 10,
+    });
+
+    res.json(items);
+  } catch (err) {
+    res.status(500).json({ error: err instanceof Error ? err.message : 'Failed to fetch recent published' });
+  }
+});
+
+router.get('/stats/fb-insights', async (_req: Request, res: Response) => {
+  try {
+    // Get all published content with socialPostId
+    const publishedItems = await prisma.contentItem.findMany({
+      where: {
+        status: 'PUBLISHED',
+        socialPostId: { not: null },
+      },
+      select: {
+        id: true,
+        socialPostId: true,
+        topic: true,
+        publishedAt: true,
+        pageId: true,
+        page: {
+          select: { id: true, name: true, externalId: true, accessToken: true, platform: true },
+        },
+      },
+    });
+
+    // Filter to Facebook only and group by page
+    const byPage = new Map<string, { page: typeof publishedItems[0]['page']; items: typeof publishedItems }>();
+    for (const item of publishedItems) {
+      if (item.page.platform !== 'FACEBOOK') continue;
+      if (!item.socialPostId) continue;
+      const existing = byPage.get(item.pageId);
+      if (existing) {
+        existing.items.push(item);
+      } else {
+        byPage.set(item.pageId, { page: item.page, items: [item] });
+      }
+    }
+
+    const results: Array<{
+      pageId: string;
+      pageName: string;
+      followers: number | null;
+      fanCount: number | null;
+      totalReactions: number;
+      totalComments: number;
+      totalShares: number;
+      totalReach: number;
+      posts: Array<{
+        contentItemId: string;
+        socialPostId: string;
+        topic: string;
+        publishedAt: Date | null;
+        reactions: number;
+        comments: number;
+        shares: number;
+        reach: number;
+        engagedUsers: number;
+      }>;
+      errors: string[];
+    }> = [];
+
+    for (const [pageId, { page, items }] of byPage) {
+      const pageResult = {
+        pageId,
+        pageName: page.name,
+        followers: null as number | null,
+        fanCount: null as number | null,
+        totalReactions: 0,
+        totalComments: 0,
+        totalShares: 0,
+        totalReach: 0,
+        posts: [] as Array<{
+          contentItemId: string;
+          socialPostId: string;
+          topic: string;
+          publishedAt: Date | null;
+          reactions: number;
+          comments: number;
+          shares: number;
+          reach: number;
+          engagedUsers: number;
+        }>,
+        errors: [] as string[],
+      };
+
+      const cacheKey = `page_${pageId}`;
+      const cached = fbCache.get(cacheKey);
+      if (cached && Date.now() - cached.ts < FB_CACHE_TTL) {
+        results.push(cached.data as typeof pageResult);
+        continue;
+      }
+
+      const token = page.accessToken;
+
+      // Fetch page-level metrics
+      try {
+        const pageRes = await fetch(
+          `https://graph.facebook.com/v21.0/${page.externalId}?fields=followers_count,fan_count&access_token=${encodeURIComponent(token)}`
+        );
+        if (pageRes.ok) {
+          const pageData = await pageRes.json() as { followers_count?: number; fan_count?: number };
+          pageResult.followers = pageData.followers_count ?? null;
+          pageResult.fanCount = pageData.fan_count ?? null;
+        } else {
+          const errBody = await pageRes.json().catch(() => ({})) as { error?: { message?: string } };
+          pageResult.errors.push(`Page metrics: ${errBody?.error?.message ?? pageRes.statusText}`);
+        }
+      } catch (err) {
+        pageResult.errors.push(`Page metrics: ${err instanceof Error ? err.message : 'Network error'}`);
+      }
+
+      // Batch-fetch post metrics (Facebook supports up to 50 IDs per request)
+      const postIds = items.map(i => i.socialPostId!);
+      const batches: string[][] = [];
+      for (let i = 0; i < postIds.length; i += 50) {
+        batches.push(postIds.slice(i, i + 50));
+      }
+
+      const postDataMap = new Map<string, {
+        reactions: number; comments: number; shares: number; reach: number; engagedUsers: number;
+      }>();
+
+      for (const batch of batches) {
+        try {
+          const ids = batch.join(',');
+          const url = `https://graph.facebook.com/v21.0/?ids=${encodeURIComponent(ids)}&fields=likes.summary(true),comments.summary(true),shares,insights.metric(post_impressions,post_engaged_users)&access_token=${encodeURIComponent(token)}`;
+          const batchRes = await fetch(url);
+          if (batchRes.ok) {
+            const data = await batchRes.json() as Record<string, {
+              likes?: { summary?: { total_count?: number } };
+              comments?: { summary?: { total_count?: number } };
+              shares?: { count?: number };
+              insights?: { data?: Array<{ name: string; values?: Array<{ value: number }> }> };
+            }>;
+            for (const [postId, postInfo] of Object.entries(data)) {
+              const reactions = postInfo.likes?.summary?.total_count ?? 0;
+              const comments = postInfo.comments?.summary?.total_count ?? 0;
+              const shares = postInfo.shares?.count ?? 0;
+              let reach = 0;
+              let engagedUsers = 0;
+              if (postInfo.insights?.data) {
+                for (const metric of postInfo.insights.data) {
+                  const val = metric.values?.[0]?.value ?? 0;
+                  if (metric.name === 'post_impressions') reach = val;
+                  if (metric.name === 'post_engaged_users') engagedUsers = val;
+                }
+              }
+              postDataMap.set(postId, { reactions, comments, shares, reach, engagedUsers });
+            }
+          } else {
+            const errBody = await batchRes.json().catch(() => ({})) as { error?: { message?: string } };
+            pageResult.errors.push(`Post metrics batch: ${errBody?.error?.message ?? batchRes.statusText}`);
+          }
+        } catch (err) {
+          pageResult.errors.push(`Post metrics batch: ${err instanceof Error ? err.message : 'Network error'}`);
+        }
+      }
+
+      // Assemble per-post results
+      for (const item of items) {
+        const metrics = postDataMap.get(item.socialPostId!) ?? {
+          reactions: 0, comments: 0, shares: 0, reach: 0, engagedUsers: 0,
+        };
+        pageResult.totalReactions += metrics.reactions;
+        pageResult.totalComments += metrics.comments;
+        pageResult.totalShares += metrics.shares;
+        pageResult.totalReach += metrics.reach;
+        pageResult.posts.push({
+          contentItemId: item.id,
+          socialPostId: item.socialPostId!,
+          topic: item.topic,
+          publishedAt: item.publishedAt,
+          ...metrics,
+        });
+      }
+
+      fbCache.set(cacheKey, { data: pageResult, ts: Date.now() });
+      results.push(pageResult);
+    }
+
+    res.json(results);
+  } catch (err) {
+    res.status(500).json({ error: err instanceof Error ? err.message : 'Failed to fetch Facebook insights' });
+  }
 });
 
 router.get('/calendar', async (req: Request, res: Response) => {

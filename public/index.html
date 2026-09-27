@@ -8,6 +8,7 @@
   <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link href="https://cdn.jsdelivr.net/npm/remixicon@4.1.0/fonts/remixicon.css" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
   <script>
     tailwind.config = {
       theme: {
@@ -161,82 +162,329 @@
 
       <!-- Dashboard -->
       <div x-show="page==='dashboard'" class="fade-in">
-        <h2 class="text-xl font-bold mb-6">Tổng quan</h2>
+        <div class="flex items-center justify-between mb-6">
+          <h2 class="text-xl font-bold">Tổng quan</h2>
+          <div class="flex items-center gap-2">
+            <span class="text-xs text-gray-400" x-show="dashboardLoading"><i class="ri-loader-4-line animate-spin"></i> Đang tải...</span>
+            <button @click="loadDashboard()" class="px-3 py-1.5 text-sm bg-gray-100 hover:bg-gray-200 rounded-lg transition flex items-center gap-1">
+              <i class="ri-refresh-line"></i> Làm mới
+            </button>
+          </div>
+        </div>
 
-        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-          <div class="stat-card bg-white rounded-xl p-5 border border-gray-100 shadow-sm">
-            <div class="flex items-center justify-between">
-              <div>
-                <p class="text-sm text-gray-500">Tổng Pages</p>
-                <p class="text-2xl font-bold mt-1" x-text="stats.pages || 0"></p>
+        <!-- Stat Cards Row 1 -->
+        <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3 mb-6">
+          <div class="stat-card bg-white rounded-xl p-4 border border-gray-100 shadow-sm">
+            <div class="flex items-center gap-3">
+              <div class="w-10 h-10 bg-blue-50 rounded-lg flex items-center justify-center shrink-0">
+                <i class="ri-pages-line text-blue-500"></i>
               </div>
-              <div class="w-12 h-12 bg-blue-50 rounded-xl flex items-center justify-center">
-                <i class="ri-pages-line text-blue-500 text-xl"></i>
+              <div>
+                <p class="text-xs text-gray-500">Pages</p>
+                <p class="text-xl font-bold" x-text="stats.totalPages || 0"></p>
               </div>
             </div>
           </div>
-          <div class="stat-card bg-white rounded-xl p-5 border border-gray-100 shadow-sm">
-            <div class="flex items-center justify-between">
-              <div>
-                <p class="text-sm text-gray-500">Campaigns</p>
-                <p class="text-2xl font-bold mt-1" x-text="stats.campaigns || 0"></p>
+          <div class="stat-card bg-white rounded-xl p-4 border border-gray-100 shadow-sm">
+            <div class="flex items-center gap-3">
+              <div class="w-10 h-10 bg-purple-50 rounded-lg flex items-center justify-center shrink-0">
+                <i class="ri-megaphone-line text-purple-500"></i>
               </div>
-              <div class="w-12 h-12 bg-purple-50 rounded-xl flex items-center justify-center">
-                <i class="ri-calendar-schedule-line text-purple-500 text-xl"></i>
+              <div>
+                <p class="text-xs text-gray-500">Campaigns</p>
+                <p class="text-xl font-bold" x-text="stats.totalCampaigns || 0"></p>
               </div>
             </div>
           </div>
-          <div class="stat-card bg-white rounded-xl p-5 border border-gray-100 shadow-sm">
-            <div class="flex items-center justify-between">
-              <div>
-                <p class="text-sm text-gray-500">Chờ duyệt</p>
-                <p class="text-2xl font-bold mt-1 text-amber-600" x-text="(stats.allTime?.PENDING_REVIEW || 0)"></p>
+          <div class="stat-card bg-white rounded-xl p-4 border border-gray-100 shadow-sm">
+            <div class="flex items-center gap-3">
+              <div class="w-10 h-10 bg-indigo-50 rounded-lg flex items-center justify-center shrink-0">
+                <i class="ri-file-list-3-line text-indigo-500"></i>
               </div>
-              <div class="w-12 h-12 bg-amber-50 rounded-xl flex items-center justify-center">
-                <i class="ri-time-line text-amber-500 text-xl"></i>
+              <div>
+                <p class="text-xs text-gray-500">Tổng Content</p>
+                <p class="text-xl font-bold" x-text="stats.totalContent || 0"></p>
               </div>
             </div>
           </div>
-          <div class="stat-card bg-white rounded-xl p-5 border border-gray-100 shadow-sm">
-            <div class="flex items-center justify-between">
-              <div>
-                <p class="text-sm text-gray-500">Đã đăng</p>
-                <p class="text-2xl font-bold mt-1 text-green-600" x-text="(stats.allTime?.PUBLISHED || 0)"></p>
+          <div class="stat-card bg-white rounded-xl p-4 border border-gray-100 shadow-sm">
+            <div class="flex items-center gap-3">
+              <div class="w-10 h-10 bg-green-50 rounded-lg flex items-center justify-center shrink-0">
+                <i class="ri-check-double-line text-green-500"></i>
               </div>
-              <div class="w-12 h-12 bg-green-50 rounded-xl flex items-center justify-center">
-                <i class="ri-check-double-line text-green-500 text-xl"></i>
+              <div>
+                <p class="text-xs text-gray-500">Đã đăng</p>
+                <p class="text-xl font-bold text-green-600" x-text="stats.statusBreakdown?.PUBLISHED || 0"></p>
+              </div>
+            </div>
+          </div>
+          <div class="stat-card bg-white rounded-xl p-4 border border-gray-100 shadow-sm">
+            <div class="flex items-center gap-3">
+              <div class="w-10 h-10 bg-amber-50 rounded-lg flex items-center justify-center shrink-0">
+                <i class="ri-time-line text-amber-500"></i>
+              </div>
+              <div>
+                <p class="text-xs text-gray-500">Chờ duyệt</p>
+                <p class="text-xl font-bold text-amber-600" x-text="stats.statusBreakdown?.PENDING_REVIEW || 0"></p>
+              </div>
+            </div>
+          </div>
+          <div class="stat-card bg-white rounded-xl p-4 border border-gray-100 shadow-sm">
+            <div class="flex items-center gap-3">
+              <div class="w-10 h-10 bg-emerald-50 rounded-lg flex items-center justify-center shrink-0">
+                <i class="ri-percent-line text-emerald-500"></i>
+              </div>
+              <div>
+                <p class="text-xs text-gray-500">Tỷ lệ thành công</p>
+                <p class="text-xl font-bold text-emerald-600" x-text="(stats.successRate || 0).toFixed(0) + '%'"></p>
               </div>
             </div>
           </div>
         </div>
 
-        <!-- Content Status Breakdown -->
-        <div class="bg-white rounded-xl border border-gray-100 shadow-sm p-6 mb-6">
-          <h3 class="font-semibold mb-4">Trạng thái Content</h3>
-          <div class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3">
-            <template x-for="[status, count] in Object.entries(stats.allTime || {})" :key="status">
-              <div class="text-center p-3 rounded-lg bg-gray-50">
-                <p class="text-lg font-bold" x-text="count"></p>
-                <p class="text-xs text-gray-500 mt-1" x-text="statusLabel(status)"></p>
+        <!-- Charts Row -->
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-6">
+          <!-- Timeline Chart -->
+          <div class="lg:col-span-2 bg-white rounded-xl border border-gray-100 shadow-sm p-5">
+            <div class="flex items-center justify-between mb-4">
+              <h3 class="font-semibold text-sm">Content theo thời gian</h3>
+              <div class="flex gap-1">
+                <button @click="timelineDays=7; loadTimeline()" :class="timelineDays===7 ? 'bg-blue-100 text-blue-700' : 'bg-gray-100'" class="px-2 py-1 rounded text-xs">7 ngày</button>
+                <button @click="timelineDays=30; loadTimeline()" :class="timelineDays===30 ? 'bg-blue-100 text-blue-700' : 'bg-gray-100'" class="px-2 py-1 rounded text-xs">30 ngày</button>
               </div>
-            </template>
+            </div>
+            <div style="height:220px"><canvas id="timelineChart"></canvas></div>
           </div>
-          <div x-show="Object.keys(stats.allTime || {}).length === 0" class="text-center text-gray-400 py-4">
-            Chưa có content nào
+          <!-- Status Donut -->
+          <div class="bg-white rounded-xl border border-gray-100 shadow-sm p-5">
+            <h3 class="font-semibold text-sm mb-4">Trạng thái Content</h3>
+            <div style="height:220px" class="flex items-center justify-center"><canvas id="statusChart"></canvas></div>
           </div>
         </div>
 
-        <!-- Active Providers -->
-        <div class="bg-white rounded-xl border border-gray-100 shadow-sm p-6">
-          <h3 class="font-semibold mb-4">AI Providers đang dùng</h3>
-          <div class="flex gap-4">
-            <div class="flex items-center gap-2 px-4 py-2 bg-blue-50 rounded-lg">
-              <i class="ri-quill-pen-line text-blue-600"></i>
-              <span class="text-sm">Text: <strong x-text="stats.providers?.activeText || '—'"></strong></span>
+        <!-- Source + ContentType + Providers -->
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+          <div class="bg-white rounded-xl border border-gray-100 shadow-sm p-5">
+            <h3 class="font-semibold text-sm mb-4">Nguồn Content</h3>
+            <div style="height:180px" class="flex items-center justify-center"><canvas id="sourceChart"></canvas></div>
+          </div>
+          <div class="bg-white rounded-xl border border-gray-100 shadow-sm p-5">
+            <h3 class="font-semibold text-sm mb-4">Định dạng</h3>
+            <div style="height:180px" class="flex items-center justify-center"><canvas id="typeChart"></canvas></div>
+          </div>
+          <div class="bg-white rounded-xl border border-gray-100 shadow-sm p-5">
+            <h3 class="font-semibold text-sm mb-3">AI Providers</h3>
+            <div class="space-y-3">
+              <div class="flex items-center gap-2 px-3 py-2 bg-blue-50 rounded-lg">
+                <i class="ri-quill-pen-line text-blue-600"></i>
+                <span class="text-sm">Text: <strong x-text="stats.providers?.activeText || '—'"></strong></span>
+              </div>
+              <div class="flex items-center gap-2 px-3 py-2 bg-purple-50 rounded-lg">
+                <i class="ri-image-line text-purple-600"></i>
+                <span class="text-sm">Image: <strong x-text="stats.providers?.activeImage || '—'"></strong></span>
+              </div>
             </div>
-            <div class="flex items-center gap-2 px-4 py-2 bg-purple-50 rounded-lg">
-              <i class="ri-image-line text-purple-600"></i>
-              <span class="text-sm">Image: <strong x-text="stats.providers?.activeImage || '—'"></strong></span>
+            <div class="mt-4 pt-3 border-t">
+              <p class="text-xs text-gray-500 mb-1">Hôm nay</p>
+              <div class="flex gap-4">
+                <div><span class="text-lg font-bold" x-text="stats.todayCreated || 0"></span> <span class="text-xs text-gray-400">tạo</span></div>
+                <div><span class="text-lg font-bold text-green-600" x-text="stats.todayPublished || 0"></span> <span class="text-xs text-gray-400">đăng</span></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Top Campaigns -->
+        <div class="bg-white rounded-xl border border-gray-100 shadow-sm p-5 mb-6">
+          <h3 class="font-semibold text-sm mb-4"><i class="ri-trophy-line text-amber-500 mr-1"></i>Top Campaigns</h3>
+          <div x-show="!dashboardCampaigns.length" class="text-center text-gray-400 py-6 text-sm">Chưa có campaign</div>
+          <div x-show="dashboardCampaigns.length" class="overflow-x-auto">
+            <table class="w-full text-sm">
+              <thead>
+                <tr class="text-left text-xs text-gray-500 border-b">
+                  <th class="pb-2 pr-3">#</th>
+                  <th class="pb-2 pr-3">Campaign</th>
+                  <th class="pb-2 pr-3">Page chính</th>
+                  <th class="pb-2 pr-3 text-center">Tổng</th>
+                  <th class="pb-2 pr-3 text-center">Đã đăng</th>
+                  <th class="pb-2 pr-3 text-center">Chờ duyệt</th>
+                  <th class="pb-2 pr-3 text-center">Thất bại</th>
+                  <th class="pb-2 pr-3 text-center">Hoàn thành</th>
+                  <th class="pb-2 text-center">Thời gian</th>
+                </tr>
+              </thead>
+              <tbody>
+                <template x-for="(c, i) in dashboardCampaigns" :key="c.id">
+                  <tr class="border-b border-gray-50 hover:bg-gray-50">
+                    <td class="py-2 pr-3 text-gray-400" x-text="i+1"></td>
+                    <td class="py-2 pr-3 font-medium" x-text="c.name"></td>
+                    <td class="py-2 pr-3 text-gray-500 text-xs" x-text="c.topPage || '—'"></td>
+                    <td class="py-2 pr-3 text-center" x-text="c.totalContent"></td>
+                    <td class="py-2 pr-3 text-center text-green-600 font-medium" x-text="c.published"></td>
+                    <td class="py-2 pr-3 text-center text-amber-600" x-text="c.pending"></td>
+                    <td class="py-2 pr-3 text-center text-red-500" x-text="c.failed"></td>
+                    <td class="py-2 pr-3 text-center">
+                      <div class="flex items-center gap-1 justify-center">
+                        <div class="w-16 h-1.5 bg-gray-200 rounded-full overflow-hidden">
+                          <div class="h-full bg-green-500 rounded-full" :style="'width:'+c.successRate+'%'"></div>
+                        </div>
+                        <span class="text-xs" x-text="c.successRate.toFixed(0)+'%'"></span>
+                      </div>
+                    </td>
+                    <td class="py-2 text-center text-xs text-gray-400">
+                      <span x-text="new Date(c.startDate).toLocaleDateString('vi-VN')"></span>
+                      <template x-if="c.endDate">
+                        <span x-text="' → ' + new Date(c.endDate).toLocaleDateString('vi-VN')"></span>
+                      </template>
+                    </td>
+                  </tr>
+                </template>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- Top Pages + Facebook Insights -->
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-6">
+          <!-- Top Pages -->
+          <div class="bg-white rounded-xl border border-gray-100 shadow-sm p-5">
+            <h3 class="font-semibold text-sm mb-4"><i class="ri-bar-chart-line text-blue-500 mr-1"></i>Hiệu suất Pages</h3>
+            <div x-show="!dashboardPages.length" class="text-center text-gray-400 py-4 text-sm">Chưa có page</div>
+            <div class="space-y-3">
+              <template x-for="p in dashboardPages" :key="p.id">
+                <div class="flex items-center gap-3 p-3 bg-gray-50 rounded-lg">
+                  <img :src="'https://graph.facebook.com/'+p.externalId+'/picture?type=small'" class="w-8 h-8 rounded-full" onerror="this.src='data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 40 40%22><rect fill=%22%23e5e7eb%22 width=%2240%22 height=%2240%22/><text x=%2220%22 y=%2225%22 text-anchor=%22middle%22 fill=%22%239ca3af%22 font-size=%2216%22>?</text></svg>'">
+                  <div class="flex-1 min-w-0">
+                    <p class="text-sm font-medium truncate" x-text="p.name"></p>
+                    <p class="text-xs text-gray-400" x-text="p.platform"></p>
+                  </div>
+                  <div class="flex gap-4 text-center shrink-0">
+                    <div>
+                      <p class="text-sm font-bold" x-text="p.totalContent"></p>
+                      <p class="text-[10px] text-gray-400">tổng</p>
+                    </div>
+                    <div>
+                      <p class="text-sm font-bold text-green-600" x-text="p.published"></p>
+                      <p class="text-[10px] text-gray-400">đăng</p>
+                    </div>
+                    <div>
+                      <p class="text-sm font-bold text-emerald-600" x-text="p.successRate.toFixed(0) + '%'"></p>
+                      <p class="text-[10px] text-gray-400">TL</p>
+                    </div>
+                  </div>
+                </div>
+              </template>
+            </div>
+          </div>
+
+          <!-- Facebook Insights -->
+          <div class="bg-white rounded-xl border border-gray-100 shadow-sm p-5">
+            <div class="flex items-center justify-between mb-4">
+              <h3 class="font-semibold text-sm"><i class="ri-facebook-circle-line text-blue-600 mr-1"></i>Facebook Insights (Live)</h3>
+              <button @click="loadFbInsights()" class="px-2 py-1 bg-blue-50 hover:bg-blue-100 rounded text-xs text-blue-600 flex items-center gap-1" :disabled="fbInsightsLoading">
+                <i class="ri-refresh-line" :class="fbInsightsLoading && 'animate-spin'"></i> Sync
+              </button>
+            </div>
+            <div x-show="fbInsightsLoading" class="text-center text-gray-400 py-6 text-sm">
+              <i class="ri-loader-4-line animate-spin text-lg"></i><br>Đang lấy dữ liệu từ Facebook...
+            </div>
+            <div x-show="!fbInsightsLoading && !fbInsights" class="text-center text-gray-400 py-6 text-sm">
+              Bấm <strong>Sync</strong> để lấy dữ liệu từ Facebook
+            </div>
+            <div x-show="!fbInsightsLoading && fbInsights">
+              <div x-show="fbInsights?.errors?.length" class="mb-3 p-2 bg-amber-50 border border-amber-100 rounded-lg text-xs text-amber-700">
+                <template x-for="err in (fbInsights?.errors || [])" :key="err">
+                  <p x-text="err"></p>
+                </template>
+              </div>
+              <div class="space-y-3">
+                <template x-for="pg in (fbInsights?.pages || [])" :key="pg.pageId">
+                  <div class="p-3 bg-gray-50 rounded-lg">
+                    <div class="flex items-center gap-2 mb-2">
+                      <img :src="'https://graph.facebook.com/'+pg.externalId+'/picture?type=small'" class="w-6 h-6 rounded-full" onerror="this.style.display='none'">
+                      <span class="text-sm font-medium" x-text="pg.pageName"></span>
+                      <span class="ml-auto text-xs text-gray-400" x-text="pg.followers ? pg.followers.toLocaleString()+' followers' : ''"></span>
+                    </div>
+                    <div class="grid grid-cols-4 gap-2 text-center">
+                      <div>
+                        <p class="text-sm font-bold text-blue-600" x-text="(pg.totalReactions||0).toLocaleString()"></p>
+                        <p class="text-[10px] text-gray-400">Reactions</p>
+                      </div>
+                      <div>
+                        <p class="text-sm font-bold text-green-600" x-text="(pg.totalComments||0).toLocaleString()"></p>
+                        <p class="text-[10px] text-gray-400">Comments</p>
+                      </div>
+                      <div>
+                        <p class="text-sm font-bold text-purple-600" x-text="(pg.totalShares||0).toLocaleString()"></p>
+                        <p class="text-[10px] text-gray-400">Shares</p>
+                      </div>
+                      <div>
+                        <p class="text-sm font-bold text-indigo-600" x-text="(pg.totalReach||0).toLocaleString()"></p>
+                        <p class="text-[10px] text-gray-400">Reach</p>
+                      </div>
+                    </div>
+                    <div x-show="pg.posts?.length" class="mt-2 pt-2 border-t border-gray-200">
+                      <p class="text-[10px] text-gray-400 mb-1">Top bài đăng:</p>
+                      <template x-for="post in (pg.posts||[]).slice(0,3)" :key="post.id">
+                        <div class="flex items-center justify-between text-xs py-0.5">
+                          <span class="truncate max-w-[60%] text-gray-600" x-text="post.topic || post.id"></span>
+                          <span class="text-gray-400" x-text="(post.reactions||0)+'👍 '+(post.comments||0)+'💬 '+(post.shares||0)+'🔄'"></span>
+                        </div>
+                      </template>
+                    </div>
+                  </div>
+                </template>
+              </div>
+              <div x-show="!(fbInsights?.pages||[]).length && !(fbInsights?.errors||[]).length" class="text-center text-gray-400 py-4 text-sm">
+                Chưa có bài đăng nào được publish qua app
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Upcoming + Recent Published -->
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-6">
+          <!-- Upcoming -->
+          <div class="bg-white rounded-xl border border-gray-100 shadow-sm p-5">
+            <h3 class="font-semibold text-sm mb-4"><i class="ri-calendar-todo-line text-orange-500 mr-1"></i>Sắp đăng (7 ngày tới)</h3>
+            <div x-show="!dashboardUpcoming.length" class="text-center text-gray-400 py-4 text-sm">Không có content nào sắp đăng</div>
+            <div class="space-y-2">
+              <template x-for="item in dashboardUpcoming" :key="item.id">
+                <div class="flex items-center gap-3 p-2 hover:bg-gray-50 rounded-lg cursor-pointer" @click="viewResult(item)">
+                  <div class="text-center shrink-0 w-12">
+                    <p class="text-xs font-bold" x-text="new Date(item.scheduledAt).toLocaleDateString('vi-VN',{day:'2-digit',month:'2-digit'})"></p>
+                    <p class="text-[10px] text-gray-400" x-text="new Date(item.scheduledAt).toLocaleTimeString('vi-VN',{hour:'2-digit',minute:'2-digit'})"></p>
+                  </div>
+                  <div class="flex-1 min-w-0">
+                    <p class="text-sm truncate" x-text="item.topic"></p>
+                    <p class="text-xs text-gray-400 truncate" x-text="item.page?.name"></p>
+                  </div>
+                  <span class="text-[10px] px-1.5 py-0.5 rounded-full shrink-0"
+                    :class="{'bg-gray-100 text-gray-600': item.status==='DRAFT', 'bg-amber-100 text-amber-700': item.status==='PENDING_REVIEW', 'bg-green-100 text-green-700': item.status==='APPROVED', 'bg-blue-100 text-blue-700': item.status==='GENERATING'}"
+                    x-text="statusLabel(item.status)"></span>
+                </div>
+              </template>
+            </div>
+          </div>
+
+          <!-- Recent Published -->
+          <div class="bg-white rounded-xl border border-gray-100 shadow-sm p-5">
+            <h3 class="font-semibold text-sm mb-4"><i class="ri-send-plane-line text-green-500 mr-1"></i>Đăng gần đây</h3>
+            <div x-show="!dashboardRecent.length" class="text-center text-gray-400 py-4 text-sm">Chưa có bài nào được đăng</div>
+            <div class="space-y-2">
+              <template x-for="item in dashboardRecent" :key="item.id">
+                <div class="flex items-center gap-3 p-2 hover:bg-gray-50 rounded-lg cursor-pointer" @click="viewResult(item)">
+                  <div class="text-center shrink-0 w-12">
+                    <p class="text-xs font-bold" x-text="item.publishedAt ? new Date(item.publishedAt).toLocaleDateString('vi-VN',{day:'2-digit',month:'2-digit'}) : '—'"></p>
+                    <p class="text-[10px] text-gray-400" x-text="item.publishedAt ? new Date(item.publishedAt).toLocaleTimeString('vi-VN',{hour:'2-digit',minute:'2-digit'}) : ''"></p>
+                  </div>
+                  <div class="flex-1 min-w-0">
+                    <p class="text-sm truncate" x-text="item.topic"></p>
+                    <p class="text-xs text-gray-400 truncate" x-text="item.page?.name + (item.campaign ? ' · ' + item.campaign.name : '')"></p>
+                  </div>
+                  <i class="ri-check-double-line text-green-500 shrink-0"></i>
+                </div>
+              </template>
             </div>
           </div>
         </div>
@@ -1422,6 +1670,15 @@ function app() {
     registerForm: { name: '', email: '', password: '' },
 
     stats: {},
+    dashboardCampaigns: [],
+    dashboardPages: [],
+    dashboardUpcoming: [],
+    dashboardRecent: [],
+    dashboardLoading: false,
+    fbInsights: null,
+    fbInsightsLoading: false,
+    timelineDays: 7,
+    _charts: {},
     pages: [],
     campaigns: [],
     contentItems: [],
@@ -1563,11 +1820,107 @@ function app() {
     },
 
     async loadDashboard() {
+      this.dashboardLoading = true;
       try {
-        this.stats = await this.api('/dashboard/stats');
-        this.selectedTextProvider = this.stats.providers?.activeText || '';
-        this.selectedImageProvider = this.stats.providers?.activeImage || '';
+        const [stats, campaigns, pages, upcoming, recent] = await Promise.all([
+          this.api('/dashboard/stats'),
+          this.api('/dashboard/stats/campaigns').catch(() => []),
+          this.api('/dashboard/stats/pages').catch(() => []),
+          this.api('/dashboard/stats/upcoming').catch(() => []),
+          this.api('/dashboard/stats/recent-published').catch(() => []),
+        ]);
+        this.stats = stats;
+        this.dashboardCampaigns = campaigns;
+        this.dashboardPages = pages;
+        this.dashboardUpcoming = upcoming;
+        this.dashboardRecent = recent;
+        this.selectedTextProvider = stats.providers?.activeText || '';
+        this.selectedImageProvider = stats.providers?.activeImage || '';
+        this.$nextTick(() => { this.loadTimeline(); this.renderStatusChart(); this.renderSourceChart(); this.renderTypeChart(); });
       } catch {}
+      this.dashboardLoading = false;
+    },
+
+    async loadTimeline() {
+      try {
+        const data = await this.api(`/dashboard/stats/timeline?days=${this.timelineDays}`);
+        this.renderTimelineChart(data);
+      } catch {}
+    },
+
+    async loadFbInsights() {
+      this.fbInsightsLoading = true;
+      try {
+        this.fbInsights = await this.api('/dashboard/stats/fb-insights');
+      } catch (e) {
+        this.fbInsights = { pages: [], errors: [e.message] };
+      }
+      this.fbInsightsLoading = false;
+    },
+
+    renderTimelineChart(data) {
+      const ctx = document.getElementById('timelineChart');
+      if (!ctx) return;
+      if (this._charts.timeline) this._charts.timeline.destroy();
+      const labels = data.map(d => { const dt = new Date(d.date); return dt.toLocaleDateString('vi-VN', {day:'2-digit', month:'2-digit'}); });
+      this._charts.timeline = new Chart(ctx, {
+        type: 'line',
+        data: {
+          labels,
+          datasets: [
+            { label: 'Tạo mới', data: data.map(d => d.created), borderColor: '#3b82f6', backgroundColor: 'rgba(59,130,246,0.1)', fill: true, tension: 0.3, pointRadius: 3 },
+            { label: 'Đã đăng', data: data.map(d => d.published), borderColor: '#22c55e', backgroundColor: 'rgba(34,197,94,0.1)', fill: true, tension: 0.3, pointRadius: 3 },
+          ]
+        },
+        options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom', labels: { boxWidth: 12, font: { size: 11 } } } }, scales: { y: { beginAtZero: true, ticks: { stepSize: 1, font: { size: 10 } } }, x: { ticks: { font: { size: 10 } } } } }
+      });
+    },
+
+    renderStatusChart() {
+      const ctx = document.getElementById('statusChart');
+      if (!ctx) return;
+      if (this._charts.status) this._charts.status.destroy();
+      const bd = this.stats.statusBreakdown || {};
+      const entries = Object.entries(bd).filter(([,v]) => v > 0);
+      if (!entries.length) return;
+      const colors = { DRAFT: '#9ca3af', GENERATING: '#60a5fa', PENDING_REVIEW: '#f59e0b', APPROVED: '#34d399', PUBLISHING: '#818cf8', PUBLISHED: '#22c55e', FAILED: '#ef4444', CANCELLED: '#d1d5db', REVISION_REQUESTED: '#f97316' };
+      this._charts.status = new Chart(ctx, {
+        type: 'doughnut',
+        data: { labels: entries.map(([s]) => this.statusLabel(s)), datasets: [{ data: entries.map(([,v]) => v), backgroundColor: entries.map(([s]) => colors[s] || '#9ca3af') }] },
+        options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom', labels: { boxWidth: 10, font: { size: 10 }, padding: 8 } } }, cutout: '55%' }
+      });
+    },
+
+    renderSourceChart() {
+      const ctx = document.getElementById('sourceChart');
+      if (!ctx) return;
+      if (this._charts.source) this._charts.source.destroy();
+      const bd = this.stats.sourceBreakdown || {};
+      const labels = { AI: 'AI', MANUAL: 'Có sẵn', IMPORT: 'Import' };
+      const entries = Object.entries(bd).filter(([,v]) => v > 0);
+      if (!entries.length) return;
+      const colors = ['#3b82f6', '#8b5cf6', '#f59e0b'];
+      this._charts.source = new Chart(ctx, {
+        type: 'pie',
+        data: { labels: entries.map(([s]) => labels[s] || s), datasets: [{ data: entries.map(([,v]) => v), backgroundColor: colors }] },
+        options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom', labels: { boxWidth: 10, font: { size: 10 } } } } }
+      });
+    },
+
+    renderTypeChart() {
+      const ctx = document.getElementById('typeChart');
+      if (!ctx) return;
+      if (this._charts.type) this._charts.type.destroy();
+      const bd = this.stats.contentTypeBreakdown || {};
+      const entries = Object.entries(bd).filter(([,v]) => v > 0);
+      if (!entries.length) return;
+      const labels = { IMAGE: 'Ảnh', VIDEO: 'Video', TEXT: 'Text' };
+      const colors = ['#8b5cf6', '#ec4899', '#06b6d4'];
+      this._charts.type = new Chart(ctx, {
+        type: 'pie',
+        data: { labels: entries.map(([s]) => labels[s] || s), datasets: [{ data: entries.map(([,v]) => v), backgroundColor: colors }] },
+        options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom', labels: { boxWidth: 10, font: { size: 10 } } } } }
+      });
     },
 
     async loadPages() {
