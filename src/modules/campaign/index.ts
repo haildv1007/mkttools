@@ -13,11 +13,12 @@ router.get('/template', (req: Request, res: Response) => {
   let filename: string;
 
   if (type === 'ai') {
-    headers = ['Ngày', 'Giờ đăng', 'Page', 'Chủ đề', 'Loại', 'Ghi chú', 'Mô tả ảnh'];
+    headers = ['Ngày', 'Giờ đăng', 'Page', 'Chủ đề', 'Loại', 'Ghi chú', 'Mô tả ảnh (mỗi ảnh cách bằng dấu |)'];
     examples = [
-      ['2026-10-01', '09:00', 'Shop ABC', 'Khuyến mãi mùa thu - Giảm 50%', 'image', 'Tone vui vẻ, có emoji, nhấn mạnh urgency', 'Ảnh sản phẩm thu đông'],
-      ['2026-10-02', '18:00', 'Shop ABC', 'Review áo khoác mới về', 'image', 'Phong cách review chân thực', 'Flat lay áo khoác | Model mặc thử'],
-      ['2026-10-03', '12:00', 'Shop ABC', 'Tips phối đồ mùa thu', 'text', 'Dạng listicle, 5 tips ngắn gọn', ''],
+      ['2026-10-01', '09:00', 'Shop ABC', 'Khuyến mãi mùa thu - Giảm 50%', 'image', 'Tone vui vẻ, có emoji', 'Banner sale 50% nền cam rực rỡ'],
+      ['2026-10-02', '18:00', 'Shop ABC', 'Review áo khoác mới về', 'image', 'Phong cách review chân thực', 'Flat lay áo khoác trên nền gỗ | Model nữ mặc áo khoác trên phố | Close-up chất liệu vải'],
+      ['2026-10-03', '10:00', 'Shop ABC', 'Combo tiết kiệm mùa đông', 'image', 'Nhấn mạnh giá hời', 'Ảnh 3 sản phẩm combo xếp cạnh nhau | Bảng so sánh giá lẻ vs combo'],
+      ['2026-10-04', '12:00', 'Shop ABC', 'Tips phối đồ mùa thu', 'text', 'Dạng listicle, 5 tips ngắn gọn', ''],
     ];
     filename = 'mkttools-ai-gen.xlsx';
   } else {
