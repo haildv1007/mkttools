@@ -12,7 +12,7 @@ export class OpenAITextProvider implements TextProvider {
 
   async generate(options: TextGeneratorOptions): Promise<GeneratedContent> {
     const response = await this.client.chat.completions.create({
-      model: config.ai.text.defaultModel.startsWith('gpt') ? config.ai.text.defaultModel : 'gpt-4o-mini',
+      model: config.ai.text.defaultModel.startsWith('gpt') ? config.ai.text.defaultModel : 'gpt-5-mini',
       messages: [
         {
           role: 'system',

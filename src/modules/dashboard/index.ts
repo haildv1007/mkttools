@@ -267,11 +267,19 @@ router.get('/gemini-image-models', async (_req: Request, res: Response) => {
     const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${apiKey}`);
     const data = await r.json() as { models?: Array<{ name: string; displayName: string; description: string; supportedGenerationMethods: string[] }> };
 
-    const imageModels = (data.models || [])
+    const apiModels = (data.models || [])
       .filter(m => m.name.includes('image') || m.description?.toLowerCase().includes('image'))
       .map(m => ({ id: m.name.replace('models/', ''), name: m.displayName, description: m.description }));
 
-    res.json(imageModels);
+    const knownModels = [
+      { id: 'gemini-3.1-flash-image', name: 'Nano Banana 2', description: 'Mới nhất, hỗ trợ 4K, chỉnh sửa ảnh (2026)' },
+      { id: 'gemini-3.1-flash-lite-image', name: 'Nano Banana 2 Lite', description: 'Nhanh nhất, tiết kiệm chi phí (2026)' },
+      { id: 'imagen-4', name: 'Imagen 4', description: 'Google Imagen — chất lượng cao' },
+    ];
+    const apiIds = new Set(apiModels.map(m => m.id));
+    const merged = [...knownModels.filter(m => !apiIds.has(m.id)), ...apiModels];
+
+    res.json(merged);
   } catch (err) {
     res.status(500).json({ error: err instanceof Error ? err.message : 'Failed to list models' });
   }

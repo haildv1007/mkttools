@@ -11,7 +11,7 @@ Trả về JSON với format: {"text": "nội dung bài đăng", "hashtags": ["t
 
     const userPrompt = this.buildPrompt(options);
 
-    const model = config.ai.text.defaultModel || 'gemini-2.0-flash';
+    const model = config.ai.text.defaultModel || 'gemini-3.8-flash';
     const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${config.ai.text.geminiApiKey}`;
 
     const response = await fetch(url, {
