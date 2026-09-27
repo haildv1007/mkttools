@@ -114,7 +114,81 @@
         </div>
       </div>
 
-      <nav class="flex-1 p-3 space-y-1">
+      <!-- Scope Selector -->
+      <div class="px-3 py-2 border-b border-gray-100 relative" @click.outside="scopeDropdownOpen=false">
+        <p class="text-[10px] text-gray-400 uppercase tracking-wider mb-1 px-1">Phạm vi làm việc</p>
+        <button @click="scopeDropdownOpen=!scopeDropdownOpen"
+          class="w-full flex items-center gap-2 px-3 py-2 rounded-lg border border-gray-200 hover:border-brand-300 hover:bg-brand-50/30 transition text-left">
+          <i :class="scopeIcon()" class="text-brand-500 text-sm"></i>
+          <div class="flex-1 min-w-0">
+            <p class="text-sm font-medium truncate" x-text="scopeLabel()"></p>
+            <p class="text-[10px] text-gray-400" x-text="currentScope.type==='workspace' ? (workspaces.find(w=>w.id===currentScope.id)?.pageCount||0)+' Pages' : currentScope.type==='page' ? 'Page đơn' : pages.length+' Pages'"></p>
+          </div>
+          <i class="ri-arrow-down-s-line text-gray-400 text-sm transition" :class="scopeDropdownOpen && 'rotate-180'"></i>
+        </button>
+
+        <!-- Dropdown -->
+        <div x-show="scopeDropdownOpen" x-cloak class="absolute left-3 right-3 top-full mt-1 bg-white rounded-xl border border-gray-200 shadow-lg z-50 max-h-[400px] overflow-y-auto">
+          <div class="p-2">
+            <input x-model="scopeSearch" type="text" placeholder="Tìm kiếm..." class="w-full px-3 py-1.5 text-xs border border-gray-200 rounded-lg outline-none focus:ring-1 focus:ring-brand-400">
+          </div>
+
+          <!-- All Pages -->
+          <div class="px-1 pb-1">
+            <button @click="setScope({type:'all'})" class="w-full flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-gray-50 transition text-left"
+              :class="currentScope.type==='all' && 'bg-brand-50 text-brand-700'">
+              <i class="ri-global-line text-sm"></i>
+              <span class="text-xs font-medium">Tất cả Pages</span>
+              <span class="text-[10px] text-gray-400 ml-auto" x-text="pages.length+' Pages'"></span>
+            </button>
+          </div>
+
+          <!-- Workspaces -->
+          <template x-if="filteredWorkspaces().length > 0">
+            <div class="px-2 pb-1">
+              <p class="text-[10px] text-gray-400 uppercase tracking-wider px-2 py-1">Workspace</p>
+              <template x-for="ws in filteredWorkspaces()" :key="ws.id">
+                <div class="flex items-center group">
+                  <button @click="setScope({type:'workspace',id:ws.id})" class="flex-1 flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-gray-50 transition text-left"
+                    :class="currentScope.type==='workspace'&&currentScope.id===ws.id && 'bg-brand-50 text-brand-700'">
+                    <i class="ri-folders-line text-sm" :style="ws.color?'color:'+ws.color:''"></i>
+                    <div class="min-w-0 flex-1">
+                      <p class="text-xs font-medium truncate" x-text="ws.name"></p>
+                      <p class="text-[10px] text-gray-400" x-text="ws.pageCount+' Pages'"></p>
+                    </div>
+                  </button>
+                  <button @click.stop="openWorkspaceForm(ws)" class="opacity-0 group-hover:opacity-100 text-gray-400 hover:text-brand-500 p-1 transition" title="Sửa">
+                    <i class="ri-pencil-line text-xs"></i>
+                  </button>
+                </div>
+              </template>
+            </div>
+          </template>
+
+          <!-- Individual Pages -->
+          <div class="px-2 pb-1">
+            <p class="text-[10px] text-gray-400 uppercase tracking-wider px-2 py-1">Page đơn</p>
+            <template x-for="pg in filteredScopePages()" :key="pg.id">
+              <button @click="setScope({type:'page',id:pg.id})" class="w-full flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-gray-50 transition text-left"
+                :class="currentScope.type==='page'&&currentScope.id===pg.id && 'bg-brand-50 text-brand-700'">
+                <img x-show="pg.platform==='FACEBOOK'" :src="'https://graph.facebook.com/'+pg.externalId+'/picture?type=small'" class="w-5 h-5 rounded-full" onerror="this.style.display='none'">
+                <i x-show="pg.platform!=='FACEBOOK'" class="ri-tiktok-fill text-sm"></i>
+                <span class="text-xs font-medium truncate" x-text="pg.name"></span>
+              </button>
+            </template>
+          </div>
+
+          <!-- Create Workspace -->
+          <div class="border-t border-gray-100 p-2">
+            <button @click="openWorkspaceForm()" class="w-full flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-gray-50 transition text-left text-brand-600">
+              <i class="ri-add-line text-sm"></i>
+              <span class="text-xs font-medium">Tạo Workspace</span>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <nav class="flex-1 p-3 space-y-1 overflow-y-auto">
         <a @click="page='dashboard'" :class="page==='dashboard' && 'active'"
           class="sidebar-link flex items-center gap-3 px-3 py-2.5 rounded-lg cursor-pointer hover:bg-gray-50 text-gray-600 transition">
           <i class="ri-dashboard-3-line text-lg"></i> <span class="text-sm font-medium">Tổng quan</span>
@@ -166,15 +240,17 @@
         <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 mb-5">
           <div>
             <h2 class="text-xl font-bold">Tổng quan</h2>
-            <p class="text-xs text-gray-400">Dữ liệu hiệu suất từ Facebook <span x-show="db?.synced_at" x-text="' · sync lần cuối '+ (db?.synced_at ? new Date(db.synced_at).toLocaleString('vi-VN',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}) : '')"></span><span x-show="!db?.synced_at && !dashboardLoading"> · chưa sync</span></p>
+            <p class="text-xs text-gray-400">
+              <span x-show="currentScope.type!=='all'" class="text-brand-600 font-medium" x-text="scopeLabel()+' · '"></span>Dữ liệu hiệu suất từ Facebook <span x-show="db?.synced_at" x-text="' · sync lần cuối '+ (db?.synced_at ? new Date(db.synced_at).toLocaleString('vi-VN',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}) : '')"></span><span x-show="!db?.synced_at && !dashboardLoading"> · chưa sync</span>
+            </p>
             <template x-if="db?.fb_errors?.length">
               <p class="text-xs text-red-500 mt-0.5"><i class="ri-error-warning-line"></i> <span x-text="db.fb_errors[0]"></span><span x-show="db.fb_errors.length>1" x-text="' (+' + (db.fb_errors.length-1) + ' lỗi khác)'"></span></p>
             </template>
           </div>
           <div class="flex flex-wrap items-center gap-2">
-            <select x-model="dbFilter.pageId" @change="loadDashboard()" class="text-xs border rounded-lg px-2 py-1.5 bg-white">
-              <option value="">Tất cả Page</option>
-              <template x-for="p in pages" :key="p.id"><option :value="p.id" x-text="p.name"></option></template>
+            <select x-show="currentScope.type!=='page'" x-model="dbFilter.pageId" @change="loadDashboard()" class="text-xs border rounded-lg px-2 py-1.5 bg-white">
+              <option value="" x-text="currentScope.type==='workspace' ? 'Tất cả Page trong WS' : 'Tất cả Page'"></option>
+              <template x-for="p in scopePages" :key="p.id"><option :value="p.id" x-text="p.name"></option></template>
             </select>
             <select x-model="dbFilter.campaignId" @change="loadDashboard()" class="text-xs border rounded-lg px-2 py-1.5 bg-white">
               <option value="">Tất cả Campaign</option>
@@ -683,10 +759,10 @@
               <option value="AI">AI</option>
               <option value="MANUAL">Có sẵn</option>
             </select>
-            <select x-model="contentFilter.pageId" @change="loadContent()"
+            <select x-show="currentScope.type!=='page'" x-model="contentFilter.pageId" @change="loadContent()"
               class="px-3 py-2 border border-gray-200 rounded-lg text-sm outline-none">
-              <option value="">Tất cả pages</option>
-              <template x-for="p in pages" :key="p.id">
+              <option value="" x-text="currentScope.type==='workspace' ? 'Tất cả pages trong WS' : 'Tất cả pages'"></option>
+              <template x-for="p in scopePages" :key="p.id">
                 <option :value="p.id" x-text="p.name"></option>
               </template>
             </select>
@@ -886,7 +962,7 @@
                   <select x-model="contentForm.pageId"
                     class="w-full pl-10 pr-4 py-2.5 border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-brand-500 text-sm appearance-none">
                     <option value="">Chọn page</option>
-                    <template x-for="p in pages" :key="p.id">
+                    <template x-for="p in scopePages" :key="p.id">
                       <option :value="p.id" x-text="p.name + ' (' + p.platform + ')'"></option>
                     </template>
                   </select>
@@ -1588,6 +1664,50 @@
   </div>
 
   <!-- Toast -->
+  <!-- Workspace Modal -->
+  <div x-show="showWorkspaceModal" class="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" @click.self="showWorkspaceModal=false">
+    <div class="bg-white rounded-2xl shadow-xl w-full max-w-lg p-6 fade-in">
+      <h3 class="text-lg font-bold mb-4" x-text="editingWorkspace ? 'Sửa Workspace' : 'Tạo Workspace mới'"></h3>
+      <div class="space-y-4">
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1">Tên Workspace</label>
+          <input x-model="workspaceForm.name" type="text" placeholder="VD: BeKiddo Shop"
+            class="w-full px-4 py-2.5 border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-brand-500">
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1">Mô tả (tùy chọn)</label>
+          <input x-model="workspaceForm.description" type="text" placeholder="VD: Chuỗi cửa hàng BeKiddo"
+            class="w-full px-4 py-2.5 border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-brand-500">
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1">Chọn Pages</label>
+          <div class="border border-gray-200 rounded-lg max-h-48 overflow-y-auto">
+            <template x-for="p in pages" :key="p.id">
+              <label class="flex items-center gap-3 px-4 py-2.5 hover:bg-gray-50 cursor-pointer border-b border-gray-50 last:border-0">
+                <input type="checkbox" :checked="workspaceForm.pageIds.includes(p.id)" @change="toggleWsPage(p.id)"
+                  class="rounded border-gray-300 text-brand-600 focus:ring-brand-500">
+                <img x-show="p.platform==='FACEBOOK'" :src="'https://graph.facebook.com/'+p.externalId+'/picture?type=small'" class="w-6 h-6 rounded-full" onerror="this.style.display='none'">
+                <span class="text-sm" x-text="p.name"></span>
+              </label>
+            </template>
+            <div x-show="pages.length===0" class="text-center text-gray-400 py-4 text-xs">Chưa có page nào</div>
+          </div>
+          <p class="text-xs text-gray-400 mt-1" x-text="workspaceForm.pageIds.length+' page đã chọn'"></p>
+        </div>
+        <div x-show="workspaceError" class="text-red-500 text-sm" x-text="workspaceError"></div>
+        <div class="flex gap-3 pt-2">
+          <button @click="showWorkspaceModal=false" class="flex-1 py-2.5 border border-gray-300 rounded-lg text-gray-600 hover:bg-gray-50 transition">Hủy</button>
+          <template x-if="editingWorkspace">
+            <button @click="deleteWorkspace(editingWorkspace)" class="py-2.5 px-4 border border-red-300 text-red-600 rounded-lg hover:bg-red-50 transition text-sm">Xóa</button>
+          </template>
+          <button @click="saveWorkspace()" class="flex-1 py-2.5 bg-brand-600 text-white rounded-lg font-medium hover:bg-brand-700 transition">
+            <span x-text="editingWorkspace ? 'Cập nhật' : 'Tạo Workspace'"></span>
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <div x-show="toast.show" x-transition class="fixed bottom-6 right-6 z-50"
     @click="toast.show=false">
     <div class="px-4 py-3 rounded-lg shadow-lg text-white text-sm font-medium"
@@ -1607,6 +1727,17 @@ function app() {
     authLoading: false,
     loginForm: { email: '', password: '' },
     registerForm: { name: '', email: '', password: '' },
+
+    // Workspace / Scope
+    currentScope: JSON.parse(localStorage.getItem('mkt_scope') || '{"type":"all"}'),
+    workspaces: [],
+    scopeDropdownOpen: false,
+    scopeSearch: '',
+    showWorkspaceModal: false,
+    editingWorkspace: null,
+    workspaceForm: { name: '', description: '', pageIds: [] },
+    workspaceError: '',
+    scopePages: [],
 
     stats: {},
     db: null,
@@ -1691,8 +1822,11 @@ function app() {
 
     async init() {
       if (this.token) {
-        await this.loadDashboard();
         await this.loadPages();
+        await this.loadWorkspaces();
+        await this.validateScope();
+        await this.loadScopePages();
+        await this.loadDashboard();
       }
     },
 
@@ -1724,8 +1858,11 @@ function app() {
         this.user = data.user;
         localStorage.setItem('mkt_token', data.token);
         localStorage.setItem('mkt_user', JSON.stringify(data.user));
-        await this.loadDashboard();
         await this.loadPages();
+        await this.loadWorkspaces();
+        await this.validateScope();
+        await this.loadScopePages();
+        await this.loadDashboard();
       } catch (e) {
         this.authError = e.message;
       } finally {
@@ -1745,8 +1882,11 @@ function app() {
         this.user = data.user;
         localStorage.setItem('mkt_token', data.token);
         localStorage.setItem('mkt_user', JSON.stringify(data.user));
-        await this.loadDashboard();
         await this.loadPages();
+        await this.loadWorkspaces();
+        await this.validateScope();
+        await this.loadScopePages();
+        await this.loadDashboard();
       } catch (e) {
         this.authError = e.message;
       } finally {
@@ -1821,6 +1961,10 @@ function app() {
         const range = this._computeDateRange();
         params.set('dateFrom', range.dateFrom);
         params.set('dateTo', range.dateTo);
+        if (this.currentScope.type !== 'all') {
+          params.set('scopeType', this.currentScope.type);
+          params.set('scopeId', this.currentScope.id);
+        }
         const [db, stats] = await Promise.all([
           this.api('/dashboard/stats/dashboard?' + params.toString()),
           this.api('/dashboard/stats').catch(() => ({})),
@@ -1838,7 +1982,12 @@ function app() {
     async syncFbMetrics() {
       this.fbSyncing = true;
       try {
-        const result = await this.api('/dashboard/stats/fb-sync', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ pageId: this.dbFilter.pageId || undefined }) });
+        const syncBody = { pageId: this.dbFilter.pageId || undefined };
+        if (this.currentScope.type !== 'all') {
+          syncBody.scopeType = this.currentScope.type;
+          syncBody.scopeId = this.currentScope.id;
+        }
+        const result = await this.api('/dashboard/stats/fb-sync', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(syncBody) });
         const msg = `Sync xong: ${result.synced}/${result.total} bài` + (result.errors?.length ? ` (${result.errors.length} lỗi)` : '');
         alert(msg);
         await this.loadDashboard();
@@ -1977,7 +2126,14 @@ function app() {
     },
 
     async loadCampaigns() {
-      try { this.campaigns = await this.api('/campaigns'); } catch {}
+      try {
+        const params = new URLSearchParams();
+        if (this.currentScope.type !== 'all') {
+          params.set('scopeType', this.currentScope.type);
+          params.set('scopeId', this.currentScope.id);
+        }
+        this.campaigns = await this.api('/campaigns?' + params.toString());
+      } catch {}
     },
 
     async loadContent() {
@@ -1991,6 +2147,10 @@ function app() {
         if (this.contentFilter.source) params.set('source', this.contentFilter.source);
         if (this.contentFilter.campaignId) params.set('campaignId', this.contentFilter.campaignId);
         if (this.contentFilter.contentType) params.set('contentType', this.contentFilter.contentType);
+        if (this.currentScope.type !== 'all') {
+          params.set('scopeType', this.currentScope.type);
+          params.set('scopeId', this.currentScope.id);
+        }
         const data = await this.api(`/dashboard/content?${params}`);
         this.contentItems = data.items;
         this.contentTotal = data.total;
@@ -2271,8 +2431,9 @@ function app() {
       this.editingContent = null;
       const tomorrow = new Date();
       tomorrow.setDate(tomorrow.getDate() + 1);
+      const formPages = this.scopePages.length ? this.scopePages : this.pages;
       this.contentForm = {
-        pageId: this.pages[0]?.id || '',
+        pageId: this.currentScope.type === 'page' ? this.currentScope.id : (formPages[0]?.id || ''),
         topic: '',
         contentType: 'IMAGE',
         scheduledDate: tomorrow.toISOString().split('T')[0],
@@ -2535,6 +2696,133 @@ function app() {
     providerLabel(name) {
       const map = { claude: 'Claude (Anthropic)', openai: 'GPT (OpenAI)', gemini: 'Gemini (Google)', dalle: 'DALL-E (OpenAI)' };
       return map[name] || name || '—';
+    },
+
+    // === Workspace / Scope ===
+    async loadWorkspaces() {
+      try { this.workspaces = await this.api('/workspaces'); } catch {}
+    },
+
+    async validateScope() {
+      const s = this.currentScope;
+      if (s.type === 'workspace') {
+        const ws = this.workspaces.find(w => w.id === s.id);
+        if (!ws) this.setScope({ type: 'all' });
+      } else if (s.type === 'page') {
+        const pg = this.pages.find(p => p.id === s.id);
+        if (!pg) this.setScope({ type: 'all' });
+      }
+    },
+
+    setScope(scope) {
+      this.currentScope = scope;
+      localStorage.setItem('mkt_scope', JSON.stringify(scope));
+      this.scopeDropdownOpen = false;
+      this.scopeSearch = '';
+      this.dbFilter.pageId = '';
+      this.dbFilter.campaignId = '';
+      this.loadScopePages();
+      this.loadDashboard();
+      if (this.page === 'content') this.loadContent();
+      if (this.page === 'campaigns') this.loadCampaigns();
+    },
+
+    async loadScopePages() {
+      if (this.currentScope.type === 'page') {
+        this.scopePages = this.pages.filter(p => p.id === this.currentScope.id);
+      } else if (this.currentScope.type === 'workspace') {
+        const ws = this.workspaces.find(w => w.id === this.currentScope.id);
+        this.scopePages = ws ? this.pages.filter(p => ws.pages.some(wp => wp.id === p.id)) : [];
+      } else {
+        this.scopePages = this.pages;
+      }
+    },
+
+    scopeLabel() {
+      const s = this.currentScope;
+      if (s.type === 'workspace') {
+        const ws = this.workspaces.find(w => w.id === s.id);
+        return ws?.name || 'Workspace';
+      }
+      if (s.type === 'page') {
+        const pg = this.pages.find(p => p.id === s.id);
+        return pg?.name || 'Page';
+      }
+      return 'Tất cả Pages';
+    },
+
+    scopeIcon() {
+      const s = this.currentScope;
+      if (s.type === 'workspace') return 'ri-folders-line';
+      if (s.type === 'page') return 'ri-pages-line';
+      return 'ri-global-line';
+    },
+
+    scopeParams() {
+      const s = this.currentScope;
+      if (s.type === 'all') return '';
+      return `&scopeType=${s.type}&scopeId=${s.id}`;
+    },
+
+    filteredWorkspaces() {
+      if (!this.scopeSearch) return this.workspaces;
+      const q = this.scopeSearch.toLowerCase();
+      return this.workspaces.filter(w => w.name.toLowerCase().includes(q));
+    },
+
+    filteredScopePages() {
+      if (!this.scopeSearch) return this.pages;
+      const q = this.scopeSearch.toLowerCase();
+      return this.pages.filter(p => p.name.toLowerCase().includes(q));
+    },
+
+    openWorkspaceForm(ws = null) {
+      this.editingWorkspace = ws;
+      this.workspaceForm = ws
+        ? { name: ws.name, description: ws.description || '', pageIds: ws.pages.map(p => p.id) }
+        : { name: '', description: '', pageIds: [] };
+      this.workspaceError = '';
+      this.showWorkspaceModal = true;
+      this.scopeDropdownOpen = false;
+    },
+
+    async saveWorkspace() {
+      this.workspaceError = '';
+      if (!this.workspaceForm.name) { this.workspaceError = 'Tên là bắt buộc'; return; }
+      try {
+        if (this.editingWorkspace) {
+          await this.api(`/workspaces/${this.editingWorkspace.id}`, {
+            method: 'PUT', body: JSON.stringify(this.workspaceForm),
+          });
+          this.showToast('Cập nhật workspace thành công');
+        } else {
+          await this.api('/workspaces', {
+            method: 'POST', body: JSON.stringify(this.workspaceForm),
+          });
+          this.showToast('Tạo workspace thành công');
+        }
+        this.showWorkspaceModal = false;
+        await this.loadWorkspaces();
+        await this.loadScopePages();
+      } catch (e) { this.workspaceError = e.message; }
+    },
+
+    async deleteWorkspace(ws) {
+      if (!confirm(`Xóa workspace "${ws.name}"? (Pages và content không bị ảnh hưởng)`)) return;
+      try {
+        await this.api(`/workspaces/${ws.id}`, { method: 'DELETE' });
+        if (this.currentScope.type === 'workspace' && this.currentScope.id === ws.id) {
+          this.setScope({ type: 'all' });
+        }
+        await this.loadWorkspaces();
+        this.showToast('Đã xóa workspace');
+      } catch (e) { this.showToast(e.message, 'error'); }
+    },
+
+    toggleWsPage(pageId) {
+      const idx = this.workspaceForm.pageIds.indexOf(pageId);
+      if (idx >= 0) this.workspaceForm.pageIds.splice(idx, 1);
+      else this.workspaceForm.pageIds.push(pageId);
     },
   };
 }

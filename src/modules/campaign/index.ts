@@ -3,6 +3,7 @@ import multer from 'multer';
 import * as XLSX from 'xlsx';
 import { prisma } from '../../utils/db';
 import { parseExcelToSchedule } from './excel-parser';
+import { resolvePageIds } from '../workspace';
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } });
 const router = Router();
 
@@ -116,8 +117,19 @@ router.post('/import', upload.single('file'), async (req: Request, res: Response
   }
 });
 
-router.get('/', async (_req: Request, res: Response) => {
+router.get('/', async (req: Request, res: Response) => {
+  const { scopeType, scopeId } = req.query;
+  const sType = String(scopeType || 'all');
+  const sId = scopeId ? String(scopeId) : undefined;
+  const scopePageIds = sType !== 'all' ? await resolvePageIds(sType, sId) : null;
+
+  const where: Record<string, unknown> = {};
+  if (scopePageIds) {
+    where.contentItems = { some: { pageId: { in: scopePageIds } } };
+  }
+
   const campaigns = await prisma.campaign.findMany({
+    where,
     include: { _count: { select: { contentItems: true } } },
     orderBy: { createdAt: 'desc' },
   });

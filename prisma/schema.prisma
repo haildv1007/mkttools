@@ -79,8 +79,9 @@ model Page {
   createdAt   DateTime @default(now()) @map("created_at")
   updatedAt   DateTime @updatedAt @map("updated_at")
 
-  user         User          @relation(fields: [userId], references: [id])
-  contentItems ContentItem[]
+  user           User            @relation(fields: [userId], references: [id])
+  contentItems   ContentItem[]
+  workspacePages WorkspacePage[]
 
   @@unique([platform, externalId])
   @@map("pages")
@@ -151,6 +152,36 @@ model ApprovalLog {
   user        User        @relation(fields: [userId], references: [id])
 
   @@map("approval_logs")
+}
+
+model Workspace {
+  id          String   @id @default(cuid())
+  name        String
+  slug        String   @unique
+  description String?
+  color       String?
+  icon        String?
+  createdBy   String?  @map("created_by")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  workspacePages WorkspacePage[]
+
+  @@map("workspaces")
+}
+
+model WorkspacePage {
+  workspaceId String   @map("workspace_id")
+  pageId      String   @map("page_id")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  page      Page      @relation(fields: [pageId], references: [id], onDelete: Cascade)
+
+  @@id([workspaceId, pageId])
+  @@index([workspaceId])
+  @@index([pageId])
+  @@map("workspace_pages")
 }
 
 model AppSetting {

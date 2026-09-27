@@ -10,6 +10,7 @@ import { authRouter, authMiddleware } from './middleware/auth';
 import { errorHandler } from './middleware/error-handler';
 import { campaignRouter } from './modules/campaign';
 import { dashboardRouter } from './modules/dashboard';
+import { workspaceRouter } from './modules/workspace';
 import { getBot } from './modules/telegram-bot';
 import { startWorkers, startScheduler } from './queues';
 
@@ -54,6 +55,7 @@ app.use('/api/auth', authRouter);
 
 app.use('/api/campaigns', authMiddleware, campaignRouter);
 app.use('/api/dashboard', authMiddleware, dashboardRouter);
+app.use('/api/workspaces', authMiddleware, workspaceRouter);
 
 app.use(express.static(path.join(__dirname, '../public')));
 app.get('*', (_req, res) => {
