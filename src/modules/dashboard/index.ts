@@ -1,8 +1,28 @@
 import { Router, Request, Response } from 'express';
+import multer from 'multer';
+import path from 'path';
+import fs from 'fs';
 import { prisma } from '../../utils/db';
 import { listProviders, setTextProvider, setImageProvider, generateText, testConnection } from '../content-generator';
 import { contentQueue, publishQueue } from '../../queues';
 import { getSetting, getSettings, setSettings } from '../settings';
+
+const VIDEO_DIR = path.join(process.cwd(), 'public', 'uploads', 'videos');
+if (!fs.existsSync(VIDEO_DIR)) fs.mkdirSync(VIDEO_DIR, { recursive: true });
+
+const videoUpload = multer({
+  storage: multer.diskStorage({
+    destination: (_req, _file, cb) => cb(null, VIDEO_DIR),
+    filename: (_req, file, cb) => cb(null, `${Date.now()}-${file.originalname.replace(/[^a-zA-Z0-9._-]/g, '_')}`),
+  }),
+  limits: { fileSize: 500 * 1024 * 1024 },
+  fileFilter: (_req, file, cb) => {
+    const allowed = ['.mp4', '.mov', '.avi', '.webm', '.mkv'];
+    const ext = path.extname(file.originalname).toLowerCase();
+    cb(null, allowed.includes(ext));
+  },
+});
+
 const router = Router();
 
 router.get('/stats', async (_req: Request, res: Response) => {
@@ -250,6 +270,44 @@ router.post('/content', async (req: Request, res: Response) => {
     res.json(item);
   } catch (err) {
     res.status(400).json({ error: err instanceof Error ? err.message : 'Failed to create content' });
+  }
+});
+
+// Video upload
+router.post('/content/:id/upload-video', videoUpload.single('video'), async (req: Request, res: Response) => {
+  try {
+    const id = req.params.id as string;
+    if (!req.file) return res.status(400).json({ error: 'Không có file video' });
+
+    const appUrl = process.env.APP_URL || `${req.protocol}://${req.get('host')}`;
+    const videoUrl = `${appUrl}/uploads/videos/${req.file.filename}`;
+
+    await prisma.contentItem.update({
+      where: { id },
+      data: { generatedVideoUrl: videoUrl },
+    });
+
+    res.json({ success: true, videoUrl, filename: req.file.filename, size: req.file.size });
+  } catch (err) {
+    res.status(400).json({ error: err instanceof Error ? err.message : 'Upload failed' });
+  }
+});
+
+router.delete('/content/:id/video', async (req: Request, res: Response) => {
+  try {
+    const id = req.params.id as string;
+    const item = await prisma.contentItem.findUnique({ where: { id }, select: { generatedVideoUrl: true } });
+    if (item?.generatedVideoUrl?.includes('/uploads/videos/')) {
+      const filename = item.generatedVideoUrl.split('/uploads/videos/').pop();
+      if (filename) {
+        const filePath = path.join(VIDEO_DIR, filename);
+        if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
+      }
+    }
+    await prisma.contentItem.update({ where: { id }, data: { generatedVideoUrl: null } });
+    res.json({ success: true });
+  } catch (err) {
+    res.status(400).json({ error: err instanceof Error ? err.message : 'Delete failed' });
   }
 });
 
