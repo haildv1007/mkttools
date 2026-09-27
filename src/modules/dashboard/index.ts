@@ -360,8 +360,7 @@ router.post('/content/:id/upload-image', imageUpload.single('image'), async (req
     const id = req.params.id as string;
     if (!req.file) return res.status(400).json({ error: 'Không có file ảnh' });
 
-    const appUrl = process.env.APP_URL || `${req.protocol}://${req.get('host')}`;
-    const imageUrl = `${appUrl}/uploads/images/${req.file.filename}`;
+    const imageUrl = `/uploads/images/${req.file.filename}`;
 
     await prisma.contentItem.update({
       where: { id },
@@ -380,9 +379,8 @@ router.post('/content/:id/upload-images', imageUpload.array('images', 10), async
     const files = req.files as Express.Multer.File[];
     if (!files || files.length === 0) return res.status(400).json({ error: 'Không có file ảnh' });
 
-    const appUrl = process.env.APP_URL || `${req.protocol}://${req.get('host')}`;
     const images = files.map(f => ({
-      url: `${appUrl}/uploads/images/${f.filename}`,
+      url: `/uploads/images/${f.filename}`,
       localPath: f.path,
     }));
 
@@ -405,8 +403,7 @@ router.post('/content/:id/upload-video', videoUpload.single('video'), async (req
     const id = req.params.id as string;
     if (!req.file) return res.status(400).json({ error: 'Không có file video' });
 
-    const appUrl = process.env.APP_URL || `${req.protocol}://${req.get('host')}`;
-    const videoUrl = `${appUrl}/uploads/videos/${req.file.filename}`;
+    const videoUrl = `/uploads/videos/${req.file.filename}`;
 
     await prisma.contentItem.update({
       where: { id },

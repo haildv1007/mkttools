@@ -607,11 +607,11 @@
                   </td>
                   <!-- Thao tác - dropdown -->
                   <td class="px-3 py-2 text-center">
-                    <div class="relative" x-data="{open:false}">
-                      <button @click="open=!open" class="p-1.5 text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition">
+                    <div x-data="{open:false}">
+                      <button @click="open=!open; $nextTick(()=>{ if(open){ const r=$el.getBoundingClientRect(); const dd=$el.nextElementSibling; dd.style.top=(r.bottom+4)+'px'; dd.style.left=Math.max(8,r.right-168)+'px'; } })" class="p-1.5 text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition">
                         <i class="ri-more-2-fill text-base"></i>
                       </button>
-                      <div x-show="open" @click.away="open=false" x-transition class="absolute right-0 top-full mt-1 bg-white rounded-lg shadow-lg border border-gray-100 py-1 z-30 min-w-[160px]">
+                      <div x-show="open" @click.away="open=false" x-transition class="fixed bg-white rounded-lg shadow-lg border border-gray-100 py-1 z-[100] min-w-[160px]" style="position:fixed">
                         <button x-show="item.generatedText || item.generatedImageUrl || item.generatedVideoUrl" @click="viewResult(item); open=false"
                           class="w-full text-left px-3 py-1.5 text-xs hover:bg-gray-50 flex items-center gap-2">
                           <i class="ri-eye-line text-brand-500"></i> Xem kết quả

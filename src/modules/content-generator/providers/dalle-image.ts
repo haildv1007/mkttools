@@ -56,8 +56,7 @@ export class DalleImageProvider implements ImageProvider {
       const filename = `img-${crypto.randomUUID()}.png`;
       const filePath = path.join(UPLOAD_DIR, filename);
       fs.writeFileSync(filePath, buffer);
-      const appUrl = process.env.APP_URL || `http://localhost:${config.port}`;
-      return { url: `${appUrl}/uploads/${filename}`, localPath: filePath };
+      return { url: `/uploads/${filename}`, localPath: filePath };
     }
 
     if (url) {
@@ -68,8 +67,7 @@ export class DalleImageProvider implements ImageProvider {
       const filename = `img-${crypto.randomUUID()}.png`;
       const filePath = path.join(UPLOAD_DIR, filename);
       fs.writeFileSync(filePath, buffer);
-      const appUrl = process.env.APP_URL || `http://localhost:${config.port}`;
-      return { url: `${appUrl}/uploads/${filename}`, localPath: filePath };
+      return { url: `/uploads/${filename}`, localPath: filePath };
     }
 
     throw new Error('OpenAI returned no image');

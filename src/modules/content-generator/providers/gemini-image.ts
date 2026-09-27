@@ -71,7 +71,6 @@ export class GeminiImageProvider implements ImageProvider {
     const filePath = path.join(UPLOAD_DIR, filename);
     fs.writeFileSync(filePath, buffer);
 
-    const appUrl = process.env.APP_URL || `http://localhost:${config.port}`;
-    return { url: `${appUrl}/uploads/${filename}`, localPath: filePath };
+    return { url: `/uploads/${filename}`, localPath: filePath };
   }
 }
