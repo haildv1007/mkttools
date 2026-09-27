@@ -6,32 +6,37 @@ import { parseExcelToSchedule } from './excel-parser';
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } });
 const router = Router();
 
-router.get('/template', (_req: Request, res: Response) => {
-  const headers = [
-    'Ngày', 'Giờ đăng', 'Page', 'Chủ đề', 'Loại',
-    'Ghi chú', 'Mô tả ảnh', 'Bài viết', 'Link ảnh', 'Link video',
-  ];
-  const rows = [
-    headers,
-    ['', '', '', '', '', '', '', '', '', ''],
-    ['--- VÍ DỤ 1: AI TẠO NỘI DUNG (chỉ cần điền thông tin, AI sẽ viết bài) ---', '', '', '', '', '', '', '', '', ''],
-    ['2025-01-15', '09:00', 'Shop ABC', 'Khuyến mãi Tết - Giảm 50%', 'image', 'Tone vui vẻ, có emoji', 'Ảnh sản phẩm bày trí Tết', '', '', ''],
-    ['2025-01-16', '18:00', 'Shop ABC', 'Review sản phẩm mới', 'video', 'Nhấn mạnh chất lượng', '', '', '', ''],
-    ['', '', '', '', '', '', '', '', '', ''],
-    ['--- VÍ DỤ 2: NỘI DUNG CÓ SẴN (đã có bài viết/ảnh/video, chỉ cần lên lịch đăng) ---', '', '', '', '', '', '', '', '', ''],
-    ['2025-01-17', '10:00', 'Shop ABC', 'Flash Sale cuối tuần', 'image', '', '', 'Flash Sale cực sốc! 🔥 Giảm đến 70% toàn bộ sản phẩm. Chỉ 2 ngày duy nhất!', 'https://example.com/sale.jpg', ''],
-    ['2025-01-18', '20:00', 'Shop ABC', 'Video unbox hàng mới', 'video', '', '', 'Unbox lô hàng mới về! Xem ngay để không bỏ lỡ 👀', '', 'https://example.com/unbox.mp4'],
-  ];
-  const ws = XLSX.utils.aoa_to_sheet(rows);
-  ws['!cols'] = [
-    { wch: 14 }, { wch: 10 }, { wch: 15 }, { wch: 30 }, { wch: 8 },
-    { wch: 25 }, { wch: 25 }, { wch: 50 }, { wch: 30 }, { wch: 30 },
-  ];
+router.get('/template', (req: Request, res: Response) => {
+  const type = req.query.type === 'ai' ? 'ai' : 'ready';
+  let headers: string[];
+  let examples: string[][];
+  let filename: string;
+
+  if (type === 'ai') {
+    headers = ['Ngày', 'Giờ đăng', 'Page', 'Chủ đề', 'Loại', 'Ghi chú', 'Mô tả ảnh'];
+    examples = [
+      ['2026-10-01', '09:00', 'Shop ABC', 'Khuyến mãi mùa thu - Giảm 50%', 'image', 'Tone vui vẻ, có emoji, nhấn mạnh urgency', 'Ảnh sản phẩm thu đông'],
+      ['2026-10-02', '18:00', 'Shop ABC', 'Review áo khoác mới về', 'image', 'Phong cách review chân thực', 'Flat lay áo khoác | Model mặc thử'],
+      ['2026-10-03', '12:00', 'Shop ABC', 'Tips phối đồ mùa thu', 'text', 'Dạng listicle, 5 tips ngắn gọn', ''],
+    ];
+    filename = 'mkttools-ai-gen.xlsx';
+  } else {
+    headers = ['Ngày', 'Giờ đăng', 'Page', 'Chủ đề', 'Loại', 'Bài viết', 'Link ảnh', 'Link video'];
+    examples = [
+      ['2026-10-01', '09:00', 'Shop ABC', 'Flash Sale cuối tuần', 'image', 'Flash Sale cực sốc! 🔥 Giảm đến 70% toàn bộ sản phẩm. Chỉ 2 ngày!', 'https://example.com/sale.jpg', ''],
+      ['2026-10-02', '20:00', 'Shop ABC', 'Unbox hàng mới về', 'video', 'Unbox lô hàng mới! Xem ngay 👀 #fashion #newcollection', '', 'https://example.com/unbox.mp4'],
+      ['2026-10-03', '10:00', 'Shop ABC', 'Feedback khách hàng', 'image', 'Cảm ơn chị đã tin tưởng shop ạ 🥰 #review #feedback', 'https://example.com/review.jpg', ''],
+    ];
+    filename = 'mkttools-co-san.xlsx';
+  }
+
+  const ws = XLSX.utils.aoa_to_sheet([headers, ...examples]);
+  ws['!cols'] = headers.map(h => ({ wch: h === 'Bài viết' ? 50 : h === 'Chủ đề' || h === 'Ghi chú' ? 35 : 20 }));
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, 'Template');
   const buf = XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' });
   res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
-  res.setHeader('Content-Disposition', 'attachment; filename="mkttools-template.xlsx"');
+  res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
   res.send(buf);
 });
 
