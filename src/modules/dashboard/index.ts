@@ -86,11 +86,13 @@ async function fetchFbMetricsForItems(
   const allMetrics: FbPostMetrics[] = [];
   const fbErrors: string[] = [];
 
+  type MetricData = { reactions: number; comments: number; shares: number; reach: number; engagedUsers: number; synced_at?: string };
+
   for (const [pageId, { page, items: pageItems }] of byPage) {
     const cacheKey = `dashboard_fb_${pageId}`;
     const cached = fbCache.get(cacheKey);
     if (cached && Date.now() - cached.ts < FB_CACHE_TTL) {
-      const cachedMap = cached.data as Map<string, { reactions: number; comments: number; shares: number; reach: number; engagedUsers: number }>;
+      const cachedMap = cached.data as Map<string, MetricData>;
       for (const item of pageItems) {
         const m = cachedMap.get(item.socialPostId!) ?? { reactions: 0, comments: 0, shares: 0, reach: 0, engagedUsers: 0 };
         allMetrics.push({
@@ -107,7 +109,8 @@ async function fetchFbMetricsForItems(
     const batches: string[][] = [];
     for (let i = 0; i < postIds.length; i += 50) batches.push(postIds.slice(i, i + 50));
 
-    const postDataMap = new Map<string, { reactions: number; comments: number; shares: number; reach: number; engagedUsers: number }>();
+    const postDataMap = new Map<string, MetricData>();
+    let batchFailed = false;
 
     for (const batch of batches) {
       try {
@@ -118,6 +121,7 @@ async function fetchFbMetricsForItems(
         if (!batchRes.ok) {
           const errMsg = (rawJson as { error?: { message?: string } })?.error?.message || `HTTP ${batchRes.status}`;
           fbErrors.push(`${page.name}: ${errMsg}`);
+          batchFailed = true;
           continue;
         }
         for (const [postId, postInfoRaw] of Object.entries(rawJson)) {
@@ -139,20 +143,50 @@ async function fetchFbMetricsForItems(
           if (postInfo.insights?.data) {
             for (const metric of postInfo.insights.data) {
               const val = metric.values?.[0]?.value ?? 0;
-              // post_impressions = total impressions; used as "Reach" proxy since post_impressions_unique deprecated 06/2026
+              // post_impressions = total impressions (proxy for reach; post_impressions_unique deprecated 06/2026)
               if (metric.name === 'post_impressions') reach = val;
               if (metric.name === 'post_engaged_users') engagedUsers = val;
             }
           }
-          postDataMap.set(postId, { reactions, comments, shares, reach, engagedUsers });
+          postDataMap.set(postId, { reactions, comments, shares, reach, engagedUsers, synced_at: new Date().toISOString() });
         }
-      } catch (e) { fbErrors.push(`${page.name}: ${e instanceof Error ? e.message : 'fetch error'}`); }
+      } catch (e) {
+        fbErrors.push(`${page.name}: ${e instanceof Error ? e.message : 'fetch error'}`);
+        batchFailed = true;
+      }
     }
 
-    fbCache.set(cacheKey, { data: postDataMap, ts: Date.now() });
+    // Persist successfully fetched metrics to DB (non-blocking)
+    const updates: Array<Promise<unknown>> = [];
+    for (const [socialPostId, m] of postDataMap.entries()) {
+      const item = pageItems.find(i => i.socialPostId === socialPostId);
+      if (!item) continue;
+      updates.push(
+        prisma.contentItem.update({
+          where: { id: item.id },
+          data: { metrics: { fb_reactions: m.reactions, fb_comments: m.comments, fb_shares: m.shares, fb_impressions: m.reach, fb_engaged_users: m.engagedUsers, fb_synced_at: m.synced_at } },
+        }).catch(() => {})
+      );
+    }
+    Promise.all(updates).catch(() => {});
+
+    // Only cache if no batch failures
+    if (!batchFailed) {
+      fbCache.set(cacheKey, { data: postDataMap, ts: Date.now() });
+    }
 
     for (const item of pageItems) {
-      const m = postDataMap.get(item.socialPostId!) ?? { reactions: 0, comments: 0, shares: 0, reach: 0, engagedUsers: 0 };
+      let m = postDataMap.get(item.socialPostId!);
+      if (!m) {
+        // Fallback: use persisted metrics from DB instead of defaulting to 0
+        const dbItem = await prisma.contentItem.findUnique({ where: { id: item.id }, select: { metrics: true } }).catch(() => null);
+        const saved = dbItem?.metrics as { fb_reactions?: number; fb_comments?: number; fb_shares?: number; fb_impressions?: number; fb_engaged_users?: number } | null;
+        if (saved && (saved.fb_reactions || saved.fb_comments || saved.fb_shares || saved.fb_impressions)) {
+          m = { reactions: saved.fb_reactions ?? 0, comments: saved.fb_comments ?? 0, shares: saved.fb_shares ?? 0, reach: saved.fb_impressions ?? 0, engagedUsers: saved.fb_engaged_users ?? 0 };
+        } else {
+          m = { reactions: 0, comments: 0, shares: 0, reach: 0, engagedUsers: 0 };
+        }
+      }
       allMetrics.push({
         contentItemId: item.id, socialPostId: item.socialPostId!, topic: item.topic,
         publishedAt: item.publishedAt, campaignId: item.campaignId, pageId,

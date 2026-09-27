@@ -241,12 +241,12 @@
         <!-- Row 2: 6 KPI Cards -->
         <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3 mb-5">
           <template x-for="k in [
-            {key:'total_reach',label:'Reach',icon:'ri-eye-line',color:'blue'},
+            {key:'total_reach',label:'Lượt hiển thị',icon:'ri-eye-line',color:'blue'},
             {key:'total_engagement',label:'Engagement',icon:'ri-heart-pulse-line',color:'indigo'},
             {key:'total_reactions',label:'Reactions',icon:'ri-thumb-up-line',color:'rose'},
             {key:'total_comments',label:'Comments',icon:'ri-chat-3-line',color:'green'},
             {key:'total_shares',label:'Shares',icon:'ri-share-forward-line',color:'purple'},
-            {key:'engagement_rate',label:'ER',icon:'ri-percent-line',color:'amber'}
+            {key:'engagement_rate',label:'ER (Eng/Imp)',icon:'ri-percent-line',color:'amber'}
           ]" :key="k.key">
             <div class="bg-white rounded-xl p-4 border border-gray-100 shadow-sm">
               <div class="flex items-center justify-between mb-2">
@@ -267,7 +267,7 @@
             <table class="w-full text-xs">
               <thead><tr class="text-left text-gray-400 border-b">
                 <th class="pb-2 pr-2">Content</th><th class="pb-2 pr-2">Page</th><th class="pb-2 pr-2">Ngày</th>
-                <th class="pb-2 pr-2 text-right">Reach</th><th class="pb-2 pr-2 text-right">Reactions</th>
+                <th class="pb-2 pr-2 text-right" title="Lượt hiển thị (Impressions)">Lượt hiển thị</th><th class="pb-2 pr-2 text-right">Reactions</th>
                 <th class="pb-2 pr-2 text-right">Comments</th><th class="pb-2 pr-2 text-right">Shares</th>
                 <th class="pb-2 text-right">ER</th>
               </tr></thead>
@@ -1768,7 +1768,7 @@ function app() {
         data: {
           labels,
           datasets: [
-            { type: 'line', label: 'Reach', data: data.map(d => d.reach), borderColor: '#3b82f6', backgroundColor: 'rgba(59,130,246,0.08)', fill: true, tension: 0.3, pointRadius: 2, yAxisID: 'y', order: 1 },
+            { type: 'line', label: 'Lượt hiển thị', data: data.map(d => d.reach), borderColor: '#3b82f6', backgroundColor: 'rgba(59,130,246,0.08)', fill: true, tension: 0.3, pointRadius: 2, yAxisID: 'y', order: 1 },
             { type: 'line', label: 'Engagement', data: data.map(d => d.engagement), borderColor: '#8b5cf6', backgroundColor: 'rgba(139,92,246,0.08)', fill: true, tension: 0.3, pointRadius: 2, yAxisID: 'y', order: 2 },
             { type: 'bar', label: 'Bài đăng', data: data.map(d => d.posts_count), backgroundColor: 'rgba(99,102,241,0.3)', borderRadius: 4, yAxisID: 'y1', order: 3 },
           ]
