@@ -126,7 +126,7 @@
           class="sidebar-link flex items-center gap-3 px-3 py-2.5 rounded-lg cursor-pointer hover:bg-gray-50 text-gray-600 transition">
           <i class="ri-calendar-schedule-line text-lg"></i> <span class="text-sm font-medium">Campaigns</span>
         </a>
-        <a @click="page='content'; loadContent()" :class="page==='content' && 'active'"
+        <a @click="page='content'; loadContent(); loadCampaigns()" :class="page==='content' && 'active'"
           class="sidebar-link flex items-center gap-3 px-3 py-2.5 rounded-lg cursor-pointer hover:bg-gray-50 text-gray-600 transition">
           <i class="ri-article-line text-lg"></i> <span class="text-sm font-medium">Content</span>
         </a>
@@ -468,13 +468,13 @@
         <!-- Filters -->
         <div class="bg-white rounded-xl border border-gray-100 shadow-sm p-3 mb-4">
           <div class="flex flex-wrap gap-2 items-center">
-            <div class="relative flex-1 min-w-[200px]">
+            <div class="relative flex-1 min-w-[180px]">
               <i class="ri-search-line absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"></i>
               <input x-model="contentFilter.search" @input.debounce.400ms="loadContent()" type="text" placeholder="Tìm theo chủ đề..."
                 class="w-full pl-9 pr-3 py-2 border border-gray-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-brand-500">
             </div>
             <select x-model="contentFilter.status" @change="loadContent()"
-              class="px-3 py-2 border border-gray-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-brand-500">
+              class="px-3 py-2 border border-gray-200 rounded-lg text-sm outline-none">
               <option value="">Trạng thái</option>
               <option value="DRAFT">Nháp</option>
               <option value="GENERATING">Đang gen</option>
@@ -484,122 +484,161 @@
               <option value="FAILED">Lỗi</option>
             </select>
             <select x-model="contentFilter.source" @change="loadContent()"
-              class="px-3 py-2 border border-gray-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-brand-500">
+              class="px-3 py-2 border border-gray-200 rounded-lg text-sm outline-none">
               <option value="">Nguồn</option>
               <option value="AI">AI</option>
               <option value="MANUAL">Thủ công</option>
               <option value="IMPORT">Import</option>
             </select>
             <select x-model="contentFilter.pageId" @change="loadContent()"
-              class="px-3 py-2 border border-gray-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-brand-500">
+              class="px-3 py-2 border border-gray-200 rounded-lg text-sm outline-none">
               <option value="">Tất cả pages</option>
               <template x-for="p in pages" :key="p.id">
                 <option :value="p.id" x-text="p.name"></option>
               </template>
             </select>
+            <select x-model="contentFilter.campaignId" @change="loadContent()"
+              class="px-3 py-2 border border-gray-200 rounded-lg text-sm outline-none">
+              <option value="">Tất cả campaigns</option>
+              <template x-for="c in campaigns" :key="c.id">
+                <option :value="c.id" x-text="c.name"></option>
+              </template>
+            </select>
+            <select x-model="contentFilter.contentType" @change="loadContent()"
+              class="px-3 py-2 border border-gray-200 rounded-lg text-sm outline-none">
+              <option value="">Loại</option>
+              <option value="IMAGE">Image</option>
+              <option value="VIDEO">Video</option>
+              <option value="TEXT">Text</option>
+            </select>
             <input x-model="contentFilter.dateFrom" @change="loadContent()" type="date"
-              class="px-3 py-2 border border-gray-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-brand-500">
+              class="px-3 py-2 border border-gray-200 rounded-lg text-sm outline-none">
             <span class="text-gray-400 text-sm">→</span>
             <input x-model="contentFilter.dateTo" @change="loadContent()" type="date"
-              class="px-3 py-2 border border-gray-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-brand-500">
-            <button x-show="contentFilter.search || contentFilter.status || contentFilter.pageId || contentFilter.dateFrom || contentFilter.dateTo || contentFilter.source"
-              @click="contentFilter={status:'',pageId:'',search:'',dateFrom:'',dateTo:'',source:''}; loadContent()"
+              class="px-3 py-2 border border-gray-200 rounded-lg text-sm outline-none">
+            <button x-show="contentFilter.search || contentFilter.status || contentFilter.pageId || contentFilter.dateFrom || contentFilter.dateTo || contentFilter.source || contentFilter.campaignId || contentFilter.contentType"
+              @click="contentFilter={status:'',pageId:'',search:'',dateFrom:'',dateTo:'',source:'',campaignId:'',contentType:''}; loadContent()"
               class="px-3 py-2 text-gray-400 hover:text-red-500 text-sm" title="Xóa bộ lọc">
               <i class="ri-filter-off-line"></i> Xóa lọc
             </button>
           </div>
         </div>
 
-        <!-- Table -->
+        <!-- Spreadsheet Table -->
         <div class="bg-white rounded-xl border border-gray-100 shadow-sm overflow-x-auto">
-          <table class="w-full text-sm">
-            <thead class="bg-gray-50 border-b border-gray-100">
+          <table class="w-full text-sm border-collapse min-w-[1100px]">
+            <thead class="bg-gray-50 border-b border-gray-200 sticky top-0 z-10">
               <tr>
-                <th class="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase w-24">Trạng thái</th>
-                <th class="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase w-16">Nguồn</th>
-                <th class="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase">Page</th>
-                <th class="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase">Chủ đề</th>
-                <th class="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase w-16">Loại</th>
-                <th class="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase w-28">Lịch đăng</th>
-                <th class="text-center px-4 py-3 text-xs font-semibold text-gray-500 uppercase w-20">Kết quả</th>
-                <th class="text-right px-4 py-3 text-xs font-semibold text-gray-500 uppercase w-40">Thao tác</th>
+                <th class="text-left px-3 py-2.5 text-xs font-semibold text-gray-500 uppercase border-r border-gray-100 w-24">Trạng thái</th>
+                <th class="text-left px-3 py-2.5 text-xs font-semibold text-gray-500 uppercase border-r border-gray-100 w-20">Nguồn</th>
+                <th class="text-left px-3 py-2.5 text-xs font-semibold text-gray-500 uppercase border-r border-gray-100 w-32">Campaign</th>
+                <th class="text-left px-3 py-2.5 text-xs font-semibold text-gray-500 uppercase border-r border-gray-100 w-36">Page</th>
+                <th class="text-left px-3 py-2.5 text-xs font-semibold text-gray-500 uppercase border-r border-gray-100 min-w-[180px]">Chủ đề</th>
+                <th class="text-left px-3 py-2.5 text-xs font-semibold text-gray-500 uppercase border-r border-gray-100 w-20">Loại</th>
+                <th class="text-left px-3 py-2.5 text-xs font-semibold text-gray-500 uppercase border-r border-gray-100 w-[180px]">Nội dung</th>
+                <th class="text-left px-3 py-2.5 text-xs font-semibold text-gray-500 uppercase border-r border-gray-100 w-28">Lịch đăng</th>
+                <th class="text-center px-3 py-2.5 text-xs font-semibold text-gray-500 uppercase border-r border-gray-100 w-16">Media</th>
+                <th class="text-right px-3 py-2.5 text-xs font-semibold text-gray-500 uppercase w-32">Thao tác</th>
               </tr>
             </thead>
-            <tbody class="divide-y divide-gray-50">
+            <tbody class="divide-y divide-gray-100">
               <template x-for="item in contentItems" :key="item.id">
-                <tr class="hover:bg-blue-50/30 transition">
+                <tr class="hover:bg-blue-50/40 transition group">
                   <!-- Status -->
-                  <td class="px-4 py-3">
+                  <td class="px-3 py-2 border-r border-gray-50">
                     <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium whitespace-nowrap" :class="statusClass(item.status)" x-text="statusLabel(item.status)"></span>
                   </td>
                   <!-- Source -->
-                  <td class="px-4 py-3">
+                  <td class="px-3 py-2 border-r border-gray-50">
                     <span class="text-xs px-1.5 py-0.5 rounded whitespace-nowrap"
                       :class="{'bg-purple-50 text-purple-600': item.source==='AI', 'bg-teal-50 text-teal-600': item.source==='MANUAL', 'bg-cyan-50 text-cyan-600': item.source==='IMPORT'}"
                       x-text="sourceLabel(item.source)"></span>
                   </td>
-                  <!-- Page -->
-                  <td class="px-4 py-3">
-                    <span class="inline-flex items-center gap-1 text-xs">
-                      <i :class="item.page?.platform==='FACEBOOK' ? 'ri-facebook-fill text-blue-500' : 'ri-tiktok-fill'" class="text-sm"></i>
-                      <span x-text="item.page?.name" class="truncate max-w-[120px]"></span>
-                    </span>
+                  <!-- Campaign -->
+                  <td class="px-3 py-2 border-r border-gray-50">
+                    <span class="text-xs text-gray-600 truncate block max-w-[120px]" x-text="item.campaign?.name || '—'" :title="item.campaign?.name"></span>
                   </td>
-                  <!-- Topic -->
-                  <td class="px-4 py-3">
-                    <div class="font-medium text-gray-800 truncate max-w-[280px]" x-text="item.topic" :title="item.topic"></div>
-                    <div x-show="item.notes" class="text-xs text-gray-400 truncate max-w-[280px]" x-text="item.notes"></div>
+                  <!-- Page with profile picture -->
+                  <td class="px-3 py-2 border-r border-gray-50">
+                    <div class="flex items-center gap-1.5">
+                      <img x-show="item.page?.platform==='FACEBOOK'" :src="'https://graph.facebook.com/' + item.page?.externalId + '/picture?type=small'"
+                        class="w-5 h-5 rounded-full object-cover flex-shrink-0 bg-gray-100"
+                        onerror="this.style.display='none'">
+                      <i x-show="item.page?.platform!=='FACEBOOK'" class="ri-tiktok-fill text-sm flex-shrink-0"></i>
+                      <span x-text="item.page?.name" class="text-xs truncate max-w-[100px]" :title="item.page?.name"></span>
+                    </div>
+                  </td>
+                  <!-- Topic + Notes -->
+                  <td class="px-3 py-2 border-r border-gray-50">
+                    <div class="font-medium text-gray-800 text-xs leading-snug" x-text="item.topic" :title="item.topic"></div>
+                    <div x-show="item.notes" class="text-[11px] text-gray-400 mt-0.5 truncate max-w-[180px]" x-text="item.notes"></div>
                   </td>
                   <!-- Type -->
-                  <td class="px-4 py-3">
-                    <span class="text-xs px-1.5 py-0.5 rounded bg-gray-100 text-gray-600" x-text="item.contentType"></span>
+                  <td class="px-3 py-2 border-r border-gray-50">
+                    <span class="inline-flex items-center gap-1 text-xs px-1.5 py-0.5 rounded"
+                      :class="{'bg-blue-50 text-blue-600': item.contentType==='IMAGE', 'bg-purple-50 text-purple-600': item.contentType==='VIDEO', 'bg-gray-100 text-gray-600': item.contentType==='TEXT'}">
+                      <i :class="{'ri-image-line': item.contentType==='IMAGE', 'ri-video-line': item.contentType==='VIDEO', 'ri-text': item.contentType==='TEXT'}"></i>
+                      <span x-text="item.contentType"></span>
+                    </span>
+                  </td>
+                  <!-- Content preview -->
+                  <td class="px-3 py-2 border-r border-gray-50">
+                    <div x-show="item.generatedText" class="text-[11px] text-gray-500 leading-snug cursor-pointer hover:text-gray-800" style="display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;max-width:180px" @click="viewResult(item)" x-text="item.generatedText?.substring(0,80)+(item.generatedText?.length>80?'...':'')"></div>
+                    <span x-show="!item.generatedText && item.status==='DRAFT'" class="text-[11px] text-gray-300 italic">Chưa có nội dung</span>
+                    <span x-show="!item.generatedText && item.status==='GENERATING'" class="text-[11px] text-purple-400"><i class="ri-loader-4-line animate-spin"></i> Đang gen...</span>
+                    <span x-show="!item.generatedText && item.status!=='DRAFT' && item.status!=='GENERATING'" class="text-gray-200 text-[11px]">—</span>
                   </td>
                   <!-- Scheduled -->
-                  <td class="px-4 py-3 text-xs text-gray-500 whitespace-nowrap" x-text="new Date(item.scheduledAt).toLocaleString('vi-VN', {timeZone:'Asia/Ho_Chi_Minh', day:'2-digit', month:'2-digit', hour:'2-digit', minute:'2-digit'})"></td>
-                  <!-- Result -->
-                  <td class="px-4 py-3 text-center">
-                    <button x-show="item.generatedText || item.generatedImageUrl || item.generatedVideoUrl" @click="viewResult(item)"
-                      class="text-brand-500 hover:text-brand-700 transition flex items-center gap-0.5" title="Xem kết quả">
-                      <i class="ri-eye-line text-lg"></i>
-                      <i x-show="item.generatedVideoUrl" class="ri-video-line text-xs text-purple-500"></i>
-                    </button>
-                    <button x-show="item.status==='FAILED' && item.errorMessage" @click="viewError(item)"
-                      class="text-red-400 hover:text-red-600 transition" title="Xem lỗi">
-                      <i class="ri-error-warning-line text-lg"></i>
-                    </button>
-                    <span x-show="!item.generatedText && !item.generatedImageUrl && !(item.status==='FAILED' && item.errorMessage)"
-                      class="text-gray-300">—</span>
+                  <td class="px-3 py-2 border-r border-gray-50">
+                    <div class="text-xs text-gray-700 font-medium" x-text="new Date(item.scheduledAt).toLocaleDateString('vi-VN', {timeZone:'Asia/Ho_Chi_Minh', day:'2-digit', month:'2-digit', year:'numeric'})"></div>
+                    <div class="text-[11px] text-gray-400" x-text="new Date(item.scheduledAt).toLocaleTimeString('vi-VN', {timeZone:'Asia/Ho_Chi_Minh', hour:'2-digit', minute:'2-digit'})"></div>
+                  </td>
+                  <!-- Media -->
+                  <td class="px-3 py-2 border-r border-gray-50 text-center">
+                    <div class="flex items-center gap-1 justify-center">
+                      <i x-show="item.generatedImageUrl || item.generatedImages?.length" class="ri-image-line text-blue-400" title="Có ảnh"></i>
+                      <i x-show="item.generatedVideoUrl" class="ri-video-line text-purple-400" title="Có video"></i>
+                      <span x-show="!item.generatedImageUrl && !item.generatedImages?.length && !item.generatedVideoUrl" class="text-gray-200">—</span>
+                    </div>
                   </td>
                   <!-- Actions -->
-                  <td class="px-4 py-3 text-right">
+                  <td class="px-3 py-2 text-right">
                     <div class="flex items-center justify-end gap-0.5">
+                      <button x-show="item.generatedText || item.generatedImageUrl || item.generatedVideoUrl" @click="viewResult(item)"
+                        class="p-1 text-gray-300 hover:text-brand-600 hover:bg-brand-50 rounded transition" title="Xem chi tiết">
+                        <i class="ri-eye-line"></i>
+                      </button>
                       <button x-show="item.status==='PENDING_REVIEW'" @click="approveContent(item.id)"
-                        class="p-1.5 text-gray-400 hover:text-green-600 hover:bg-green-50 rounded transition" title="Duyệt">
+                        class="p-1 text-gray-300 hover:text-green-600 hover:bg-green-50 rounded transition" title="Duyệt">
                         <i class="ri-check-line"></i>
                       </button>
                       <button x-show="item.status==='PENDING_REVIEW'" @click="requestEditContent(item.id)"
-                        class="p-1.5 text-gray-400 hover:text-orange-600 hover:bg-orange-50 rounded transition" title="Yêu cầu sửa">
+                        class="p-1 text-gray-300 hover:text-orange-600 hover:bg-orange-50 rounded transition" title="Yêu cầu sửa">
                         <i class="ri-edit-line"></i>
                       </button>
                       <button x-show="item.status==='PENDING_REVIEW'" @click="rejectContent(item.id)"
-                        class="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded transition" title="Hủy">
+                        class="p-1 text-gray-300 hover:text-red-600 hover:bg-red-50 rounded transition" title="Hủy">
                         <i class="ri-close-line"></i>
                       </button>
                       <button x-show="item.status==='DRAFT' || item.status==='FAILED'" @click="regenerateContent(item.id)"
-                        class="p-1.5 text-gray-400 hover:text-purple-600 hover:bg-purple-50 rounded transition" title="Gen content">
+                        class="p-1 text-gray-300 hover:text-purple-600 hover:bg-purple-50 rounded transition" title="Gen content">
                         <i class="ri-magic-line"></i>
                       </button>
                       <button x-show="item.status==='APPROVED'" @click="publishNow(item.id)"
-                        class="p-1.5 text-gray-400 hover:text-green-600 hover:bg-green-50 rounded transition" title="Đăng ngay">
+                        class="p-1 text-gray-300 hover:text-green-600 hover:bg-green-50 rounded transition" title="Đăng ngay">
                         <i class="ri-send-plane-line"></i>
                       </button>
                       <button @click="editContent(item)"
-                        class="p-1.5 text-gray-400 hover:text-brand-600 hover:bg-brand-50 rounded transition" title="Sửa">
+                        class="p-1 text-gray-300 hover:text-brand-600 hover:bg-brand-50 rounded transition" title="Sửa">
                         <i class="ri-pencil-line"></i>
                       </button>
                       <button @click="deleteContent(item.id, item.topic)"
-                        class="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded transition" title="Xóa">
+                        class="p-1 text-gray-300 hover:text-red-600 hover:bg-red-50 rounded transition" title="Xóa">
                         <i class="ri-delete-bin-line"></i>
+                      </button>
+                      <button x-show="item.status==='FAILED' && item.errorMessage" @click="viewError(item)"
+                        class="p-1 text-red-300 hover:text-red-600 hover:bg-red-50 rounded transition" title="Xem lỗi">
+                        <i class="ri-error-warning-line"></i>
                       </button>
                     </div>
                   </td>
@@ -1336,7 +1375,7 @@ function app() {
     campaigns: [],
     contentItems: [],
     contentTotal: 0,
-    contentFilter: { status: '', pageId: '', search: '', dateFrom: '', dateTo: '', source: '' },
+    contentFilter: { status: '', pageId: '', search: '', dateFrom: '', dateTo: '', source: '', campaignId: '', contentType: '' },
 
     showContentForm: false,
     editingContent: null,
@@ -1496,6 +1535,8 @@ function app() {
         if (this.contentFilter.dateFrom) params.set('dateFrom', this.contentFilter.dateFrom);
         if (this.contentFilter.dateTo) params.set('dateTo', this.contentFilter.dateTo);
         if (this.contentFilter.source) params.set('source', this.contentFilter.source);
+        if (this.contentFilter.campaignId) params.set('campaignId', this.contentFilter.campaignId);
+        if (this.contentFilter.contentType) params.set('contentType', this.contentFilter.contentType);
         const data = await this.api(`/dashboard/content?${params}`);
         this.contentItems = data.items;
         this.contentTotal = data.total;

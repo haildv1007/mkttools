@@ -164,11 +164,13 @@ router.post('/pages/fb-token-exchange', async (req: Request, res: Response) => {
 
 // Content items
 router.get('/content', async (req: Request, res: Response) => {
-  const { status, pageId, limit = '50', offset = '0', search, dateFrom, dateTo, source } = req.query;
+  const { status, pageId, limit = '50', offset = '0', search, dateFrom, dateTo, source, campaignId, contentType } = req.query;
   const where: Record<string, unknown> = {};
   if (status) where.status = String(status);
   if (pageId) where.pageId = String(pageId);
   if (source) where.source = String(source);
+  if (campaignId) where.campaignId = String(campaignId);
+  if (contentType) where.contentType = String(contentType);
   if (search) where.topic = { contains: String(search), mode: 'insensitive' };
   if (dateFrom || dateTo) {
     const dateFilter: Record<string, Date> = {};
