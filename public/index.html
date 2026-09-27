@@ -1861,13 +1861,16 @@ function app() {
         return;
       }
       const canvas = document.createElement('canvas');
+      const w = wrap.clientWidth || wrap.offsetWidth || 600;
+      const h = wrap.clientHeight || wrap.offsetHeight || 340;
+      canvas.setAttribute('width', w);
+      canvas.setAttribute('height', h);
       wrap.appendChild(canvas);
       const labels = data.map(d => {
         const [y, m, dd] = d.date.split('-');
         return dd + '/' + m;
       });
-      const self = this;
-      requestAnimationFrame(() => { self._charts.perf = new Chart(canvas, {
+      this._charts.perf = new Chart(canvas.getContext('2d'), {
         type: 'bar',
         data: {
           labels,
@@ -1879,7 +1882,7 @@ function app() {
           ]
         },
         options: {
-          responsive: true, maintainAspectRatio: false,
+          responsive: false,
           interaction: { mode: 'index', intersect: false },
           plugins: { legend: { position: 'bottom', labels: { boxWidth: 10, font: { size: 10 }, padding: 12 } } },
           scales: {
@@ -1888,7 +1891,7 @@ function app() {
             x: { ticks: { font: { size: 9 }, maxRotation: 0 }, grid: { display: false } }
           }
         }
-      }); });
+      });
     },
 
     getCampaignEngagement(campaignId, type) {
