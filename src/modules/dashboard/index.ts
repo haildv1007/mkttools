@@ -1374,47 +1374,137 @@ router.put('/settings', async (req: Request, res: Response) => {
   }
 });
 
-// --- FB Metrics Diagnostic: test which metrics actually return data ---
+// --- FB Metrics Diagnostic V2: comprehensive test ---
 router.get('/stats/fb-metric-test', async (req: Request, res: Response) => {
   try {
-    const item = await prisma.contentItem.findFirst({
+    // Get up to 3 published posts for testing
+    const posts = await prisma.contentItem.findMany({
       where: { status: 'PUBLISHED', socialPostId: { not: null }, page: { platform: 'FACEBOOK' } },
       include: { page: true },
       orderBy: { publishedAt: 'desc' },
+      take: 3,
     });
-    if (!item || !item.socialPostId) return res.json({ error: 'No published FB post found' });
+    if (!posts.length) return res.json({ error: 'No published FB post found' });
 
-    const postId = item.socialPostId;
-    const token = item.page.accessToken;
-    const results: Record<string, unknown> = { postId, pageName: item.page.name, topic: item.topic };
+    const page = posts[0].page;
+    const token = page.accessToken;
+    const pageExternalId = page.externalId;
 
-    // Test basic engagement fields
-    try {
-      const url = `https://graph.facebook.com/v21.0/${postId}?fields=reactions.summary(true),comments.summary(true),shares&access_token=${encodeURIComponent(token)}`;
-      const r = await fetch(url);
-      results.basic = { status: r.status, data: await r.json() };
-    } catch (e) { results.basic = { error: String(e) }; }
-
-    // Test each insights metric individually
-    const metricsToTest = [
-      'post_impressions',
-      'post_impressions_unique',
-      'post_engaged_users',
-      'post_clicks',
-      'post_clicks_unique',
-      'post_reactions_by_type_total',
-    ];
-    results.insights = {};
-    for (const metric of metricsToTest) {
+    // Helper to test a single insights metric on a post
+    async function testInsight(postId: string, metric: string) {
       try {
         const url = `https://graph.facebook.com/v21.0/${postId}/insights?metric=${metric}&access_token=${encodeURIComponent(token)}`;
         const r = await fetch(url);
         const json = await r.json() as Record<string, unknown>;
-        (results.insights as Record<string, unknown>)[metric] = { status: r.status, data: (json.data ?? json.error ?? json) as unknown };
-      } catch (e) { (results.insights as Record<string, unknown>)[metric] = { error: String(e) }; }
+        return { status: r.status, data: (json.data ?? json.error ?? json) as unknown };
+      } catch (e) { return { status: 0, error: String(e) }; }
     }
 
-    // Redact token from any error messages
+    // Helper to test page-level metric
+    async function testPageInsight(metric: string, period: string) {
+      try {
+        const url = `https://graph.facebook.com/v21.0/${pageExternalId}/insights?metric=${metric}&period=${period}&access_token=${encodeURIComponent(token)}`;
+        const r = await fetch(url);
+        const json = await r.json() as Record<string, unknown>;
+        return { status: r.status, period, data: (json.data ?? json.error ?? json) as unknown };
+      } catch (e) { return { status: 0, error: String(e) }; }
+    }
+
+    const results: Record<string, unknown> = {
+      tested_posts: posts.map(p => ({
+        postId: p.socialPostId, topic: p.topic, publishedAt: p.publishedAt, contentType: p.contentType,
+      })),
+      pageName: page.name,
+      pageExternalId,
+    };
+
+    // === P0 DISTRIBUTION ===
+    const p0dist: Record<string, unknown> = {};
+    for (const post of posts) {
+      const pid = post.socialPostId!;
+      const postResults: Record<string, unknown> = {};
+      postResults.post_total_media_view_unique = await testInsight(pid, 'post_total_media_view_unique');
+      postResults.post_media_view = await testInsight(pid, 'post_media_view');
+      p0dist[pid] = { topic: post.topic, metrics: postResults };
+    }
+    results.p0_distribution = p0dist;
+
+    // Test breakdown for post_media_view if supported
+    const firstPostId = posts[0].socialPostId!;
+    const breakdownTests: Record<string, unknown> = {};
+    for (const breakdown of ['is_from_ads', 'is_from_followers']) {
+      try {
+        const url = `https://graph.facebook.com/v21.0/${firstPostId}/insights?metric=post_media_view&breakdown=${breakdown}&access_token=${encodeURIComponent(token)}`;
+        const r = await fetch(url);
+        const json = await r.json() as Record<string, unknown>;
+        breakdownTests[breakdown] = { status: r.status, data: (json.data ?? json.error ?? json) as unknown };
+      } catch (e) { breakdownTests[breakdown] = { status: 0, error: String(e) }; }
+    }
+    results.p0_media_view_breakdowns = breakdownTests;
+
+    // === P0 ENGAGEMENT ===
+    const p0eng: Record<string, unknown> = {};
+    // Basic fields
+    try {
+      const url = `https://graph.facebook.com/v21.0/${firstPostId}?fields=reactions.summary(true),comments.summary(true),shares&access_token=${encodeURIComponent(token)}`;
+      const r = await fetch(url);
+      p0eng.basic_engagement = { status: r.status, data: await r.json() };
+    } catch (e) { p0eng.basic_engagement = { error: String(e) }; }
+    p0eng.post_clicks = await testInsight(firstPostId, 'post_clicks');
+    p0eng.post_clicks_by_type = await testInsight(firstPostId, 'post_clicks_by_type');
+    results.p0_engagement = p0eng;
+
+    // === P1 REACTION BREAKDOWN ===
+    const p1react: Record<string, unknown> = {};
+    // Find a post with reactions
+    const postWithReactions = posts.find(p => {
+      const m = p.metrics as Record<string, number> | null;
+      return m && (m.fb_reactions > 0);
+    }) || posts[0];
+    const reactPostId = postWithReactions.socialPostId!;
+    const reactionMetrics = [
+      'post_reactions_by_type_total',
+      'post_reactions_like_total',
+      'post_reactions_love_total',
+      'post_reactions_wow_total',
+      'post_reactions_haha_total',
+      'post_reactions_sorry_total',
+      'post_reactions_anger_total',
+    ];
+    for (const metric of reactionMetrics) {
+      p1react[metric] = await testInsight(reactPostId, metric);
+    }
+    results.p1_reaction_breakdown = { postId: reactPostId, topic: postWithReactions.topic, metrics: p1react };
+
+    // === P1 PAGE LEVEL ===
+    const p1page: Record<string, unknown> = {};
+    for (const period of ['day', 'week', 'days_28']) {
+      p1page[`page_total_media_view_unique_${period}`] = await testPageInsight('page_total_media_view_unique', period);
+      p1page[`page_media_view_${period}`] = await testPageInsight('page_media_view', period);
+    }
+    results.p1_page_level = p1page;
+
+    // === P2 VIDEO METRICS ===
+    const videoPost = posts.find(p => p.contentType === 'VIDEO');
+    if (videoPost) {
+      const vPostId = videoPost.socialPostId!;
+      const p2video: Record<string, unknown> = { postId: vPostId, topic: videoPost.topic };
+      const videoMetrics = [
+        'post_video_avg_time_watched',
+        'post_video_view_time',
+        'post_video_views',
+        'post_video_views_unique',
+        'post_video_view_time_by_region_id',
+      ];
+      for (const metric of videoMetrics) {
+        p2video[metric] = await testInsight(vPostId, metric);
+      }
+      results.p2_video = p2video;
+    } else {
+      results.p2_video = { skipped: 'No video post found among recent published items' };
+    }
+
+    // Redact token
     const sanitized = JSON.parse(JSON.stringify(results).replace(new RegExp(token.slice(0, 20), 'g'), '[REDACTED]'));
     res.json(sanitized);
   } catch (err) {
