@@ -212,15 +212,15 @@ router.get('/stats/dashboard', async (req: Request, res: Response) => {
           page: { select: { id: true, name: true, externalId: true, accessToken: true, platform: true } },
         },
       }),
-      // Pipeline: current state of ALL content (not period-scoped)
+      // Pipeline: content created in current period
       prisma.contentItem.findMany({
-        where: { ...baseWhere },
+        where: { ...baseWhere, createdAt: { gte: currentFrom, lte: currentTo } },
         select: { id: true, status: true, scheduledAt: true },
       }),
       // Previous period content for delta comparison
       prisma.contentItem.findMany({
         where: { ...baseWhere, createdAt: { gte: prevFrom, lte: prevTo } },
-        select: { id: true, status: true },
+        select: { id: true, status: true, scheduledAt: true },
       }),
     ]);
 
