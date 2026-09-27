@@ -7,6 +7,7 @@ import { prisma } from '../../utils/db';
 import { listProviders, setTextProvider, setImageProvider, generateText, testConnection } from '../content-generator';
 import { contentQueue, publishQueue } from '../../queues';
 import { getSetting, getSettings, setSettings } from '../settings';
+import { resolvePageIds } from '../workspace';
 
 const UPLOAD_DIR = path.join(process.cwd(), 'public', 'uploads');
 const VIDEO_DIR = path.join(UPLOAD_DIR, 'videos');
@@ -155,7 +156,7 @@ router.get('/stats', async (_req: Request, res: Response) => {
 
 router.get('/stats/dashboard', async (req: Request, res: Response) => {
   try {
-    const { pageId, campaignId, dateFrom, dateTo, days: daysParam } = req.query;
+    const { pageId, campaignId, dateFrom, dateTo, days: daysParam, scopeType, scopeId } = req.query;
     const days = parseInt(daysParam as string, 10) || 30;
 
     // Calculate date range in Asia/Ho_Chi_Minh (UTC+7)
@@ -179,9 +180,23 @@ router.get('/stats/dashboard', async (req: Request, res: Response) => {
     const deltaPercent = (cur: number, prev: number) =>
       prev > 0 ? Math.round(((cur - prev) / prev) * 10000) / 100 : 0;
 
+    // Resolve scope to allowed page IDs
+    const sType = String(scopeType || 'all');
+    const sId = scopeId ? String(scopeId) : undefined;
+    const scopePageIds = sType !== 'all' ? await resolvePageIds(sType, sId) : null;
+
     // Base content filter
     const baseWhere: Record<string, unknown> = {};
-    if (pageId) baseWhere.pageId = String(pageId);
+    if (pageId) {
+      // Sub-filter: validate against scope
+      const pid = String(pageId);
+      if (scopePageIds && !scopePageIds.includes(pid)) {
+        return res.status(400).json({ error: 'Page not in current scope' });
+      }
+      baseWhere.pageId = pid;
+    } else if (scopePageIds) {
+      baseWhere.pageId = { in: scopePageIds };
+    }
     if (campaignId) baseWhere.campaignId = String(campaignId);
 
     // --- Fetch content items for current & previous periods ---
@@ -844,13 +859,22 @@ router.get('/stats/fb-insights', async (_req: Request, res: Response) => {
 });
 
 router.get('/calendar', async (req: Request, res: Response) => {
-  const { from, to, pageId } = req.query;
+  const { from, to, pageId, scopeType, scopeId } = req.query;
   const where: Record<string, unknown> = {};
 
   if (from && to) {
     where.scheduledAt = { gte: new Date(from as string), lte: new Date(to as string) };
   }
-  if (pageId) where.pageId = String(pageId);
+
+  const sType = String(scopeType || 'all');
+  const sId = scopeId ? String(scopeId) : undefined;
+  const scopePageIds = sType !== 'all' ? await resolvePageIds(sType, sId) : null;
+
+  if (pageId) {
+    where.pageId = String(pageId);
+  } else if (scopePageIds) {
+    where.pageId = { in: scopePageIds };
+  }
 
   const items = await prisma.contentItem.findMany({
     where,
@@ -936,10 +960,24 @@ router.post('/pages/fb-token-exchange', async (req: Request, res: Response) => {
 
 // Content items
 router.get('/content', async (req: Request, res: Response) => {
-  const { status, pageId, limit = '50', offset = '0', search, dateFrom, dateTo, source, campaignId, contentType } = req.query;
+  const { status, pageId, limit = '50', offset = '0', search, dateFrom, dateTo, source, campaignId, contentType, scopeType, scopeId } = req.query;
   const where: Record<string, unknown> = {};
   if (status) where.status = String(status);
-  if (pageId) where.pageId = String(pageId);
+
+  // Resolve scope
+  const sType = String(scopeType || 'all');
+  const sId = scopeId ? String(scopeId) : undefined;
+  const scopePageIds = sType !== 'all' ? await resolvePageIds(sType, sId) : null;
+
+  if (pageId) {
+    const pid = String(pageId);
+    if (scopePageIds && !scopePageIds.includes(pid)) {
+      return res.json({ items: [], total: 0 });
+    }
+    where.pageId = pid;
+  } else if (scopePageIds) {
+    where.pageId = { in: scopePageIds };
+  }
   if (source) where.source = String(source);
   if (campaignId) where.campaignId = String(campaignId);
   if (contentType) where.contentType = String(contentType);
