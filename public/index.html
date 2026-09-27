@@ -242,12 +242,12 @@
         <!-- Row 2: 6 KPI Cards -->
         <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3 mb-5">
           <template x-for="k in [
-            {key:'total_reach',label:'Lượt hiển thị',icon:'ri-eye-line',color:'blue'},
+            {key:'total_clicks',label:'Clicks',icon:'ri-cursor-line',color:'blue'},
             {key:'total_engagement',label:'Engagement',icon:'ri-heart-pulse-line',color:'indigo'},
             {key:'total_reactions',label:'Reactions',icon:'ri-thumb-up-line',color:'rose'},
             {key:'total_comments',label:'Comments',icon:'ri-chat-3-line',color:'green'},
             {key:'total_shares',label:'Shares',icon:'ri-share-forward-line',color:'purple'},
-            {key:'engagement_rate',label:'ER (Eng/Imp)',icon:'ri-percent-line',color:'amber'}
+            {key:'avg_engagement_per_post',label:'Eng/Post',icon:'ri-bar-chart-line',color:'amber'}
           ]" :key="k.key">
             <div class="bg-white rounded-xl p-4 border border-gray-100 shadow-sm">
               <div class="flex items-center justify-between mb-2">
@@ -255,7 +255,7 @@
                 <span class="text-[10px] font-medium" :class="(db?.kpis?.[k.key]?.delta_percent||0)>=0?'text-green-500':'text-red-500'"
                   x-text="((db?.kpis?.[k.key]?.delta_percent||0)>=0?'↑':'↓')+Math.abs(db?.kpis?.[k.key]?.delta_percent||0)+'%'"></span>
               </div>
-              <p class="text-lg font-bold" x-text="(()=>{ const v=db?.kpis?.[k.key]?.value; if(v===null||v===undefined){ return '—'; } if(k.key==='engagement_rate') return v.toFixed(2)+'%'; return v.toLocaleString(); })()"></p>
+              <p class="text-lg font-bold" x-text="(()=>{ const v=db?.kpis?.[k.key]?.value; if(v===null||v===undefined){ return '—'; } if(k.key==='avg_engagement_per_post') return v.toFixed(1); return v.toLocaleString(); })()"></p>
               <p class="text-[10px] text-gray-400" x-text="k.label"></p>
             </div>
           </template>
@@ -268,7 +268,7 @@
             <table class="w-full text-xs">
               <thead><tr class="text-left text-gray-400 border-b">
                 <th class="pb-2 pr-2">Content</th><th class="pb-2 pr-2">Page</th><th class="pb-2 pr-2">Ngày</th>
-                <th class="pb-2 pr-2 text-right" title="Lượt hiển thị (Impressions)">Lượt hiển thị</th><th class="pb-2 pr-2 text-right">Reactions</th>
+                <th class="pb-2 pr-2 text-right" title="Post Clicks">Clicks</th><th class="pb-2 pr-2 text-right">Reactions</th>
                 <th class="pb-2 pr-2 text-right">Comments</th><th class="pb-2 pr-2 text-right">Shares</th>
                 <th class="pb-2 text-right">ER</th>
               </tr></thead>
@@ -281,7 +281,7 @@
                     </td>
                     <td class="py-2 pr-2 text-gray-500" x-text="c.pageName"></td>
                     <td class="py-2 pr-2 text-gray-400 whitespace-nowrap" x-text="c.publishedAt?new Date(c.publishedAt).toLocaleDateString('vi-VN',{day:'2-digit',month:'2-digit',year:'numeric'}):''"></td>
-                    <td class="py-2 pr-2 text-right font-medium" x-text="(c.reach||0).toLocaleString()"></td>
+                    <td class="py-2 pr-2 text-right font-medium" x-text="(c.clicks||0).toLocaleString()"></td>
                     <td class="py-2 pr-2 text-right text-rose-500 font-medium" x-text="(c.reactions||0).toLocaleString()"></td>
                     <td class="py-2 pr-2 text-right text-green-500 font-medium" x-text="(c.comments||0).toLocaleString()"></td>
                     <td class="py-2 pr-2 text-right text-purple-500 font-medium" x-text="(c.shares||0).toLocaleString()"></td>
@@ -307,7 +307,7 @@
                     <p class="text-xs font-medium truncate" x-text="p.name"></p>
                     <div class="flex items-center gap-2 mt-0.5">
                       <span class="text-[10px] text-gray-400" x-text="p.totalPosts+' bài'"></span>
-                      <span class="text-[10px] text-blue-500" x-text="'Reach: '+(p.reach||0).toLocaleString()"></span>
+                      <span class="text-[10px] text-blue-500" x-text="'Clicks: '+(p.clicks||0).toLocaleString()"></span>
                       <span class="text-[10px] text-indigo-500" x-text="'Eng: '+(p.engagement||0).toLocaleString()"></span>
                     </div>
                   </div>
@@ -337,7 +337,7 @@
                     <div class="h-full rounded-full" :style="'width:'+Math.min(c.er*10,100)+'%;background:linear-gradient(90deg,#6366f1,#818cf8)'"></div>
                   </div>
                   <div class="flex gap-3 mt-1 text-[10px] text-gray-400">
-                    <span x-text="'Reach: '+(c.reach||0).toLocaleString()"></span>
+                    <span x-text="'Clicks: '+(c.clicks||0).toLocaleString()"></span>
                     <span x-text="'Eng: '+(c.engagement||0).toLocaleString()"></span>
                   </div>
                 </div>
@@ -1782,7 +1782,7 @@ function app() {
         data: {
           labels,
           datasets: [
-            { type: 'line', label: 'Lượt hiển thị', data: data.map(d => d.reach), borderColor: '#3b82f6', backgroundColor: 'rgba(59,130,246,0.08)', fill: true, tension: 0.3, pointRadius: 2, yAxisID: 'y', order: 1 },
+            { type: 'line', label: 'Clicks', data: data.map(d => d.clicks), borderColor: '#3b82f6', backgroundColor: 'rgba(59,130,246,0.08)', fill: true, tension: 0.3, pointRadius: 2, yAxisID: 'y', order: 1 },
             { type: 'line', label: 'Engagement', data: data.map(d => d.engagement), borderColor: '#8b5cf6', backgroundColor: 'rgba(139,92,246,0.08)', fill: true, tension: 0.3, pointRadius: 2, yAxisID: 'y', order: 2 },
             { type: 'bar', label: 'Bài đăng', data: data.map(d => d.posts_count), backgroundColor: 'rgba(99,102,241,0.3)', borderRadius: 4, yAxisID: 'y1', order: 3 },
           ]
@@ -1831,7 +1831,7 @@ function app() {
         const data = await this.api('/dashboard/stats/fb-insights');
         this.fbInsights = data;
       } catch (e) {
-        this.fbInsights = { pages: [], totals: { totalReactions:0, totalComments:0, totalShares:0, totalReach:0, totalEngagement:0, totalFollowers:0, totalPosts:0 } };
+        this.fbInsights = { pages: [], totals: { totalReactions:0, totalComments:0, totalShares:0, totalClicks:0, totalEngagement:0, totalFollowers:0, totalPosts:0 } };
       }
       this.fbInsightsLoading = false;
     },
