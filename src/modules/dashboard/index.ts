@@ -46,6 +46,113 @@ const router = Router();
 const fbCache = new Map<string, { data: unknown; ts: number }>();
 const FB_CACHE_TTL = 5 * 60 * 1000;
 
+// --- Helper: fetch FB metrics for a set of published content items ---
+interface FbPostMetrics {
+  contentItemId: string;
+  socialPostId: string;
+  topic: string;
+  publishedAt: Date | null;
+  campaignId: string;
+  pageId: string;
+  pageName: string;
+  pageExternalId: string;
+  reactions: number;
+  comments: number;
+  shares: number;
+  reach: number;
+  engagedUsers: number;
+}
+
+async function fetchFbMetricsForItems(
+  items: Array<{
+    id: string;
+    socialPostId: string | null;
+    topic: string;
+    publishedAt: Date | null;
+    pageId: string;
+    campaignId: string;
+    page: { id: string; name: string; externalId: string; accessToken: string; platform: string };
+  }>
+): Promise<FbPostMetrics[]> {
+  // Group by page, Facebook only
+  const byPage = new Map<string, { page: typeof items[0]['page']; items: typeof items }>();
+  for (const item of items) {
+    if (item.page.platform !== 'FACEBOOK' || !item.socialPostId) continue;
+    const existing = byPage.get(item.pageId);
+    if (existing) existing.items.push(item);
+    else byPage.set(item.pageId, { page: item.page, items: [item] });
+  }
+
+  const allMetrics: FbPostMetrics[] = [];
+
+  for (const [pageId, { page, items: pageItems }] of byPage) {
+    const cacheKey = `dashboard_fb_${pageId}`;
+    const cached = fbCache.get(cacheKey);
+    if (cached && Date.now() - cached.ts < FB_CACHE_TTL) {
+      const cachedMap = cached.data as Map<string, { reactions: number; comments: number; shares: number; reach: number; engagedUsers: number }>;
+      for (const item of pageItems) {
+        const m = cachedMap.get(item.socialPostId!) ?? { reactions: 0, comments: 0, shares: 0, reach: 0, engagedUsers: 0 };
+        allMetrics.push({
+          contentItemId: item.id, socialPostId: item.socialPostId!, topic: item.topic,
+          publishedAt: item.publishedAt, campaignId: item.campaignId, pageId,
+          pageName: page.name, pageExternalId: page.externalId, ...m,
+        });
+      }
+      continue;
+    }
+
+    const token = page.accessToken;
+    const postIds = pageItems.map(i => i.socialPostId!);
+    const batches: string[][] = [];
+    for (let i = 0; i < postIds.length; i += 50) batches.push(postIds.slice(i, i + 50));
+
+    const postDataMap = new Map<string, { reactions: number; comments: number; shares: number; reach: number; engagedUsers: number }>();
+
+    for (const batch of batches) {
+      try {
+        const ids = batch.join(',');
+        const url = `https://graph.facebook.com/v21.0/?ids=${encodeURIComponent(ids)}&fields=likes.summary(true),comments.summary(true),shares,insights.metric(post_impressions,post_engaged_users)&access_token=${encodeURIComponent(token)}`;
+        const batchRes = await fetch(url);
+        if (batchRes.ok) {
+          const data = await batchRes.json() as Record<string, {
+            likes?: { summary?: { total_count?: number } };
+            comments?: { summary?: { total_count?: number } };
+            shares?: { count?: number };
+            insights?: { data?: Array<{ name: string; values?: Array<{ value: number }> }> };
+          }>;
+          for (const [postId, postInfo] of Object.entries(data)) {
+            const reactions = postInfo.likes?.summary?.total_count ?? 0;
+            const comments = postInfo.comments?.summary?.total_count ?? 0;
+            const shares = postInfo.shares?.count ?? 0;
+            let reach = 0, engagedUsers = 0;
+            if (postInfo.insights?.data) {
+              for (const metric of postInfo.insights.data) {
+                const val = metric.values?.[0]?.value ?? 0;
+                if (metric.name === 'post_impressions') reach = val;
+                if (metric.name === 'post_engaged_users') engagedUsers = val;
+              }
+            }
+            postDataMap.set(postId, { reactions, comments, shares, reach, engagedUsers });
+          }
+        }
+      } catch { /* skip batch on error */ }
+    }
+
+    fbCache.set(cacheKey, { data: postDataMap, ts: Date.now() });
+
+    for (const item of pageItems) {
+      const m = postDataMap.get(item.socialPostId!) ?? { reactions: 0, comments: 0, shares: 0, reach: 0, engagedUsers: 0 };
+      allMetrics.push({
+        contentItemId: item.id, socialPostId: item.socialPostId!, topic: item.topic,
+        publishedAt: item.publishedAt, campaignId: item.campaignId, pageId,
+        pageName: page.name, pageExternalId: page.externalId, ...m,
+      });
+    }
+  }
+
+  return allMetrics;
+}
+
 router.get('/stats', async (_req: Request, res: Response) => {
   try {
     const today = new Date();
@@ -95,6 +202,306 @@ router.get('/stats', async (_req: Request, res: Response) => {
     });
   } catch (err) {
     res.status(500).json({ error: err instanceof Error ? err.message : 'Failed to fetch stats' });
+  }
+});
+
+router.get('/stats/dashboard', async (req: Request, res: Response) => {
+  try {
+    const { pageId, campaignId, dateFrom, dateTo, days: daysParam } = req.query;
+    const days = parseInt(daysParam as string, 10) || 30;
+
+    // Calculate date range
+    const now = new Date();
+    const currentTo = dateTo ? new Date(dateTo as string) : now;
+    const currentFrom = dateFrom
+      ? new Date(dateFrom as string)
+      : new Date(now.getTime() - days * 24 * 60 * 60 * 1000);
+    currentFrom.setHours(0, 0, 0, 0);
+    if (!dateTo) { currentTo.setHours(23, 59, 59, 999); }
+
+    const periodLength = currentTo.getTime() - currentFrom.getTime();
+    const prevTo = new Date(currentFrom.getTime() - 1);
+    const prevFrom = new Date(prevTo.getTime() - periodLength);
+
+    const deltaPercent = (cur: number, prev: number) =>
+      prev > 0 ? Math.round(((cur - prev) / prev) * 10000) / 100 : 0;
+
+    // Base content filter
+    const baseWhere: Record<string, unknown> = {};
+    if (pageId) baseWhere.pageId = String(pageId);
+    if (campaignId) baseWhere.campaignId = String(campaignId);
+
+    // --- Fetch content items for current & previous periods ---
+    const [currentItems, prevItems, allCurrentContent, allPrevContent] = await Promise.all([
+      prisma.contentItem.findMany({
+        where: {
+          ...baseWhere,
+          status: 'PUBLISHED',
+          socialPostId: { not: null },
+          publishedAt: { gte: currentFrom, lte: currentTo },
+        },
+        select: {
+          id: true, socialPostId: true, topic: true, publishedAt: true,
+          pageId: true, campaignId: true, generatedText: true,
+          page: { select: { id: true, name: true, externalId: true, accessToken: true, platform: true } },
+        },
+      }),
+      prisma.contentItem.findMany({
+        where: {
+          ...baseWhere,
+          status: 'PUBLISHED',
+          socialPostId: { not: null },
+          publishedAt: { gte: prevFrom, lte: prevTo },
+        },
+        select: {
+          id: true, socialPostId: true, topic: true, publishedAt: true,
+          pageId: true, campaignId: true,
+          page: { select: { id: true, name: true, externalId: true, accessToken: true, platform: true } },
+        },
+      }),
+      prisma.contentItem.findMany({
+        where: { ...baseWhere, createdAt: { gte: currentFrom, lte: currentTo } },
+        select: { id: true, status: true, scheduledAt: true },
+      }),
+      prisma.contentItem.findMany({
+        where: { ...baseWhere, createdAt: { gte: prevFrom, lte: prevTo } },
+        select: { id: true, status: true },
+      }),
+    ]);
+
+    // --- Fetch FB metrics (gracefully handle failures) ---
+    let fbCurrent: FbPostMetrics[] = [];
+    let fbPrev: FbPostMetrics[] = [];
+    try {
+      [fbCurrent, fbPrev] = await Promise.all([
+        fetchFbMetricsForItems(currentItems),
+        fetchFbMetricsForItems(prevItems),
+      ]);
+    } catch { /* FB failed, continue with empty metrics */ }
+
+    // --- Pipeline summary ---
+    const countByStatus = (items: Array<{ status: string; scheduledAt?: Date | null }>, status: string) => {
+      if (status === 'SCHEDULED') {
+        return items.filter(i => i.status === 'APPROVED' && i.scheduledAt && new Date(i.scheduledAt) > now).length;
+      }
+      return items.filter(i => i.status === status).length;
+    };
+    const curPending = countByStatus(allCurrentContent, 'PENDING_REVIEW');
+    const prevPending = countByStatus(allPrevContent, 'PENDING_REVIEW');
+    const curGenerating = countByStatus(allCurrentContent, 'GENERATING');
+    const prevGenerating = countByStatus(allPrevContent, 'GENERATING');
+    const curApproved = countByStatus(allCurrentContent, 'APPROVED');
+    const prevApproved = countByStatus(allPrevContent, 'APPROVED');
+    const curScheduled = countByStatus(allCurrentContent, 'SCHEDULED');
+    const prevScheduled = countByStatus(allPrevContent, 'SCHEDULED');
+    const curPosted = countByStatus(allCurrentContent, 'PUBLISHED');
+    const prevPosted = countByStatus(allPrevContent, 'PUBLISHED');
+    const curFailed = countByStatus(allCurrentContent, 'FAILED');
+    const prevFailed = countByStatus(allPrevContent, 'FAILED');
+    const curTotal = allCurrentContent.length;
+    const prevTotal = allPrevContent.length;
+    const curRate = curTotal > 0 ? Math.round((curPosted / curTotal) * 10000) / 100 : 0;
+    const prevRate = prevTotal > 0 ? Math.round((prevPosted / prevTotal) * 10000) / 100 : 0;
+
+    const pipeline_summary = {
+      pending_approval: { count: curPending, delta_percent: deltaPercent(curPending, prevPending) },
+      generating: { count: curGenerating, delta_percent: deltaPercent(curGenerating, prevGenerating) },
+      approved: { count: curApproved, delta_percent: deltaPercent(curApproved, prevApproved) },
+      scheduled: { count: curScheduled, delta_percent: deltaPercent(curScheduled, prevScheduled) },
+      posted: { count: curPosted, delta_percent: deltaPercent(curPosted, prevPosted) },
+      failed: { count: curFailed, delta_percent: deltaPercent(curFailed, prevFailed) },
+      success_publish_rate: { value: curRate, current: curPosted, total: curTotal, delta_percent: deltaPercent(curRate, prevRate) },
+    };
+
+    // --- KPIs from FB metrics ---
+    const sumMetric = (items: FbPostMetrics[], key: keyof FbPostMetrics) =>
+      items.reduce((s, i) => s + (Number(i[key]) || 0), 0);
+    const curReach = sumMetric(fbCurrent, 'reach');
+    const prevReach = sumMetric(fbPrev, 'reach');
+    const curReactions = sumMetric(fbCurrent, 'reactions');
+    const prevReactions = sumMetric(fbPrev, 'reactions');
+    const curComments = sumMetric(fbCurrent, 'comments');
+    const prevComments = sumMetric(fbPrev, 'comments');
+    const curShares = sumMetric(fbCurrent, 'shares');
+    const prevShares = sumMetric(fbPrev, 'shares');
+    const curEngagement = curReactions + curComments + curShares;
+    const prevEngagement = prevReactions + prevComments + prevShares;
+    const curER = curReach > 0 ? Math.round((curEngagement / curReach) * 10000) / 100 : 0;
+    const prevER = prevReach > 0 ? Math.round((prevEngagement / prevReach) * 10000) / 100 : 0;
+
+    const kpis = {
+      total_reach: { value: curReach, delta_percent: deltaPercent(curReach, prevReach) },
+      total_engagement: { value: curEngagement, delta_percent: deltaPercent(curEngagement, prevEngagement) },
+      total_reactions: { value: curReactions, delta_percent: deltaPercent(curReactions, prevReactions) },
+      total_comments: { value: curComments, delta_percent: deltaPercent(curComments, prevComments) },
+      total_shares: { value: curShares, delta_percent: deltaPercent(curShares, prevShares) },
+      engagement_rate: { value: curER, delta_percent: deltaPercent(curER, prevER) },
+    };
+
+    // --- Chart performance: group by published date ---
+    const chartMap = new Map<string, { reach: number; engagement: number; posts_count: number }>();
+    // Initialize all dates in range
+    const d = new Date(currentFrom);
+    while (d <= currentTo) {
+      chartMap.set(d.toISOString().slice(0, 10), { reach: 0, engagement: 0, posts_count: 0 });
+      d.setDate(d.getDate() + 1);
+    }
+    for (const m of fbCurrent) {
+      const dateKey = m.publishedAt ? new Date(m.publishedAt).toISOString().slice(0, 10) : null;
+      if (!dateKey) continue;
+      const entry = chartMap.get(dateKey) ?? { reach: 0, engagement: 0, posts_count: 0 };
+      entry.reach += m.reach;
+      entry.engagement += m.reactions + m.comments + m.shares;
+      entry.posts_count += 1;
+      chartMap.set(dateKey, entry);
+    }
+    // Also count published items without FB metrics
+    for (const item of currentItems) {
+      const dateKey = item.publishedAt ? new Date(item.publishedAt).toISOString().slice(0, 10) : null;
+      if (!dateKey) continue;
+      if (!fbCurrent.some(f => f.contentItemId === item.id)) {
+        const entry = chartMap.get(dateKey) ?? { reach: 0, engagement: 0, posts_count: 0 };
+        entry.posts_count += 1;
+        chartMap.set(dateKey, entry);
+      }
+    }
+    const chart_performance = [...chartMap.entries()]
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([date, v]) => ({ date, ...v }));
+
+    // --- Top 5 content by engagement ---
+    const top_contents = [...fbCurrent]
+      .map(m => {
+        const eng = m.reactions + m.comments + m.shares;
+        return {
+          id: m.contentItemId, topic: m.topic,
+          excerpt: (currentItems.find(i => i.id === m.contentItemId)?.generatedText ?? '').slice(0, 120),
+          pageName: m.pageName, pageExternalId: m.pageExternalId,
+          publishedAt: m.publishedAt,
+          reach: m.reach, engagement: eng,
+          reactions: m.reactions, comments: m.comments, shares: m.shares,
+          er: m.reach > 0 ? Math.round((eng / m.reach) * 10000) / 100 : 0,
+        };
+      })
+      .sort((a, b) => b.engagement - a.engagement)
+      .slice(0, 5);
+
+    // --- Page performance ---
+    const pageMap = new Map<string, { id: string; name: string; externalId: string; totalPosts: number; reach: number; engagement: number }>();
+    for (const m of fbCurrent) {
+      const entry = pageMap.get(m.pageId) ?? { id: m.pageId, name: m.pageName, externalId: m.pageExternalId, totalPosts: 0, reach: 0, engagement: 0 };
+      entry.totalPosts += 1;
+      entry.reach += m.reach;
+      entry.engagement += m.reactions + m.comments + m.shares;
+      pageMap.set(m.pageId, entry);
+    }
+    const page_performance = [...pageMap.values()].map(p => ({
+      ...p,
+      er: p.reach > 0 ? Math.round((p.engagement / p.reach) * 10000) / 100 : 0,
+    }));
+
+    // --- Campaign performance ---
+    const campMap = new Map<string, { id: string; name: string; totalPosts: number; reach: number; engagement: number }>();
+    // Need campaign names
+    const campIds = [...new Set(fbCurrent.map(m => m.campaignId).filter(Boolean))];
+    const campaigns = campIds.length > 0
+      ? await prisma.campaign.findMany({ where: { id: { in: campIds } }, select: { id: true, name: true } })
+      : [];
+    const campNameMap = new Map(campaigns.map(c => [c.id, c.name]));
+    for (const m of fbCurrent) {
+      if (!m.campaignId) continue;
+      const entry = campMap.get(m.campaignId) ?? { id: m.campaignId, name: campNameMap.get(m.campaignId) ?? '', totalPosts: 0, reach: 0, engagement: 0 };
+      entry.totalPosts += 1;
+      entry.reach += m.reach;
+      entry.engagement += m.reactions + m.comments + m.shares;
+      campMap.set(m.campaignId, entry);
+    }
+    const campaign_performance = [...campMap.values()].map(c => ({
+      ...c,
+      er: c.reach > 0 ? Math.round((c.engagement / c.reach) * 10000) / 100 : 0,
+    }));
+
+    // --- Pending items ---
+    const pending_items = await prisma.contentItem.findMany({
+      where: { ...baseWhere, status: { in: ['PENDING_REVIEW', 'FAILED'] } },
+      select: {
+        id: true, topic: true, scheduledAt: true, status: true,
+        page: { select: { name: true, externalId: true } },
+      },
+      orderBy: { createdAt: 'desc' },
+      take: 10,
+    });
+
+    // --- Upcoming posts (next 7 days) ---
+    const next7 = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
+    const upcoming_posts = await prisma.contentItem.findMany({
+      where: {
+        ...baseWhere,
+        scheduledAt: { gte: now, lte: next7 },
+        status: { in: ['DRAFT', 'PENDING_REVIEW', 'APPROVED', 'GENERATING'] },
+      },
+      select: {
+        id: true, topic: true, scheduledAt: true, status: true,
+        page: { select: { name: true, externalId: true } },
+      },
+      orderBy: { scheduledAt: 'asc' },
+      take: 20,
+    });
+
+    // --- Recent published ---
+    const recentPublished = await prisma.contentItem.findMany({
+      where: { ...baseWhere, status: 'PUBLISHED', publishedAt: { not: null } },
+      select: {
+        id: true, topic: true, publishedAt: true, socialPostId: true,
+        pageId: true, campaignId: true,
+        page: { select: { id: true, name: true, externalId: true, accessToken: true, platform: true } },
+      },
+      orderBy: { publishedAt: 'desc' },
+      take: 5,
+    });
+    // Enrich with FB metrics
+    let recentFb: FbPostMetrics[] = [];
+    try {
+      recentFb = await fetchFbMetricsForItems(recentPublished);
+    } catch { /* ignore */ }
+    const recentFbMap = new Map(recentFb.map(m => [m.contentItemId, m]));
+    const recent_posts = recentPublished.map(item => {
+      const fb = recentFbMap.get(item.id);
+      return {
+        id: item.id, topic: item.topic,
+        pageName: item.page.name, pageExternalId: item.page.externalId,
+        publishedAt: item.publishedAt,
+        reactions: fb?.reactions ?? 0, comments: fb?.comments ?? 0, shares: fb?.shares ?? 0,
+      };
+    });
+
+    res.json({
+      filters: {
+        dateFrom: currentFrom.toISOString(),
+        dateTo: currentTo.toISOString(),
+        pageId: pageId ? String(pageId) : null,
+        campaignId: campaignId ? String(campaignId) : null,
+      },
+      chart_performance,
+      pipeline_summary,
+      kpis,
+      top_contents,
+      page_performance,
+      campaign_performance,
+      pending_items: pending_items.map(i => ({
+        id: i.id, topic: i.topic,
+        pageName: i.page.name, pageExternalId: i.page.externalId,
+        scheduledAt: i.scheduledAt, status: i.status,
+      })),
+      upcoming_posts: upcoming_posts.map(i => ({
+        id: i.id, topic: i.topic,
+        pageName: i.page.name, pageExternalId: i.page.externalId,
+        scheduledAt: i.scheduledAt, status: i.status,
+      })),
+      recent_posts,
+    });
+  } catch (err) {
+    res.status(500).json({ error: err instanceof Error ? err.message : 'Failed to fetch dashboard data' });
   }
 });
 

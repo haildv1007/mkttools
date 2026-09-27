@@ -162,238 +162,241 @@
 
       <!-- Dashboard -->
       <div x-show="page==='dashboard'" class="fade-in">
-        <div class="flex items-center justify-between mb-6">
-          <h2 class="text-xl font-bold">Tổng quan</h2>
-          <div class="flex items-center gap-2">
-            <span class="text-xs text-gray-400" x-show="dashboardLoading"><i class="ri-loader-4-line animate-spin"></i> Đang tải...</span>
-            <button @click="loadDashboard()" class="px-3 py-1.5 text-sm bg-gray-100 hover:bg-gray-200 rounded-lg transition flex items-center gap-1">
-              <i class="ri-refresh-line"></i> Làm mới
-            </button>
+        <!-- Header + Filters -->
+        <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 mb-5">
+          <div>
+            <h2 class="text-xl font-bold">Tổng quan</h2>
+            <p class="text-xs text-gray-400">Dữ liệu engagement live từ Facebook</p>
+          </div>
+          <div class="flex flex-wrap items-center gap-2">
+            <select x-model="dbFilter.pageId" @change="loadDashboard()" class="text-xs border rounded-lg px-2 py-1.5 bg-white">
+              <option value="">Tất cả Page</option>
+              <template x-for="p in pages" :key="p.id"><option :value="p.id" x-text="p.name"></option></template>
+            </select>
+            <select x-model="dbFilter.campaignId" @change="loadDashboard()" class="text-xs border rounded-lg px-2 py-1.5 bg-white">
+              <option value="">Tất cả Campaign</option>
+              <template x-for="c in campaigns" :key="c.id"><option :value="c.id" x-text="c.name"></option></template>
+            </select>
+            <select x-model="dbFilter.days" @change="loadDashboard()" class="text-xs border rounded-lg px-2 py-1.5 bg-white">
+              <option value="7">7 ngày</option>
+              <option value="30">30 ngày</option>
+              <option value="90">90 ngày</option>
+            </select>
+            <span class="text-xs text-gray-400" x-show="dashboardLoading"><i class="ri-loader-4-line animate-spin"></i></span>
+            <button @click="loadDashboard()" class="px-2.5 py-1.5 text-xs bg-gray-100 hover:bg-gray-200 rounded-lg transition"><i class="ri-refresh-line"></i></button>
           </div>
         </div>
 
-        <!-- Engagement Overview (hero section) -->
-        <div class="bg-gradient-to-r from-blue-600 to-indigo-700 rounded-2xl p-6 mb-6 text-white">
-          <div class="flex items-center justify-between mb-4">
-            <div>
-              <h3 class="text-lg font-semibold">Tổng Engagement</h3>
-              <p class="text-blue-200 text-xs">Dữ liệu live từ Facebook</p>
+        <!-- Row 1: Chart (2/3) + Pipeline (1/3) -->
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-5">
+          <!-- Performance Chart -->
+          <div class="lg:col-span-2 bg-white rounded-xl border border-gray-100 shadow-sm p-5">
+            <h3 class="font-semibold text-sm mb-3">Hiệu suất theo thời gian</h3>
+            <div style="height:220px"><canvas id="perfChart"></canvas></div>
+          </div>
+          <!-- Pipeline -->
+          <div class="bg-white rounded-xl border border-gray-100 shadow-sm p-5">
+            <h3 class="font-semibold text-sm mb-3">Pipeline</h3>
+            <div class="grid grid-cols-2 gap-2 mb-3">
+              <template x-for="s in [
+                {key:'pending_approval',label:'Chờ duyệt',color:'amber',icon:'ri-time-line'},
+                {key:'generating',label:'Đang tạo',color:'blue',icon:'ri-loader-4-line'},
+                {key:'approved',label:'Đã duyệt',color:'emerald',icon:'ri-check-line'},
+                {key:'scheduled',label:'Lên lịch',color:'indigo',icon:'ri-calendar-line'},
+                {key:'posted',label:'Đã đăng',color:'green',icon:'ri-send-plane-fill'},
+                {key:'failed',label:'Lỗi',color:'red',icon:'ri-error-warning-line'}
+              ]" :key="s.key">
+                <div class="rounded-lg p-2.5 border border-gray-100">
+                  <div class="flex items-center justify-between mb-1">
+                    <i :class="s.icon" class="text-sm" :style="'color:var(--tw-'+s.color+'-500,#6b7280)'"></i>
+                    <span class="text-[10px] font-medium" :class="(db?.pipeline_summary?.[s.key]?.delta_percent||0)>=0?'text-green-500':'text-red-500'"
+                      x-text="((db?.pipeline_summary?.[s.key]?.delta_percent||0)>=0?'+':'')+(db?.pipeline_summary?.[s.key]?.delta_percent||0)+'%'"></span>
+                  </div>
+                  <p class="text-lg font-bold" x-text="db?.pipeline_summary?.[s.key]?.count||0"></p>
+                  <p class="text-[10px] text-gray-400" x-text="s.label"></p>
+                </div>
+              </template>
             </div>
-            <div class="flex items-center gap-2">
-              <span x-show="fbInsightsLoading" class="text-xs text-blue-200"><i class="ri-loader-4-line animate-spin"></i></span>
-              <button @click="loadFbInsights()" class="px-3 py-1.5 bg-white/20 hover:bg-white/30 rounded-lg text-xs transition" :disabled="fbInsightsLoading">
-                <i class="ri-refresh-line"></i> Sync FB
-              </button>
+            <!-- Success Rate Ring -->
+            <div class="flex items-center gap-3 p-3 bg-gray-50 rounded-lg">
+              <div class="relative w-12 h-12 shrink-0">
+                <svg viewBox="0 0 36 36" class="w-12 h-12 -rotate-90">
+                  <circle cx="18" cy="18" r="15" fill="none" stroke="#e5e7eb" stroke-width="3"/>
+                  <circle cx="18" cy="18" r="15" fill="none" stroke="#22c55e" stroke-width="3" stroke-linecap="round"
+                    :stroke-dasharray="(db?.pipeline_summary?.success_publish_rate?.value||0)*0.9425+' 94.25'"/>
+                </svg>
+                <span class="absolute inset-0 flex items-center justify-center text-[10px] font-bold" x-text="(db?.pipeline_summary?.success_publish_rate?.value||0).toFixed(0)+'%'"></span>
+              </div>
+              <div>
+                <p class="text-xs font-medium">Tỷ lệ đăng thành công</p>
+                <p class="text-[10px] text-gray-400" x-text="(db?.pipeline_summary?.success_publish_rate?.current||0)+'/'+( db?.pipeline_summary?.success_publish_rate?.total||0)+' bài'"></p>
+              </div>
             </div>
           </div>
-          <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
-            <div>
-              <p class="text-2xl font-bold" x-text="(fbInsights?.totals?.totalEngagement||0).toLocaleString()"></p>
-              <p class="text-blue-200 text-xs">Engagement</p>
+        </div>
+
+        <!-- Row 2: 6 KPI Cards -->
+        <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3 mb-5">
+          <template x-for="k in [
+            {key:'total_reach',label:'Reach',icon:'ri-eye-line',color:'blue'},
+            {key:'total_engagement',label:'Engagement',icon:'ri-heart-pulse-line',color:'indigo'},
+            {key:'total_reactions',label:'Reactions',icon:'ri-thumb-up-line',color:'rose'},
+            {key:'total_comments',label:'Comments',icon:'ri-chat-3-line',color:'green'},
+            {key:'total_shares',label:'Shares',icon:'ri-share-forward-line',color:'purple'},
+            {key:'engagement_rate',label:'ER',icon:'ri-percent-line',color:'amber'}
+          ]" :key="k.key">
+            <div class="bg-white rounded-xl p-4 border border-gray-100 shadow-sm">
+              <div class="flex items-center justify-between mb-2">
+                <span class="w-7 h-7 rounded-lg flex items-center justify-center text-sm" :class="'bg-'+k.color+'-50 text-'+k.color+'-500'"><i :class="k.icon"></i></span>
+                <span class="text-[10px] font-medium" :class="(db?.kpis?.[k.key]?.delta_percent||0)>=0?'text-green-500':'text-red-500'"
+                  x-text="((db?.kpis?.[k.key]?.delta_percent||0)>=0?'↑':'↓')+Math.abs(db?.kpis?.[k.key]?.delta_percent||0)+'%'"></span>
+              </div>
+              <p class="text-lg font-bold" x-text="k.key==='engagement_rate'?(db?.kpis?.[k.key]?.value||0).toFixed(2)+'%':(db?.kpis?.[k.key]?.value||0).toLocaleString()"></p>
+              <p class="text-[10px] text-gray-400" x-text="k.label"></p>
             </div>
-            <div>
-              <p class="text-2xl font-bold" x-text="(fbInsights?.totals?.totalReactions||0).toLocaleString()"></p>
-              <p class="text-blue-200 text-xs">Reactions</p>
-            </div>
-            <div>
-              <p class="text-2xl font-bold" x-text="(fbInsights?.totals?.totalComments||0).toLocaleString()"></p>
-              <p class="text-blue-200 text-xs">Comments</p>
-            </div>
-            <div>
-              <p class="text-2xl font-bold" x-text="(fbInsights?.totals?.totalShares||0).toLocaleString()"></p>
-              <p class="text-blue-200 text-xs">Shares</p>
-            </div>
-            <div>
-              <p class="text-2xl font-bold" x-text="(fbInsights?.totals?.totalReach||0).toLocaleString()"></p>
-              <p class="text-blue-200 text-xs">Reach</p>
-            </div>
-            <div>
-              <p class="text-2xl font-bold" x-text="(fbInsights?.totals?.totalFollowers||0).toLocaleString()"></p>
-              <p class="text-blue-200 text-xs">Followers</p>
-            </div>
-          </div>
-          <!-- FB errors -->
-          <template x-for="pg in (fbInsights?.pages||[])" :key="pg.pageId+'err'">
-            <template x-for="err in (pg.errors||[])" :key="err">
-              <p class="text-amber-300 text-xs mt-2" x-text="pg.pageName+': '+err"></p>
-            </template>
           </template>
         </div>
 
-        <!-- Stat Cards -->
-        <div class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
-          <div class="stat-card bg-white rounded-xl p-4 border border-gray-100 shadow-sm">
-            <p class="text-xs text-gray-500">Tổng Content</p>
-            <p class="text-2xl font-bold mt-1" x-text="stats.totalContent || 0"></p>
-            <p class="text-xs text-gray-400 mt-1">Hôm nay: <span class="font-medium text-gray-600" x-text="stats.todayCreated||0"></span> tạo</p>
-          </div>
-          <div class="stat-card bg-white rounded-xl p-4 border border-gray-100 shadow-sm">
-            <p class="text-xs text-gray-500">Đã đăng</p>
-            <p class="text-2xl font-bold mt-1 text-green-600" x-text="stats.statusBreakdown?.PUBLISHED || 0"></p>
-            <p class="text-xs text-gray-400 mt-1">Hôm nay: <span class="font-medium text-green-600" x-text="stats.todayPublished||0"></span></p>
-          </div>
-          <div class="stat-card bg-white rounded-xl p-4 border border-gray-100 shadow-sm">
-            <p class="text-xs text-gray-500">Chờ duyệt</p>
-            <p class="text-2xl font-bold mt-1 text-amber-600" x-text="stats.statusBreakdown?.PENDING_REVIEW || 0"></p>
-            <p class="text-xs text-gray-400 mt-1">Tỷ lệ TT: <span class="font-medium text-emerald-600" x-text="(stats.successRate||0).toFixed(0)+'%'"></span></p>
-          </div>
-          <div class="stat-card bg-white rounded-xl p-4 border border-gray-100 shadow-sm">
-            <p class="text-xs text-gray-500">Avg Engagement/Post</p>
-            <p class="text-2xl font-bold mt-1 text-indigo-600" x-text="fbInsights?.totals?.totalPosts ? Math.round(fbInsights.totals.totalEngagement/fbInsights.totals.totalPosts).toLocaleString() : '—'"></p>
-            <p class="text-xs text-gray-400 mt-1"><span x-text="(fbInsights?.totals?.totalPosts||0)"></span> bài tracked</p>
+        <!-- Row 3: Top Content Table -->
+        <div class="bg-white rounded-xl border border-gray-100 shadow-sm p-5 mb-5">
+          <h3 class="font-semibold text-sm mb-3"><i class="ri-fire-line text-orange-500 mr-1"></i>Top Content theo Engagement</h3>
+          <div class="overflow-x-auto">
+            <table class="w-full text-xs">
+              <thead><tr class="text-left text-gray-400 border-b">
+                <th class="pb-2 pr-2">Content</th><th class="pb-2 pr-2">Page</th><th class="pb-2 pr-2">Ngày</th>
+                <th class="pb-2 pr-2 text-right">Reach</th><th class="pb-2 pr-2 text-right">Reactions</th>
+                <th class="pb-2 pr-2 text-right">Comments</th><th class="pb-2 pr-2 text-right">Shares</th>
+                <th class="pb-2 text-right">ER</th>
+              </tr></thead>
+              <tbody>
+                <template x-for="c in (db?.top_contents||[])" :key="c.id">
+                  <tr class="border-b border-gray-50 hover:bg-gray-50">
+                    <td class="py-2 pr-2 max-w-[200px]">
+                      <p class="font-medium truncate" x-text="c.topic"></p>
+                      <p class="text-gray-400 truncate" x-text="c.excerpt"></p>
+                    </td>
+                    <td class="py-2 pr-2 text-gray-500" x-text="c.pageName"></td>
+                    <td class="py-2 pr-2 text-gray-400 whitespace-nowrap" x-text="c.publishedAt?new Date(c.publishedAt).toLocaleDateString('vi-VN',{day:'2-digit',month:'2-digit',year:'numeric'}):''"></td>
+                    <td class="py-2 pr-2 text-right font-medium" x-text="(c.reach||0).toLocaleString()"></td>
+                    <td class="py-2 pr-2 text-right text-rose-500 font-medium" x-text="(c.reactions||0).toLocaleString()"></td>
+                    <td class="py-2 pr-2 text-right text-green-500 font-medium" x-text="(c.comments||0).toLocaleString()"></td>
+                    <td class="py-2 pr-2 text-right text-purple-500 font-medium" x-text="(c.shares||0).toLocaleString()"></td>
+                    <td class="py-2 text-right font-bold text-indigo-600" x-text="(c.er||0).toFixed(2)+'%'"></td>
+                  </tr>
+                </template>
+                <tr x-show="!(db?.top_contents||[]).length"><td colspan="8" class="py-4 text-center text-gray-400">Chưa có dữ liệu</td></tr>
+              </tbody>
+            </table>
           </div>
         </div>
 
-        <!-- Charts + Pages Engagement -->
-        <div class="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-6">
-          <div class="lg:col-span-2 bg-white rounded-xl border border-gray-100 shadow-sm p-5">
-            <div class="flex items-center justify-between mb-4">
-              <h3 class="font-semibold text-sm">Content theo thời gian</h3>
-              <div class="flex gap-1">
-                <button @click="timelineDays=7; loadTimeline()" :class="timelineDays===7 ? 'bg-blue-100 text-blue-700' : 'bg-gray-100'" class="px-2 py-1 rounded text-xs">7 ngày</button>
-                <button @click="timelineDays=30; loadTimeline()" :class="timelineDays===30 ? 'bg-blue-100 text-blue-700' : 'bg-gray-100'" class="px-2 py-1 rounded text-xs">30 ngày</button>
+        <!-- Row 4: Page Performance + Campaign Performance -->
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-5">
+          <!-- Page Performance -->
+          <div class="bg-white rounded-xl border border-gray-100 shadow-sm p-5">
+            <h3 class="font-semibold text-sm mb-3"><i class="ri-pages-line text-blue-500 mr-1"></i>Hiệu suất Page</h3>
+            <div class="space-y-3">
+              <template x-for="p in (db?.page_performance||[])" :key="p.id">
+                <div class="flex items-center gap-3">
+                  <img :src="'https://graph.facebook.com/'+p.externalId+'/picture?type=small'" class="w-8 h-8 rounded-full border shrink-0" onerror="this.style.display='none'">
+                  <div class="flex-1 min-w-0">
+                    <p class="text-xs font-medium truncate" x-text="p.name"></p>
+                    <div class="flex items-center gap-2 mt-0.5">
+                      <span class="text-[10px] text-gray-400" x-text="p.totalPosts+' bài'"></span>
+                      <span class="text-[10px] text-blue-500" x-text="'Reach: '+(p.reach||0).toLocaleString()"></span>
+                      <span class="text-[10px] text-indigo-500" x-text="'Eng: '+(p.engagement||0).toLocaleString()"></span>
+                    </div>
+                  </div>
+                  <div class="text-right shrink-0">
+                    <p class="text-sm font-bold text-indigo-600" x-text="(p.er||0).toFixed(2)+'%'"></p>
+                    <p class="text-[10px] text-gray-400">ER</p>
+                  </div>
+                </div>
+              </template>
+              <div x-show="!(db?.page_performance||[]).length" class="text-center text-gray-400 py-3 text-xs">Chưa có dữ liệu</div>
+            </div>
+          </div>
+          <!-- Campaign Performance -->
+          <div class="bg-white rounded-xl border border-gray-100 shadow-sm p-5">
+            <h3 class="font-semibold text-sm mb-3"><i class="ri-trophy-line text-amber-500 mr-1"></i>Hiệu suất Campaign</h3>
+            <div class="space-y-3">
+              <template x-for="c in (db?.campaign_performance||[]).slice(0,7)" :key="c.id">
+                <div>
+                  <div class="flex items-center justify-between mb-1">
+                    <p class="text-xs font-medium truncate flex-1" x-text="c.name"></p>
+                    <div class="flex items-center gap-2 shrink-0 text-[10px]">
+                      <span class="text-gray-400" x-text="c.totalPosts+' bài'"></span>
+                      <span class="font-bold text-indigo-600" x-text="(c.er||0).toFixed(2)+'%'"></span>
+                    </div>
+                  </div>
+                  <div class="w-full h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                    <div class="h-full rounded-full" :style="'width:'+Math.min(c.er*10,100)+'%;background:linear-gradient(90deg,#6366f1,#818cf8)'"></div>
+                  </div>
+                  <div class="flex gap-3 mt-1 text-[10px] text-gray-400">
+                    <span x-text="'Reach: '+(c.reach||0).toLocaleString()"></span>
+                    <span x-text="'Eng: '+(c.engagement||0).toLocaleString()"></span>
+                  </div>
+                </div>
+              </template>
+              <div x-show="!(db?.campaign_performance||[]).length" class="text-center text-gray-400 py-3 text-xs">Chưa có dữ liệu</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Row 5: Cần xử lý + Sắp đăng + Đăng gần đây -->
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-5">
+          <!-- Cần xử lý -->
+          <div class="bg-white rounded-xl border border-gray-100 shadow-sm p-5">
+            <div class="flex items-center gap-2 mb-3">
+              <h3 class="font-semibold text-sm"><i class="ri-alert-line text-amber-500 mr-1"></i>Cần xử lý</h3>
+              <div class="flex ml-auto gap-1">
+                <button @click="dbPendingTab='pending'" :class="dbPendingTab==='pending'?'bg-amber-100 text-amber-700':'bg-gray-100 text-gray-500'" class="px-2 py-0.5 rounded text-[10px]">Chờ duyệt</button>
+                <button @click="dbPendingTab='failed'" :class="dbPendingTab==='failed'?'bg-red-100 text-red-700':'bg-gray-100 text-gray-500'" class="px-2 py-0.5 rounded text-[10px]">Lỗi</button>
               </div>
             </div>
-            <div style="height:200px"><canvas id="timelineChart"></canvas></div>
+            <div class="space-y-1.5 max-h-[250px] overflow-y-auto">
+              <template x-for="item in (db?.pending_items||[]).filter(i=>dbPendingTab==='pending'?i.status==='PENDING_REVIEW':i.status==='FAILED')" :key="item.id">
+                <div class="flex items-center gap-2 p-2 hover:bg-gray-50 rounded-lg text-xs cursor-pointer" @click="page='content'">
+                  <span class="w-1.5 h-1.5 rounded-full shrink-0" :class="item.status==='FAILED'?'bg-red-500':'bg-amber-500'"></span>
+                  <span class="flex-1 truncate" x-text="item.topic"></span>
+                  <span class="text-gray-400 shrink-0" x-text="item.pageName"></span>
+                </div>
+              </template>
+              <div x-show="!(db?.pending_items||[]).filter(i=>dbPendingTab==='pending'?i.status==='PENDING_REVIEW':i.status==='FAILED').length" class="text-center text-gray-400 py-3 text-[11px]">Không có</div>
+            </div>
           </div>
+          <!-- Sắp đăng 7 ngày -->
           <div class="bg-white rounded-xl border border-gray-100 shadow-sm p-5">
-            <h3 class="font-semibold text-sm mb-3">Trạng thái</h3>
-            <div style="height:200px" class="flex items-center justify-center"><canvas id="statusChart"></canvas></div>
-          </div>
-        </div>
-
-        <!-- Pages Engagement -->
-        <div class="bg-white rounded-xl border border-gray-100 shadow-sm p-5 mb-6">
-          <h3 class="font-semibold text-sm mb-4"><i class="ri-facebook-circle-line text-blue-600 mr-1"></i>Engagement theo Page</h3>
-          <div x-show="!(fbInsights?.pages||[]).length" class="text-center text-gray-400 py-4 text-sm">Chưa có dữ liệu — bấm "Sync FB" ở trên</div>
-          <div class="space-y-3">
-            <template x-for="pg in (fbInsights?.pages||[])" :key="pg.pageId">
-              <div class="border border-gray-100 rounded-xl p-4">
-                <div class="flex items-center gap-3 mb-3">
-                  <img :src="'https://graph.facebook.com/'+pg.externalId+'/picture?type=small'" class="w-10 h-10 rounded-full border" onerror="this.style.display='none'">
-                  <div class="flex-1">
-                    <p class="font-medium" x-text="pg.pageName"></p>
-                    <p class="text-xs text-gray-400" x-text="(pg.followers ? pg.followers.toLocaleString()+' followers' : '') + (pg.fanCount ? ' · '+pg.fanCount.toLocaleString()+' likes' : '')"></p>
-                  </div>
-                  <div class="text-right">
-                    <p class="text-lg font-bold text-indigo-600" x-text="(pg.totalReactions+pg.totalComments+pg.totalShares).toLocaleString()"></p>
-                    <p class="text-[10px] text-gray-400">Tổng Engagement</p>
-                  </div>
-                </div>
-                <div class="grid grid-cols-4 gap-3 mb-3">
-                  <div class="bg-blue-50 rounded-lg p-2 text-center">
-                    <p class="text-sm font-bold text-blue-600" x-text="(pg.totalReactions||0).toLocaleString()"></p>
-                    <p class="text-[10px] text-gray-500">Reactions</p>
-                  </div>
-                  <div class="bg-green-50 rounded-lg p-2 text-center">
-                    <p class="text-sm font-bold text-green-600" x-text="(pg.totalComments||0).toLocaleString()"></p>
-                    <p class="text-[10px] text-gray-500">Comments</p>
-                  </div>
-                  <div class="bg-purple-50 rounded-lg p-2 text-center">
-                    <p class="text-sm font-bold text-purple-600" x-text="(pg.totalShares||0).toLocaleString()"></p>
-                    <p class="text-[10px] text-gray-500">Shares</p>
-                  </div>
-                  <div class="bg-indigo-50 rounded-lg p-2 text-center">
-                    <p class="text-sm font-bold text-indigo-600" x-text="(pg.totalReach||0).toLocaleString()"></p>
-                    <p class="text-[10px] text-gray-500">Reach</p>
-                  </div>
-                </div>
-                <div x-show="pg.posts?.length">
-                  <p class="text-xs text-gray-500 mb-2">Top bài đăng theo engagement:</p>
-                  <div class="space-y-1.5">
-                    <template x-for="post in [...(pg.posts||[])].sort((a,b)=>(b.reactions+b.comments+b.shares)-(a.reactions+a.comments+a.shares)).slice(0,5)" :key="post.contentItemId">
-                      <div class="flex items-center gap-2 text-xs p-2 bg-gray-50 rounded-lg hover:bg-gray-100">
-                        <span class="text-gray-400 shrink-0 w-16" x-text="post.publishedAt ? new Date(post.publishedAt).toLocaleDateString('vi-VN',{day:'2-digit',month:'2-digit'}) : ''"></span>
-                        <span class="flex-1 truncate" x-text="post.topic"></span>
-                        <span class="shrink-0 text-blue-500 font-medium" x-text="(post.reactions||0)+'R'"></span>
-                        <span class="shrink-0 text-green-500 font-medium" x-text="(post.comments||0)+'C'"></span>
-                        <span class="shrink-0 text-purple-500 font-medium" x-text="(post.shares||0)+'S'"></span>
-                        <span class="shrink-0 font-bold text-indigo-600" x-text="'='+(post.reactions+post.comments+post.shares)"></span>
-                      </div>
-                    </template>
-                  </div>
-                </div>
-              </div>
-            </template>
-          </div>
-        </div>
-
-        <!-- Top Campaigns with Engagement -->
-        <div class="bg-white rounded-xl border border-gray-100 shadow-sm p-5 mb-6">
-          <div class="flex items-center justify-between mb-4">
-            <h3 class="font-semibold text-sm"><i class="ri-trophy-line text-amber-500 mr-1"></i>Top Campaigns</h3>
-            <span class="text-xs text-gray-400">Top 7 có content</span>
-          </div>
-          <div x-show="!dashboardCampaigns.length" class="text-center text-gray-400 py-4 text-sm">Chưa có campaign nào có content</div>
-          <div class="space-y-3">
-            <template x-for="(c, i) in dashboardCampaigns" :key="c.id">
-              <div class="border border-gray-100 rounded-xl p-4 hover:border-gray-200 transition">
-                <div class="flex items-center gap-3 mb-2">
-                  <span class="w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold" :class="i<3 ? 'bg-amber-100 text-amber-700' : 'bg-gray-100 text-gray-500'" x-text="i+1"></span>
-                  <div class="flex-1 min-w-0">
-                    <p class="font-medium truncate" x-text="c.name"></p>
-                    <p class="text-xs text-gray-400" x-text="(c.topPageName||'') + ' · ' + new Date(c.startDate).toLocaleDateString('vi-VN')"></p>
-                  </div>
-                  <div class="flex items-center gap-1 shrink-0">
-                    <div class="w-20 h-1.5 bg-gray-200 rounded-full overflow-hidden">
-                      <div class="h-full bg-green-500 rounded-full" :style="'width:'+c.successRate+'%'"></div>
-                    </div>
-                    <span class="text-xs text-gray-500 w-8" x-text="c.successRate.toFixed(0)+'%'"></span>
-                  </div>
-                </div>
-                <div class="grid grid-cols-3 md:grid-cols-6 gap-2 text-center text-xs">
-                  <div class="bg-gray-50 rounded p-1.5">
-                    <p class="font-bold" x-text="c.totalContent"></p><p class="text-gray-400">tổng</p>
-                  </div>
-                  <div class="bg-green-50 rounded p-1.5">
-                    <p class="font-bold text-green-600" x-text="c.published"></p><p class="text-gray-400">đăng</p>
-                  </div>
-                  <div class="bg-amber-50 rounded p-1.5">
-                    <p class="font-bold text-amber-600" x-text="c.pending"></p><p class="text-gray-400">duyệt</p>
-                  </div>
-                  <div class="bg-blue-50 rounded p-1.5">
-                    <p class="font-bold text-blue-600" x-text="getCampaignEngagement(c.id, 'reactions')"></p><p class="text-gray-400">reactions</p>
-                  </div>
-                  <div class="bg-purple-50 rounded p-1.5">
-                    <p class="font-bold text-purple-600" x-text="getCampaignEngagement(c.id, 'comments')"></p><p class="text-gray-400">comments</p>
-                  </div>
-                  <div class="bg-indigo-50 rounded p-1.5">
-                    <p class="font-bold text-indigo-600" x-text="getCampaignEngagement(c.id, 'total')"></p><p class="text-gray-400">engagement</p>
-                  </div>
-                </div>
-              </div>
-            </template>
-          </div>
-        </div>
-
-        <!-- Upcoming + Recent -->
-        <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-6">
-          <div class="bg-white rounded-xl border border-gray-100 shadow-sm p-5">
-            <h3 class="font-semibold text-sm mb-3"><i class="ri-calendar-todo-line text-orange-500 mr-1"></i>Sắp đăng (7 ngày tới)</h3>
-            <div x-show="!dashboardUpcoming.length" class="text-center text-gray-400 py-3 text-sm">Không có</div>
-            <div class="space-y-1.5">
-              <template x-for="item in dashboardUpcoming" :key="item.id">
-                <div class="flex items-center gap-2 p-2 hover:bg-gray-50 rounded-lg cursor-pointer text-sm" @click="viewResult(item)">
-                  <span class="text-xs text-gray-400 shrink-0 w-14" x-text="new Date(item.scheduledAt).toLocaleDateString('vi-VN',{day:'2-digit',month:'2-digit'})+' '+new Date(item.scheduledAt).toLocaleTimeString('vi-VN',{hour:'2-digit',minute:'2-digit'})"></span>
+            <h3 class="font-semibold text-sm mb-3"><i class="ri-calendar-todo-line text-blue-500 mr-1"></i>Sắp đăng (7 ngày)</h3>
+            <div class="space-y-1.5 max-h-[250px] overflow-y-auto">
+              <template x-for="item in (db?.upcoming_posts||[])" :key="item.id">
+                <div class="flex items-center gap-2 p-2 hover:bg-gray-50 rounded-lg text-xs">
+                  <span class="text-gray-400 shrink-0 w-12" x-text="new Date(item.scheduledAt).toLocaleDateString('vi-VN',{day:'2-digit',month:'2-digit'})"></span>
                   <span class="flex-1 truncate" x-text="item.topic"></span>
                   <span class="text-[10px] px-1.5 py-0.5 rounded-full shrink-0"
-                    :class="{'bg-gray-100 text-gray-600': item.status==='DRAFT', 'bg-amber-100 text-amber-700': item.status==='PENDING_REVIEW', 'bg-green-100 text-green-700': item.status==='APPROVED'}"
+                    :class="{'bg-gray-100 text-gray-600':item.status==='DRAFT','bg-amber-100 text-amber-700':item.status==='PENDING_REVIEW','bg-green-100 text-green-700':item.status==='APPROVED','bg-blue-100 text-blue-700':item.status==='GENERATING'}"
                     x-text="statusLabel(item.status)"></span>
                 </div>
               </template>
+              <div x-show="!(db?.upcoming_posts||[]).length" class="text-center text-gray-400 py-3 text-[11px]">Không có lịch</div>
             </div>
           </div>
+          <!-- Đăng gần đây -->
           <div class="bg-white rounded-xl border border-gray-100 shadow-sm p-5">
             <h3 class="font-semibold text-sm mb-3"><i class="ri-send-plane-line text-green-500 mr-1"></i>Đăng gần đây</h3>
-            <div x-show="!dashboardRecent.length" class="text-center text-gray-400 py-3 text-sm">Chưa có</div>
-            <div class="space-y-1.5">
-              <template x-for="item in dashboardRecent" :key="item.id">
-                <div class="flex items-center gap-2 p-2 hover:bg-gray-50 rounded-lg cursor-pointer text-sm" @click="viewResult(item)">
-                  <span class="text-xs text-gray-400 shrink-0 w-14" x-text="item.publishedAt ? new Date(item.publishedAt).toLocaleDateString('vi-VN',{day:'2-digit',month:'2-digit'})+' '+new Date(item.publishedAt).toLocaleTimeString('vi-VN',{hour:'2-digit',minute:'2-digit'}) : '—'"></span>
+            <div class="space-y-1.5 max-h-[250px] overflow-y-auto">
+              <template x-for="item in (db?.recent_posts||[])" :key="item.id">
+                <div class="flex items-center gap-2 p-2 hover:bg-gray-50 rounded-lg text-xs">
+                  <span class="text-gray-400 shrink-0 w-12" x-text="item.publishedAt?new Date(item.publishedAt).toLocaleDateString('vi-VN',{day:'2-digit',month:'2-digit'}):''"></span>
                   <span class="flex-1 truncate" x-text="item.topic"></span>
-                  <span class="text-xs text-gray-400 shrink-0" x-text="item.page?.name"></span>
+                  <div class="flex gap-1.5 shrink-0 text-[10px]">
+                    <span class="text-rose-500" x-text="(item.reactions||0)+'R'"></span>
+                    <span class="text-green-500" x-text="(item.comments||0)+'C'"></span>
+                    <span class="text-purple-500" x-text="(item.shares||0)+'S'"></span>
+                  </div>
                 </div>
               </template>
+              <div x-show="!(db?.recent_posts||[]).length" class="text-center text-gray-400 py-3 text-[11px]">Chưa có</div>
             </div>
           </div>
         </div>
@@ -1579,6 +1582,9 @@ function app() {
     registerForm: { name: '', email: '', password: '' },
 
     stats: {},
+    db: null,
+    dbFilter: { pageId: '', campaignId: '', days: '30' },
+    dbPendingTab: 'pending',
     dashboardCampaigns: [],
     dashboardPages: [],
     dashboardUpcoming: [],
@@ -1731,24 +1737,50 @@ function app() {
     async loadDashboard() {
       this.dashboardLoading = true;
       try {
-        const [stats, campaigns, pages, upcoming, recent] = await Promise.all([
-          this.api('/dashboard/stats'),
-          this.api('/dashboard/stats/campaigns').catch(() => []),
-          this.api('/dashboard/stats/pages').catch(() => []),
-          this.api('/dashboard/stats/upcoming').catch(() => []),
-          this.api('/dashboard/stats/recent-published').catch(() => []),
+        const params = new URLSearchParams();
+        if (this.dbFilter.pageId) params.set('pageId', this.dbFilter.pageId);
+        if (this.dbFilter.campaignId) params.set('campaignId', this.dbFilter.campaignId);
+        params.set('days', this.dbFilter.days);
+        const [db, stats] = await Promise.all([
+          this.api('/dashboard/stats/dashboard?' + params.toString()),
+          this.api('/dashboard/stats').catch(() => ({})),
         ]);
+        this.db = db;
         this.stats = stats;
-        this.dashboardCampaigns = campaigns;
-        this.dashboardPages = pages;
-        this.dashboardUpcoming = upcoming;
-        this.dashboardRecent = recent;
         this.selectedTextProvider = stats.providers?.activeText || '';
         this.selectedImageProvider = stats.providers?.activeImage || '';
-        this.$nextTick(() => { this.loadTimeline(); this.renderStatusChart(); });
-        this.loadFbInsights();
+        this.$nextTick(() => { this.renderPerfChart(); });
       } catch {}
       this.dashboardLoading = false;
+    },
+
+    renderPerfChart() {
+      const ctx = document.getElementById('perfChart');
+      if (!ctx || !this.db?.chart_performance) return;
+      if (this._charts.perf) this._charts.perf.destroy();
+      const data = this.db.chart_performance;
+      const labels = data.map(d => { const dt = new Date(d.date); return dt.toLocaleDateString('vi-VN', {day:'2-digit', month:'2-digit'}); });
+      this._charts.perf = new Chart(ctx, {
+        type: 'bar',
+        data: {
+          labels,
+          datasets: [
+            { type: 'line', label: 'Reach', data: data.map(d => d.reach), borderColor: '#3b82f6', backgroundColor: 'rgba(59,130,246,0.08)', fill: true, tension: 0.3, pointRadius: 2, yAxisID: 'y', order: 1 },
+            { type: 'line', label: 'Engagement', data: data.map(d => d.engagement), borderColor: '#8b5cf6', backgroundColor: 'rgba(139,92,246,0.08)', fill: true, tension: 0.3, pointRadius: 2, yAxisID: 'y', order: 2 },
+            { type: 'bar', label: 'Bài đăng', data: data.map(d => d.posts_count), backgroundColor: 'rgba(99,102,241,0.3)', borderRadius: 4, yAxisID: 'y1', order: 3 },
+          ]
+        },
+        options: {
+          responsive: true, maintainAspectRatio: false,
+          interaction: { mode: 'index', intersect: false },
+          plugins: { legend: { position: 'bottom', labels: { boxWidth: 10, font: { size: 10 }, padding: 12 } } },
+          scales: {
+            y: { beginAtZero: true, position: 'left', ticks: { font: { size: 10 } }, grid: { color: 'rgba(0,0,0,0.04)' } },
+            y1: { beginAtZero: true, position: 'right', grid: { display: false }, ticks: { font: { size: 10 }, stepSize: 1 } },
+            x: { ticks: { font: { size: 9 }, maxRotation: 0 }, grid: { display: false } }
+          }
+        }
+      });
     },
 
     getCampaignEngagement(campaignId, type) {
