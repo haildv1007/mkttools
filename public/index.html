@@ -1884,9 +1884,11 @@ function app() {
         c.data.datasets[1].data = data.map(d => d.media_views);
         c.data.datasets[2].data = data.map(d => d.engagement);
         c.data.datasets[3].data = data.map(d => d.posts_count);
+        console.log('[chart] update labels=', labels.length, 'first=', labels[0], 'last=', labels[labels.length-1]);
         c.update();
         return;
       }
+      console.log('[chart] create new, labels=', labels.length);
       this._charts.perf = new Chart(canvas, {
         type: 'bar',
         data: {
