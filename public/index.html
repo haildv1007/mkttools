@@ -1852,24 +1852,22 @@ function app() {
       const data = this.db?.chart_performance;
       const hasData = data && data.some(d => d.reach || d.media_views || d.engagement || d.posts_count);
       console.log('[chart] hasData=', hasData, 'data length=', data?.length);
-      const emptyEl = wrap.querySelector('.chart-empty');
-      let canvas = wrap.querySelector('canvas');
       if (this._charts.perf) {
         this._charts.perf.destroy();
         this._charts.perf = null;
       }
-      if (!canvas) {
-        canvas = document.createElement('canvas');
-        wrap.appendChild(canvas);
+      const oldCanvas = wrap.querySelector('canvas');
+      if (oldCanvas) oldCanvas.remove();
+      const canvas = document.createElement('canvas');
+      wrap.insertBefore(canvas, wrap.firstChild);
+      let emptyDiv = wrap.querySelector('.chart-empty');
+      if (!emptyDiv) {
+        emptyDiv = document.createElement('div');
+        emptyDiv.className = 'chart-empty';
+        emptyDiv.style.cssText = 'position:absolute;inset:0;display:flex;align-items:center;justify-content:center;';
+        emptyDiv.innerHTML = '<div style="text-align:center;color:#9ca3af;font-size:12px"><i class="ri-bar-chart-box-line" style="font-size:2rem;display:block;margin-bottom:8px"></i><p class="chart-empty-msg"></p></div>';
+        wrap.appendChild(emptyDiv);
       }
-      if (!emptyEl) {
-        const div = document.createElement('div');
-        div.className = 'chart-empty';
-        div.style.cssText = 'position:absolute;inset:0;display:flex;align-items:center;justify-content:center;';
-        div.innerHTML = '<div style="text-align:center;color:#9ca3af;font-size:12px"><i class="ri-bar-chart-box-line" style="font-size:2rem;display:block;margin-bottom:8px"></i><p class="chart-empty-msg"></p></div>';
-        wrap.appendChild(div);
-      }
-      const emptyDiv = wrap.querySelector('.chart-empty');
       const emptyMsgEl = wrap.querySelector('.chart-empty-msg');
       if (!hasData) {
         canvas.style.display = 'none';
