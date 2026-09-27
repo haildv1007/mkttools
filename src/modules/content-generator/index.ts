@@ -4,7 +4,6 @@ import type { TextProvider, ImageProvider, TextGeneratorOptions, ImageGeneratorO
 import { ClaudeTextProvider } from './providers/claude';
 import { OpenAITextProvider } from './providers/openai-text';
 import { GeminiTextProvider } from './providers/gemini-text';
-import { ReplicateImageProvider } from './providers/replicate-image';
 import { DalleImageProvider } from './providers/dalle-image';
 import { GeminiImageProvider } from './providers/gemini-image';
 
@@ -15,7 +14,6 @@ const textProviders: Record<string, () => TextProvider> = {
 };
 
 const imageProviders: Record<string, () => ImageProvider> = {
-  replicate: () => new ReplicateImageProvider(),
   dalle: () => new DalleImageProvider(),
   gemini: () => new GeminiImageProvider(),
 };

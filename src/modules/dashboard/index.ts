@@ -388,7 +388,7 @@ router.get('/settings', async (_req: Request, res: Response) => {
       masked[key] = value;
     }
   }
-  res.json({ settings: masked, raw: settings });
+  res.json({ settings: masked });
 });
 
 router.put('/settings', async (req: Request, res: Response) => {

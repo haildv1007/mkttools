@@ -615,8 +615,14 @@
             <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
                 <label class="block text-sm font-medium text-gray-700 mb-1">Bot Token</label>
-                <input x-model="settingsForm.TELEGRAM_BOT_TOKEN" type="text" placeholder="123456:ABC-DEF..."
-                  class="w-full px-4 py-2.5 border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-brand-500 font-mono text-sm">
+                <div class="relative">
+                  <input x-model="settingsForm.TELEGRAM_BOT_TOKEN" :type="showKeys.telegram ? 'text' : 'password'" placeholder="123456:ABC-DEF..."
+                    class="w-full px-4 py-2.5 pr-10 border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-brand-500 font-mono text-sm">
+                  <button @click="showKeys.telegram = !showKeys.telegram" type="button"
+                    class="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
+                    <i :class="showKeys.telegram ? 'ri-eye-off-line' : 'ri-eye-line'"></i>
+                  </button>
+                </div>
                 <p class="text-xs text-gray-400 mt-1">Lấy từ @BotFather trên Telegram</p>
               </div>
               <div>
@@ -628,6 +634,61 @@
             </div>
           </div>
 
+          <!-- API Keys -->
+          <div class="bg-white rounded-xl border border-gray-100 shadow-sm p-6">
+            <div class="flex items-center gap-3 mb-5">
+              <div class="w-10 h-10 bg-amber-50 rounded-xl flex items-center justify-center">
+                <i class="ri-key-2-line text-amber-600 text-xl"></i>
+              </div>
+              <div>
+                <h3 class="font-semibold">API Keys</h3>
+                <p class="text-xs text-gray-400">Quản lý API keys cho các dịch vụ AI</p>
+              </div>
+            </div>
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">Anthropic API Key</label>
+                <div class="relative">
+                  <input x-model="settingsForm.ANTHROPIC_API_KEY" :type="showKeys.anthropic ? 'text' : 'password'" placeholder="sk-ant-..."
+                    class="w-full px-4 py-2.5 pr-10 border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-brand-500 font-mono text-sm">
+                  <button @click="showKeys.anthropic = !showKeys.anthropic" type="button"
+                    class="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
+                    <i :class="showKeys.anthropic ? 'ri-eye-off-line' : 'ri-eye-line'"></i>
+                  </button>
+                </div>
+                <p class="text-xs text-gray-400 mt-1">Dùng cho Claude AI viết bài</p>
+              </div>
+              <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">OpenAI API Key</label>
+                <div class="relative">
+                  <input x-model="settingsForm.OPENAI_API_KEY" :type="showKeys.openai ? 'text' : 'password'" placeholder="sk-..."
+                    class="w-full px-4 py-2.5 pr-10 border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-brand-500 font-mono text-sm">
+                  <button @click="showKeys.openai = !showKeys.openai" type="button"
+                    class="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
+                    <i :class="showKeys.openai ? 'ri-eye-off-line' : 'ri-eye-line'"></i>
+                  </button>
+                </div>
+                <p class="text-xs text-gray-400 mt-1">Dùng cho GPT viết bài + DALL-E tạo ảnh</p>
+              </div>
+              <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">Gemini API Key</label>
+                <div class="relative">
+                  <input x-model="settingsForm.GEMINI_API_KEY" :type="showKeys.gemini ? 'text' : 'password'" placeholder="AIza..."
+                    class="w-full px-4 py-2.5 pr-10 border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-brand-500 font-mono text-sm">
+                  <button @click="showKeys.gemini = !showKeys.gemini" type="button"
+                    class="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
+                    <i :class="showKeys.gemini ? 'ri-eye-off-line' : 'ri-eye-line'"></i>
+                  </button>
+                </div>
+                <p class="text-xs text-gray-400 mt-1">Dùng cho Gemini viết bài + tạo ảnh</p>
+              </div>
+            </div>
+            <p class="text-xs text-amber-600 mt-4 flex items-center gap-1">
+              <i class="ri-shield-keyhole-line"></i>
+              API keys được mã hóa và không hiển thị lại sau khi lưu. Nhập key mới để thay đổi.
+            </p>
+          </div>
+
           <!-- AI Text Provider -->
           <div class="bg-white rounded-xl border border-gray-100 shadow-sm p-6">
             <div class="flex items-center gap-3 mb-5">
@@ -636,12 +697,12 @@
               </div>
               <div>
                 <h3 class="font-semibold">AI Text (Viết bài)</h3>
-                <p class="text-xs text-gray-400">API keys cho các AI viết content</p>
+                <p class="text-xs text-gray-400">Chọn AI provider và model để viết content</p>
               </div>
             </div>
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
-                <label class="block text-sm font-medium text-gray-700 mb-1">Provider mặc định</label>
+                <label class="block text-sm font-medium text-gray-700 mb-1">Provider</label>
                 <select x-model="settingsForm.AI_TEXT_PROVIDER"
                   class="w-full px-4 py-2.5 border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-brand-500">
                   <option value="claude">Claude (Anthropic)</option>
@@ -652,7 +713,7 @@
               <div>
                 <label class="block text-sm font-medium text-gray-700 mb-1">Model</label>
                 <select x-model="settingsForm.AI_TEXT_MODEL"
-                  class="w-full px-4 py-2.5 border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-brand-500 font-mono text-xs">
+                  class="w-full px-4 py-2.5 border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-brand-500 text-sm">
                   <template x-if="settingsForm.AI_TEXT_PROVIDER === 'claude'">
                     <template x-for="m in textModelsMap.claude" :key="m.id">
                       <option :value="m.id" x-text="m.name"></option>
@@ -671,23 +732,6 @@
                 </select>
               </div>
             </div>
-            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div>
-                <label class="block text-sm font-medium text-gray-700 mb-1">Anthropic API Key</label>
-                <input x-model="settingsForm.ANTHROPIC_API_KEY" type="text" placeholder="sk-ant-..."
-                  class="w-full px-4 py-2.5 border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-brand-500 font-mono text-sm">
-              </div>
-              <div>
-                <label class="block text-sm font-medium text-gray-700 mb-1">OpenAI API Key</label>
-                <input x-model="settingsForm.OPENAI_API_KEY" type="text" placeholder="sk-..."
-                  class="w-full px-4 py-2.5 border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-brand-500 font-mono text-sm">
-              </div>
-              <div>
-                <label class="block text-sm font-medium text-gray-700 mb-1">Gemini API Key</label>
-                <input x-model="settingsForm.GEMINI_API_KEY" type="text" placeholder="AIza..."
-                  class="w-full px-4 py-2.5 border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-brand-500 font-mono text-sm">
-              </div>
-            </div>
           </div>
 
           <!-- AI Image Provider -->
@@ -698,17 +742,16 @@
               </div>
               <div>
                 <h3 class="font-semibold">AI Image (Tạo ảnh)</h3>
-                <p class="text-xs text-gray-400">API keys cho các AI tạo ảnh</p>
+                <p class="text-xs text-gray-400">Chọn AI provider và model để tạo ảnh</p>
               </div>
             </div>
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
-                <label class="block text-sm font-medium text-gray-700 mb-1">Provider mặc định</label>
+                <label class="block text-sm font-medium text-gray-700 mb-1">Provider</label>
                 <select x-model="settingsForm.AI_IMAGE_PROVIDER" @change="onImageProviderChange()"
                   class="w-full px-4 py-2.5 border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-brand-500">
                   <option value="gemini">Gemini Imagen (Google)</option>
-                  <option value="replicate">Flux (Replicate)</option>
-                  <option value="dalle">DALL-E (OpenAI)</option>
+                  <option value="dalle">DALL-E / GPT Image (OpenAI)</option>
                 </select>
               </div>
               <div>
@@ -717,9 +760,9 @@
                   <div>
                     <div class="flex gap-2">
                       <select x-model="settingsForm.AI_IMAGE_MODEL"
-                        class="flex-1 px-4 py-2.5 border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-brand-500 font-mono text-xs min-w-0">
+                        class="flex-1 px-4 py-2.5 border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-brand-500 text-sm min-w-0">
                         <template x-for="m in geminiImageModels" :key="m.id">
-                          <option :value="m.id" x-text="m.id"></option>
+                          <option :value="m.id" x-text="m.name + ' — ' + m.description"></option>
                         </template>
                       </select>
                       <button @click="loadGeminiImageModels()" type="button"
@@ -741,7 +784,7 @@
                   <div>
                     <div class="flex gap-2">
                       <select x-model="settingsForm.AI_IMAGE_MODEL"
-                        class="flex-1 px-4 py-2.5 border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-brand-500 font-mono text-xs min-w-0">
+                        class="flex-1 px-4 py-2.5 border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-brand-500 text-sm min-w-0">
                         <template x-for="m in openaiImageModels" :key="m.id">
                           <option :value="m.id" x-text="m.name + ' — ' + m.description"></option>
                         </template>
@@ -761,29 +804,6 @@
                       class="text-xs mt-1"></p>
                   </div>
                 </template>
-                <template x-if="settingsForm.AI_IMAGE_PROVIDER !== 'gemini' && settingsForm.AI_IMAGE_PROVIDER !== 'dalle'">
-                  <input x-model="settingsForm.AI_IMAGE_MODEL" type="text" placeholder="flux-schnell"
-                    class="w-full px-4 py-2.5 border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-brand-500 font-mono text-sm">
-                </template>
-              </div>
-            </div>
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div x-show="settingsForm.AI_IMAGE_PROVIDER === 'gemini'">
-                <label class="block text-sm font-medium text-gray-700 mb-1">Gemini API Key</label>
-                <input :value="settingsForm.GEMINI_API_KEY ? '••••' + settingsForm.GEMINI_API_KEY.slice(-6) : ''" disabled
-                  class="w-full px-4 py-2.5 border border-gray-200 rounded-lg bg-gray-50 font-mono text-sm text-gray-400">
-                <p class="text-xs text-gray-400 mt-1">Dùng chung key Gemini ở mục Text</p>
-              </div>
-              <div x-show="settingsForm.AI_IMAGE_PROVIDER === 'replicate'">
-                <label class="block text-sm font-medium text-gray-700 mb-1">Replicate API Key</label>
-                <input x-model="settingsForm.REPLICATE_API_KEY" type="text" placeholder="r8_..."
-                  class="w-full px-4 py-2.5 border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-brand-500 font-mono text-sm">
-              </div>
-              <div x-show="settingsForm.AI_IMAGE_PROVIDER === 'dalle'">
-                <label class="block text-sm font-medium text-gray-700 mb-1">OpenAI API Key (cho DALL-E)</label>
-                <input :value="settingsForm.OPENAI_API_KEY ? '••••' + settingsForm.OPENAI_API_KEY.slice(-6) : ''" disabled
-                  class="w-full px-4 py-2.5 border border-gray-200 rounded-lg bg-gray-50 font-mono text-sm text-gray-400">
-                <p class="text-xs text-gray-400 mt-1">Dùng chung key OpenAI ở mục Text</p>
               </div>
             </div>
           </div>
@@ -808,8 +828,14 @@
               </div>
               <div>
                 <label class="block text-sm font-medium text-gray-700 mb-1">App Secret</label>
-                <input x-model="settingsForm.FACEBOOK_APP_SECRET" type="text" placeholder="abcdef123456..."
-                  class="w-full px-4 py-2.5 border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-brand-500 font-mono text-sm">
+                <div class="relative">
+                  <input x-model="settingsForm.FACEBOOK_APP_SECRET" :type="showKeys.fbSecret ? 'text' : 'password'" placeholder="abcdef123456..."
+                    class="w-full px-4 py-2.5 pr-10 border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-brand-500 font-mono text-sm">
+                  <button @click="showKeys.fbSecret = !showKeys.fbSecret" type="button"
+                    class="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
+                    <i :class="showKeys.fbSecret ? 'ri-eye-off-line' : 'ri-eye-line'"></i>
+                  </button>
+                </div>
               </div>
             </div>
             <p class="text-xs text-gray-400 mt-3">Lấy từ <a href="https://developers.facebook.com" target="_blank" class="text-brand-600 hover:underline">developers.facebook.com</a> → App Settings → Basic</p>
@@ -894,6 +920,7 @@ function app() {
 
     settingsForm: {},
     settingsSaving: false,
+    showKeys: { anthropic: false, openai: false, gemini: false, telegram: false, fbSecret: false },
     textModelsMap: {
       claude: [
         { id: 'claude-haiku-4-5-20251001', name: 'Claude Haiku 4.5 — nhanh, rẻ' },
@@ -1185,7 +1212,8 @@ function app() {
     async loadSettings() {
       try {
         const data = await this.api('/dashboard/settings');
-        this.settingsForm = data.raw || {};
+        this.settingsForm = data.settings || {};
+        this.showKeys = { anthropic: false, openai: false, gemini: false, telegram: false, fbSecret: false };
         if (this.settingsForm.AI_IMAGE_PROVIDER === 'gemini') {
           await this.loadGeminiImageModels();
         } else if (this.settingsForm.AI_IMAGE_PROVIDER === 'dalle') {
@@ -1339,7 +1367,7 @@ function app() {
     },
 
     providerLabel(name) {
-      const map = { claude: 'Claude (Anthropic)', openai: 'GPT (OpenAI)', gemini: 'Gemini (Google)', replicate: 'Flux (Replicate)', dalle: 'DALL-E (OpenAI)', 'gemini-imagen': 'Gemini Imagen (Google)' };
+      const map = { claude: 'Claude (Anthropic)', openai: 'GPT (OpenAI)', gemini: 'Gemini (Google)', dalle: 'DALL-E (OpenAI)' };
       return map[name] || name || '—';
     },
   };
