@@ -210,12 +210,7 @@
           <!-- Performance Chart -->
           <div class="lg:col-span-2 bg-white rounded-xl border border-gray-100 shadow-sm p-5">
             <h3 class="font-semibold text-sm mb-3">Hiệu suất theo thời gian</h3>
-            <div id="perfChartWrap" style="height:340px; position:relative">
-              <canvas id="perfChartCanvas"></canvas>
-              <div id="perfChartEmpty" style="display:none;position:absolute;inset:0;display:none;align-items:center;justify-content:center">
-                <div style="text-align:center;color:#9ca3af;font-size:12px"><i class="ri-bar-chart-box-line" style="font-size:2rem;display:block;margin-bottom:8px"></i><p id="perfChartEmptyMsg"></p></div>
-              </div>
-            </div>
+            <div id="perfChartWrap" style="height:340px; position:relative"></div>
           </div>
           <!-- Pipeline -->
           <div class="bg-white rounded-xl border border-gray-100 shadow-sm p-5">
@@ -1852,28 +1847,27 @@ function app() {
 
     renderPerfChart() {
       if (typeof Chart === 'undefined') return;
-      const canvas = document.getElementById('perfChartCanvas');
-      const emptyEl = document.getElementById('perfChartEmpty');
-      const emptyMsg = document.getElementById('perfChartEmptyMsg');
-      if (!canvas || !emptyEl) return;
+      const wrap = document.getElementById('perfChartWrap');
+      if (!wrap) return;
       if (this._charts.perf) { this._charts.perf.destroy(); this._charts.perf = null; }
+      wrap.innerHTML = '';
       const data = this.db?.chart_performance;
       const hasData = data && data.some(d => d.reach || d.media_views || d.engagement || d.posts_count);
       if (!data || !hasData) {
-        canvas.style.display = 'none';
-        emptyEl.style.display = 'flex';
-        emptyMsg.textContent = (this.db?.top_contents||[]).length
+        const emptyMsg = (this.db?.top_contents||[]).length
           ? 'Không có dữ liệu FB trong khoảng thời gian này. Bấm Sync FB để cập nhật.'
           : 'Chưa có bài đăng nào. Tạo content và đăng bài trước.';
+        wrap.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100%"><div style="text-align:center;color:#9ca3af;font-size:12px"><i class="ri-bar-chart-box-line" style="font-size:2rem;display:block;margin-bottom:8px"></i><p>' + emptyMsg + '</p></div></div>';
         return;
       }
-      canvas.style.display = '';
-      emptyEl.style.display = 'none';
+      const canvas = document.createElement('canvas');
+      wrap.appendChild(canvas);
       const labels = data.map(d => {
         const [y, m, dd] = d.date.split('-');
         return dd + '/' + m;
       });
-      this._charts.perf = new Chart(canvas, {
+      const self = this;
+      requestAnimationFrame(() => { self._charts.perf = new Chart(canvas, {
         type: 'bar',
         data: {
           labels,
@@ -1894,7 +1888,7 @@ function app() {
             x: { ticks: { font: { size: 9 }, maxRotation: 0 }, grid: { display: false } }
           }
         }
-      });
+      }); });
     },
 
     getCampaignEngagement(campaignId, type) {
