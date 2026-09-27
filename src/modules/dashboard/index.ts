@@ -60,7 +60,7 @@ interface FbPostMetrics {
   comments: number;
   shares: number;
   clicks: number;
-  reach: number;
+  viewers: number; // fb_reach in DB = post_total_media_view_unique (unique viewers, NOT reach/impressions)
   mediaViews: number;
 }
 
@@ -93,7 +93,7 @@ async function readMetricsFromDb(
       comments: saved?.fb_comments ?? 0,
       shares: saved?.fb_shares ?? 0,
       clicks: saved?.fb_clicks ?? 0,
-      reach: saved?.fb_reach ?? 0,
+      viewers: saved?.fb_reach ?? 0, // fb_reach stores post_total_media_view_unique (unique viewers)
       mediaViews: saved?.fb_media_views ?? 0,
     });
   }
@@ -277,8 +277,8 @@ router.get('/stats/dashboard', async (req: Request, res: Response) => {
     // --- KPIs from FB metrics ---
     const sumMetric = (items: FbPostMetrics[], key: keyof FbPostMetrics) =>
       items.reduce((s, i) => s + (Number(i[key]) || 0), 0);
-    const curReach = sumMetric(fbCurrent, 'reach');
-    const prevReach = sumMetric(fbPrev, 'reach');
+    const curViewers = sumMetric(fbCurrent, 'viewers');
+    const prevViewers = sumMetric(fbPrev, 'viewers');
     const curMediaViews = sumMetric(fbCurrent, 'mediaViews');
     const prevMediaViews = sumMetric(fbPrev, 'mediaViews');
     const curReactions = sumMetric(fbCurrent, 'reactions');
@@ -291,38 +291,33 @@ router.get('/stats/dashboard', async (req: Request, res: Response) => {
     const prevClicks = sumMetric(fbPrev, 'clicks');
     const curEngagement = curReactions + curComments + curShares;
     const prevEngagement = prevReactions + prevComments + prevShares;
-    const hasSyncedPosts = fbCurrent.some(m => {
-      const item = currentItems.find(i => i.id === m.contentItemId);
-      const saved = item?.metrics as { fb_synced_at?: string } | null;
-      return !!saved?.fb_synced_at;
-    });
-    const curER = curReach > 0 ? Math.round((curEngagement / curReach) * 10000) / 100 : null;
-    const prevER = prevReach > 0 ? Math.round((prevEngagement / prevReach) * 10000) / 100 : null;
+    const curEngViewer = curViewers > 0 ? Math.round((curEngagement / curViewers) * 10000) / 100 : null;
+    const prevEngViewer = prevViewers > 0 ? Math.round((prevEngagement / prevViewers) * 10000) / 100 : null;
 
     const kpis = {
-      total_reach: { value: hasSyncedPosts ? curReach : null, delta_percent: hasSyncedPosts ? deltaPercent(curReach, prevReach) : 0 },
+      total_viewers: { value: curViewers, delta_percent: deltaPercent(curViewers, prevViewers) },
       total_media_views: { value: curMediaViews, delta_percent: deltaPercent(curMediaViews, prevMediaViews) },
       total_engagement: { value: curEngagement, delta_percent: deltaPercent(curEngagement, prevEngagement) },
       total_reactions: { value: curReactions, delta_percent: deltaPercent(curReactions, prevReactions) },
       total_comments: { value: curComments, delta_percent: deltaPercent(curComments, prevComments) },
       total_shares: { value: curShares, delta_percent: deltaPercent(curShares, prevShares) },
       total_clicks: { value: curClicks, delta_percent: deltaPercent(curClicks, prevClicks) },
-      engagement_rate: { value: curER, delta_percent: curER !== null && prevER !== null ? deltaPercent(curER, prevER) : 0 },
+      eng_per_viewer: { value: curEngViewer, delta_percent: curEngViewer !== null && prevEngViewer !== null ? deltaPercent(curEngViewer, prevEngViewer) : 0 },
     };
 
     // --- Chart performance: group by published date (VN timezone) ---
     const toVnDate = (dt: Date) => dt.toLocaleString('sv-SE', { timeZone: 'Asia/Ho_Chi_Minh' }).slice(0, 10);
-    const chartMap = new Map<string, { reach: number; media_views: number; engagement: number; posts_count: number }>();
+    const chartMap = new Map<string, { viewers: number; media_views: number; engagement: number; posts_count: number }>();
     const d = new Date(currentFrom);
     while (d <= currentTo) {
-      chartMap.set(toVnDate(d), { reach: 0, media_views: 0, engagement: 0, posts_count: 0 });
+      chartMap.set(toVnDate(d), { viewers: 0, media_views: 0, engagement: 0, posts_count: 0 });
       d.setDate(d.getDate() + 1);
     }
     for (const m of fbCurrent) {
       const dateKey = m.publishedAt ? toVnDate(new Date(m.publishedAt)) : null;
       if (!dateKey) continue;
-      const entry = chartMap.get(dateKey) ?? { reach: 0, media_views: 0, engagement: 0, posts_count: 0 };
-      entry.reach += m.reach;
+      const entry = chartMap.get(dateKey) ?? { viewers: 0, media_views: 0, engagement: 0, posts_count: 0 };
+      entry.viewers += m.viewers;
       entry.media_views += m.mediaViews;
       entry.engagement += m.reactions + m.comments + m.shares;
       entry.posts_count += 1;
@@ -332,7 +327,7 @@ router.get('/stats/dashboard', async (req: Request, res: Response) => {
       const dateKey = item.publishedAt ? toVnDate(new Date(item.publishedAt)) : null;
       if (!dateKey) continue;
       if (!fbCurrent.some(f => f.contentItemId === item.id)) {
-        const entry = chartMap.get(dateKey) ?? { reach: 0, media_views: 0, engagement: 0, posts_count: 0 };
+        const entry = chartMap.get(dateKey) ?? { viewers: 0, media_views: 0, engagement: 0, posts_count: 0 };
         entry.posts_count += 1;
         chartMap.set(dateKey, entry);
       }
@@ -350,29 +345,29 @@ router.get('/stats/dashboard', async (req: Request, res: Response) => {
           excerpt: (currentItems.find(i => i.id === m.contentItemId)?.generatedText ?? '').slice(0, 120),
           pageName: m.pageName, pageExternalId: m.pageExternalId,
           publishedAt: m.publishedAt,
-          reach: m.reach, mediaViews: m.mediaViews, clicks: m.clicks,
+          viewers: m.viewers, mediaViews: m.mediaViews, clicks: m.clicks,
           engagement: eng, reactions: m.reactions, comments: m.comments, shares: m.shares,
-          er: m.reach > 0 ? Math.round((eng / m.reach) * 10000) / 100 : null,
+          er: m.viewers > 0 ? Math.round((eng / m.viewers) * 10000) / 100 : null,
         };
       })
       .sort((a, b) => b.engagement - a.engagement)
       .slice(0, 5);
 
     // --- Page performance ---
-    const pageMap = new Map<string, { id: string; name: string; externalId: string; totalPosts: number; reach: number; engagement: number }>();
+    const pageMap = new Map<string, { id: string; name: string; externalId: string; totalPosts: number; viewers: number; engagement: number }>();
     for (const m of fbCurrent) {
-      const entry = pageMap.get(m.pageId) ?? { id: m.pageId, name: m.pageName, externalId: m.pageExternalId, totalPosts: 0, reach: 0, engagement: 0 };
+      const entry = pageMap.get(m.pageId) ?? { id: m.pageId, name: m.pageName, externalId: m.pageExternalId, totalPosts: 0, viewers: 0, engagement: 0 };
       entry.totalPosts += 1;
-      entry.reach += m.reach;
+      entry.viewers += m.viewers;
       entry.engagement += m.reactions + m.comments + m.shares;
       pageMap.set(m.pageId, entry);
     }
     const page_performance = [...pageMap.values()].map(p => ({
-      ...p, er: p.reach > 0 ? Math.round((p.engagement / p.reach) * 10000) / 100 : null,
+      ...p, er: p.viewers > 0 ? Math.round((p.engagement / p.viewers) * 10000) / 100 : null,
     }));
 
     // --- Campaign performance ---
-    const campMap = new Map<string, { id: string; name: string; totalPosts: number; reach: number; engagement: number }>();
+    const campMap = new Map<string, { id: string; name: string; totalPosts: number; viewers: number; engagement: number }>();
     const campIds = [...new Set(fbCurrent.map(m => m.campaignId).filter(Boolean))];
     const campaigns = campIds.length > 0
       ? await prisma.campaign.findMany({ where: { id: { in: campIds } }, select: { id: true, name: true } })
@@ -380,14 +375,14 @@ router.get('/stats/dashboard', async (req: Request, res: Response) => {
     const campNameMap = new Map(campaigns.map(c => [c.id, c.name]));
     for (const m of fbCurrent) {
       if (!m.campaignId) continue;
-      const entry = campMap.get(m.campaignId) ?? { id: m.campaignId, name: campNameMap.get(m.campaignId) ?? '', totalPosts: 0, reach: 0, engagement: 0 };
+      const entry = campMap.get(m.campaignId) ?? { id: m.campaignId, name: campNameMap.get(m.campaignId) ?? '', totalPosts: 0, viewers: 0, engagement: 0 };
       entry.totalPosts += 1;
-      entry.reach += m.reach;
+      entry.viewers += m.viewers;
       entry.engagement += m.reactions + m.comments + m.shares;
       campMap.set(m.campaignId, entry);
     }
     const campaign_performance = [...campMap.values()].map(c => ({
-      ...c, er: c.reach > 0 ? Math.round((c.engagement / c.reach) * 10000) / 100 : null,
+      ...c, er: c.viewers > 0 ? Math.round((c.engagement / c.viewers) * 10000) / 100 : null,
     }));
 
     // --- Pending items ---
@@ -676,7 +671,7 @@ router.get('/stats/fb-insights', async (_req: Request, res: Response) => {
       totalComments: number;
       totalShares: number;
       totalClicks: number;
-      totalReach: number;
+      totalViewers: number;
       totalMediaViews: number;
       posts: Array<{
         contentItemId: string;
@@ -688,7 +683,7 @@ router.get('/stats/fb-insights', async (_req: Request, res: Response) => {
         comments: number;
         shares: number;
         clicks: number;
-        reach: number;
+        viewers: number;
         mediaViews: number;
       }>;
       externalId: string;
@@ -706,7 +701,7 @@ router.get('/stats/fb-insights', async (_req: Request, res: Response) => {
         totalComments: 0,
         totalShares: 0,
         totalClicks: 0,
-        totalReach: 0,
+        totalViewers: 0,
         totalMediaViews: 0,
         posts: [] as Array<{
           contentItemId: string;
@@ -718,7 +713,7 @@ router.get('/stats/fb-insights', async (_req: Request, res: Response) => {
           comments: number;
           shares: number;
           clicks: number;
-          reach: number;
+          viewers: number;
           mediaViews: number;
         }>,
         errors: [] as string[],
@@ -758,7 +753,7 @@ router.get('/stats/fb-insights', async (_req: Request, res: Response) => {
       }
 
       const postDataMap = new Map<string, {
-        reactions: number; comments: number; shares: number; clicks: number; reach: number; mediaViews: number;
+        reactions: number; comments: number; shares: number; clicks: number; viewers: number; mediaViews: number;
       }>();
 
       for (const batch of batches) {
@@ -780,8 +775,9 @@ router.get('/stats/fb-insights', async (_req: Request, res: Response) => {
               const insUrl = `https://graph.facebook.com/v21.0/${postId}/insights?metric=post_clicks,post_total_media_view_unique,post_media_view&access_token=${encodeURIComponent(token)}`;
               const insRes = await fetch(insUrl);
               if (insRes.ok) {
-                const insJson = await insRes.json() as { data?: Array<{ name: string; values?: Array<{ value: number }> }> };
+                const insJson = await insRes.json() as { data?: Array<{ name: string; period?: string; values?: Array<{ value: number }> }> };
                 for (const m of insJson.data ?? []) {
+                  if (m.period && m.period !== 'lifetime') continue;
                   const val = m.values?.[0]?.value ?? 0;
                   if (m.name === 'post_clicks') clicks = val;
                   if (m.name === 'post_total_media_view_unique') reach = val;
@@ -801,19 +797,19 @@ router.get('/stats/fb-insights', async (_req: Request, res: Response) => {
           const reactions = postInfo.reactions?.summary?.total_count ?? 0;
           const comments = postInfo.comments?.summary?.total_count ?? 0;
           const shares = postInfo.shares?.count ?? 0;
-          postDataMap.set(postId, { reactions, comments, shares, clicks, reach, mediaViews });
+          postDataMap.set(postId, { reactions, comments, shares, clicks, viewers: reach, mediaViews });
         }
       }
 
       for (const item of items) {
         const metrics = postDataMap.get(item.socialPostId!) ?? {
-          reactions: 0, comments: 0, shares: 0, clicks: 0, reach: 0, mediaViews: 0,
+          reactions: 0, comments: 0, shares: 0, clicks: 0, viewers: 0, mediaViews: 0,
         };
         pageResult.totalReactions += metrics.reactions;
         pageResult.totalComments += metrics.comments;
         pageResult.totalShares += metrics.shares;
         pageResult.totalClicks += metrics.clicks;
-        pageResult.totalReach += metrics.reach;
+        pageResult.totalViewers += metrics.viewers;
         pageResult.totalMediaViews += metrics.mediaViews;
         pageResult.posts.push({
           contentItemId: item.id,
@@ -834,7 +830,7 @@ router.get('/stats/fb-insights', async (_req: Request, res: Response) => {
       totalComments: results.reduce((s, p) => s + p.totalComments, 0),
       totalShares: results.reduce((s, p) => s + p.totalShares, 0),
       totalClicks: results.reduce((s, p) => s + p.totalClicks, 0),
-      totalReach: results.reduce((s, p) => s + p.totalReach, 0),
+      totalViewers: results.reduce((s, p) => s + p.totalViewers, 0),
       totalMediaViews: results.reduce((s, p) => s + p.totalMediaViews, 0),
       totalEngagement: results.reduce((s, p) => s + p.totalReactions + p.totalComments + p.totalShares, 0),
       totalFollowers: results.reduce((s, p) => s + (p.followers || 0), 0),
@@ -1619,8 +1615,9 @@ router.post('/stats/fb-sync', async (req: Request, res: Response) => {
             const insUrl = `https://graph.facebook.com/v21.0/${item.socialPostId}/insights?metric=post_clicks,post_total_media_view_unique,post_media_view&access_token=${encodeURIComponent(token)}`;
             const insRes = await fetch(insUrl);
             if (insRes.ok) {
-              const insJson = await insRes.json() as { data?: Array<{ name: string; values?: Array<{ value: number }> }> };
+              const insJson = await insRes.json() as { data?: Array<{ name: string; period?: string; values?: Array<{ value: number }> }> };
               for (const m of insJson.data ?? []) {
+                if (m.period && m.period !== 'lifetime') continue;
                 const val = m.values?.[0]?.value;
                 if (m.name === 'post_clicks' && val !== undefined) clicks = val;
                 if (m.name === 'post_total_media_view_unique' && val !== undefined) reach = val;

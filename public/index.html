@@ -256,14 +256,14 @@
         <!-- Row 2: 6 KPI Cards -->
         <div class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-5">
           <template x-for="k in [
-            {key:'total_reach',label:'Tiếp cận',icon:'ri-user-line',color:'blue'},
-            {key:'total_media_views',label:'Lượt xem',icon:'ri-eye-line',color:'cyan'},
-            {key:'total_engagement',label:'Engagement',icon:'ri-heart-pulse-line',color:'indigo'},
+            {key:'total_viewers',label:'Người xem',icon:'ri-user-line',color:'blue',tip:'Số người xem duy nhất của nội dung theo Facebook'},
+            {key:'total_media_views',label:'Lượt xem',icon:'ri-eye-line',color:'cyan',tip:'Tổng số lượt nội dung được xem/displayed/played; một người có thể tạo nhiều lượt xem'},
+            {key:'total_engagement',label:'Engagement',icon:'ri-heart-pulse-line',color:'indigo',tip:'Reactions + Comments + Shares'},
             {key:'total_reactions',label:'Reactions',icon:'ri-thumb-up-line',color:'rose'},
             {key:'total_comments',label:'Comments',icon:'ri-chat-3-line',color:'green'},
             {key:'total_shares',label:'Shares',icon:'ri-share-forward-line',color:'purple'},
-            {key:'total_clicks',label:'Post Clicks',icon:'ri-cursor-line',color:'orange'},
-            {key:'engagement_rate',label:'ER / Tiếp cận',icon:'ri-percent-line',color:'amber'}
+            {key:'total_clicks',label:'Post Clicks',icon:'ri-cursor-line',color:'orange',tip:'Tổng lượt click trên bài viết theo Facebook'},
+            {key:'eng_per_viewer',label:'Eng/Viewer',icon:'ri-percent-line',color:'amber',tip:'Engagement / Người xem × 100'}
           ]" :key="k.key">
             <div class="bg-white rounded-xl p-4 border border-gray-100 shadow-sm">
               <div class="flex items-center justify-between mb-2">
@@ -271,8 +271,8 @@
                 <span class="text-[10px] font-medium" :class="(db?.kpis?.[k.key]?.delta_percent||0)>=0?'text-green-500':'text-red-500'"
                   x-text="((db?.kpis?.[k.key]?.delta_percent||0)>=0?'↑':'↓')+Math.abs(db?.kpis?.[k.key]?.delta_percent||0)+'%'"></span>
               </div>
-              <p class="text-lg font-bold" x-text="(()=>{ const v=db?.kpis?.[k.key]?.value; if(v===null||v===undefined){ return '—'; } if(k.key==='engagement_rate') return v.toFixed(2)+'%'; return v.toLocaleString(); })()"></p>
-              <p class="text-[10px] text-gray-400" x-text="k.label"></p>
+              <p class="text-lg font-bold" x-text="(()=>{ const v=db?.kpis?.[k.key]?.value; if(v===null||v===undefined){ return '—'; } if(k.key==='eng_per_viewer') return v.toFixed(2)+'%'; return v.toLocaleString(); })()"></p>
+              <p class="text-[10px] text-gray-400" x-text="k.label" :title="k.tip||''"></p>
             </div>
           </template>
         </div>
@@ -284,8 +284,8 @@
             <table class="w-full text-xs">
               <thead><tr class="text-left text-gray-400 border-b">
                 <th class="pb-2 pr-2">Content</th><th class="pb-2 pr-2">Page</th><th class="pb-2 pr-2">Ngày</th>
-                <th class="pb-2 pr-2 text-right" title="Unique media viewers">Tiếp cận</th>
-                <th class="pb-2 pr-2 text-right" title="Media views">Lượt xem</th>
+                <th class="pb-2 pr-2 text-right" title="Số người xem duy nhất của nội dung theo Facebook">Người xem</th>
+                <th class="pb-2 pr-2 text-right" title="Tổng số lượt nội dung được xem/displayed/played">Lượt xem</th>
                 <th class="pb-2 pr-2 text-right">Eng</th>
                 <th class="pb-2 pr-2 text-right">Reactions</th>
                 <th class="pb-2 pr-2 text-right">Comments</th><th class="pb-2 pr-2 text-right">Shares</th>
@@ -301,7 +301,7 @@
                     </td>
                     <td class="py-2 pr-2 text-gray-500" x-text="c.pageName"></td>
                     <td class="py-2 pr-2 text-gray-400 whitespace-nowrap" x-text="c.publishedAt?new Date(c.publishedAt).toLocaleDateString('vi-VN',{day:'2-digit',month:'2-digit',year:'numeric'}):''"></td>
-                    <td class="py-2 pr-2 text-right font-medium text-blue-600" x-text="(c.reach||0).toLocaleString()"></td>
+                    <td class="py-2 pr-2 text-right font-medium text-blue-600" x-text="(c.viewers||0).toLocaleString()"></td>
                     <td class="py-2 pr-2 text-right font-medium text-cyan-600" x-text="(c.mediaViews||0).toLocaleString()"></td>
                     <td class="py-2 pr-2 text-right font-bold" x-text="(c.engagement||0).toLocaleString()"></td>
                     <td class="py-2 pr-2 text-right text-rose-500" x-text="(c.reactions||0).toLocaleString()"></td>
@@ -330,7 +330,7 @@
                     <p class="text-xs font-medium truncate" x-text="p.name"></p>
                     <div class="flex items-center gap-2 mt-0.5">
                       <span class="text-[10px] text-gray-400" x-text="p.totalPosts+' bài'"></span>
-                      <span class="text-[10px] text-blue-500" x-text="'Σ Reach: '+(p.reach||0).toLocaleString()"></span>
+                      <span class="text-[10px] text-blue-500" x-text="'Σ Viewers: '+(p.viewers||0).toLocaleString()"></span>
                       <span class="text-[10px] text-indigo-500" x-text="'Σ Eng: '+(p.engagement||0).toLocaleString()"></span>
                     </div>
                   </div>
@@ -360,7 +360,7 @@
                     <div class="h-full rounded-full" :style="'width:'+Math.min((c.er||0)*10,100)+'%;background:linear-gradient(90deg,#6366f1,#818cf8)'"></div>
                   </div>
                   <div class="flex gap-3 mt-1 text-[10px] text-gray-400">
-                    <span x-text="'Σ Reach: '+(c.reach||0).toLocaleString()"></span>
+                    <span x-text="'Σ Viewers: '+(c.viewers||0).toLocaleString()"></span>
                     <span x-text="'Σ Eng: '+(c.engagement||0).toLocaleString()"></span>
                   </div>
                 </div>
@@ -1853,7 +1853,7 @@ function app() {
       if (this._charts.perf) { this._charts.perf.destroy(); this._charts.perf = null; }
       wrap.querySelectorAll('canvas').forEach(c => c.remove());
       const data = this.db?.chart_performance;
-      const hasData = data && data.some(d => d.reach || d.media_views || d.engagement || d.posts_count);
+      const hasData = data && data.some(d => d.viewers || d.media_views || d.engagement || d.posts_count);
       let emptyDiv = wrap.querySelector('.chart-empty');
       if (!emptyDiv) {
         emptyDiv = document.createElement('div');
@@ -1882,7 +1882,7 @@ function app() {
         data: {
           labels,
           datasets: [
-            { type: 'line', label: 'Tiếp cận', data: data.map(d => d.reach), borderColor: '#3b82f6', backgroundColor: 'rgba(59,130,246,0.08)', fill: true, tension: 0.3, pointRadius: 2, yAxisID: 'y', order: 1 },
+            { type: 'line', label: 'Người xem', data: data.map(d => d.viewers), borderColor: '#3b82f6', backgroundColor: 'rgba(59,130,246,0.08)', fill: true, tension: 0.3, pointRadius: 2, yAxisID: 'y', order: 1 },
             { type: 'line', label: 'Lượt xem', data: data.map(d => d.media_views), borderColor: '#06b6d4', backgroundColor: 'rgba(6,182,212,0.08)', fill: false, tension: 0.3, pointRadius: 2, yAxisID: 'y', order: 2, borderDash: [4,2] },
             { type: 'line', label: 'Engagement', data: data.map(d => d.engagement), borderColor: '#8b5cf6', backgroundColor: 'rgba(139,92,246,0.08)', fill: true, tension: 0.3, pointRadius: 2, yAxisID: 'y', order: 2 },
             { type: 'bar', label: 'Bài đăng', data: data.map(d => d.posts_count), backgroundColor: 'rgba(99,102,241,0.3)', borderRadius: 4, yAxisID: 'y1', order: 3 },
@@ -1933,7 +1933,7 @@ function app() {
         const data = await this.api('/dashboard/stats/fb-insights');
         this.fbInsights = data;
       } catch (e) {
-        this.fbInsights = { pages: [], totals: { totalReactions:0, totalComments:0, totalShares:0, totalClicks:0, totalReach:0, totalMediaViews:0, totalEngagement:0, totalFollowers:0, totalPosts:0 } };
+        this.fbInsights = { pages: [], totals: { totalReactions:0, totalComments:0, totalShares:0, totalClicks:0, totalViewers:0, totalMediaViews:0, totalEngagement:0, totalFollowers:0, totalPosts:0 } };
       }
       this.fbInsightsLoading = false;
     },
