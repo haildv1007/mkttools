@@ -716,56 +716,146 @@
 
       <!-- Campaigns -->
       <div x-show="page==='campaigns'" class="fade-in">
-        <h2 class="text-xl font-bold mb-6">Campaigns</h2>
-        <div class="space-y-3">
-          <template x-for="c in campaigns" :key="c.id">
-            <div class="bg-white rounded-xl border border-gray-100 shadow-sm p-5 hover:shadow-md transition">
-              <div class="flex items-center justify-between">
-                <div>
-                  <h3 class="font-semibold" x-text="c.name"></h3>
-                  <p class="text-sm text-gray-500 mt-1">
-                    <span x-text="new Date(c.startDate).toLocaleDateString('vi-VN')"></span> →
-                    <span x-text="c.endDate ? new Date(c.endDate).toLocaleDateString('vi-VN') : 'Chưa kết thúc'"></span>
-                  </p>
-                </div>
-                <div class="flex items-center gap-4">
-                  <div class="text-center">
-                    <p class="text-xl font-bold text-brand-600" x-text="c._count?.contentItems || 0"></p>
-                    <p class="text-xs text-gray-400">content</p>
-                  </div>
-                  <button @click="deleteCampaign(c)" class="text-gray-400 hover:text-red-500 transition" title="Xóa">
-                    <i class="ri-delete-bin-line text-lg"></i>
-                  </button>
-                </div>
-              </div>
-              <div class="flex items-center gap-4 mt-3 pt-3 border-t border-gray-100">
-                <div class="flex items-center gap-2">
-                  <i class="ri-timer-line text-gray-400 text-sm"></i>
-                  <span class="text-xs text-gray-500">Lead time:</span>
-                  <select :value="c.genLeadTime ?? 30" @change="updateCampaign(c.id, {genLeadTime: +$event.target.value})"
-                    class="text-xs border rounded px-1.5 py-1 bg-white">
-                    <option value="15">15 phút</option>
-                    <option value="30">30 phút</option>
-                    <option value="60">1 giờ</option>
-                    <option value="120">2 giờ</option>
-                    <option value="240">4 giờ</option>
-                    <option value="480">8 giờ</option>
-                    <option value="1440">24 giờ</option>
-                  </select>
-                </div>
-                <div class="flex items-center gap-2">
-                  <label class="flex items-center gap-1.5 cursor-pointer">
-                    <input type="checkbox" :checked="c.autoApprove" @change="updateCampaign(c.id, {autoApprove: $event.target.checked})"
-                      class="w-4 h-4 rounded border-gray-300 text-brand-600 focus:ring-brand-500">
-                    <span class="text-xs text-gray-500">Tự động duyệt</span>
-                  </label>
-                </div>
-              </div>
-            </div>
-          </template>
+        <div class="flex items-center justify-between mb-4">
+          <h2 class="text-xl font-bold">Campaigns</h2>
+          <button @click="openCampaignModal()" class="px-4 py-2 bg-brand-600 text-white rounded-lg text-sm font-medium hover:bg-brand-700 transition flex items-center gap-2">
+            <i class="ri-add-line"></i> Tạo Campaign
+          </button>
+        </div>
+
+        <div class="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
+          <div class="overflow-x-auto">
+            <table class="w-full text-sm">
+              <thead>
+                <tr class="bg-gray-50 border-b border-gray-100">
+                  <th class="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase">Campaign</th>
+                  <th class="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase">Page</th>
+                  <th class="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase">Thời gian</th>
+                  <th class="text-center px-4 py-3 text-xs font-semibold text-gray-500 uppercase">Content</th>
+                  <th class="text-center px-4 py-3 text-xs font-semibold text-gray-500 uppercase">Lead time</th>
+                  <th class="text-center px-4 py-3 text-xs font-semibold text-gray-500 uppercase">Tự duyệt</th>
+                  <th class="text-right px-4 py-3 text-xs font-semibold text-gray-500 uppercase w-24"></th>
+                </tr>
+              </thead>
+              <tbody>
+                <template x-for="c in campaigns" :key="c.id">
+                  <tr class="border-b border-gray-50 hover:bg-gray-50/50 transition">
+                    <td class="px-4 py-3">
+                      <p class="font-medium text-gray-900" x-text="c.name"></p>
+                      <p x-show="c.description" class="text-xs text-gray-400 mt-0.5 truncate max-w-[200px]" x-text="c.description"></p>
+                    </td>
+                    <td class="px-4 py-3">
+                      <div class="flex items-center gap-2">
+                        <img :src="'https://graph.facebook.com/'+(c.page?.externalId)+'/picture?type=small'" class="w-5 h-5 rounded-full" onerror="this.style.display='none'">
+                        <span class="text-xs text-gray-600" x-text="c.page?.name || '—'"></span>
+                      </div>
+                    </td>
+                    <td class="px-4 py-3 text-xs text-gray-500">
+                      <span x-text="new Date(c.startDate).toLocaleDateString('vi-VN')"></span>
+                      <span x-show="c.endDate"> → <span x-text="new Date(c.endDate).toLocaleDateString('vi-VN')"></span></span>
+                    </td>
+                    <td class="px-4 py-3 text-center">
+                      <span class="text-sm font-semibold text-brand-600" x-text="c._count?.contentItems || 0"></span>
+                    </td>
+                    <td class="px-4 py-3 text-center">
+                      <select :value="c.genLeadTime ?? 30" @change="updateCampaign(c.id, {genLeadTime: +$event.target.value})"
+                        class="text-xs border rounded px-1.5 py-1 bg-white">
+                        <option value="15">15 phút</option>
+                        <option value="30">30 phút</option>
+                        <option value="60">1 giờ</option>
+                        <option value="120">2 giờ</option>
+                        <option value="240">4 giờ</option>
+                        <option value="480">8 giờ</option>
+                        <option value="1440">24 giờ</option>
+                      </select>
+                    </td>
+                    <td class="px-4 py-3 text-center">
+                      <input type="checkbox" :checked="c.autoApprove" @change="updateCampaign(c.id, {autoApprove: $event.target.checked})"
+                        class="w-4 h-4 rounded border-gray-300 text-brand-600 focus:ring-brand-500 cursor-pointer">
+                    </td>
+                    <td class="px-4 py-3 text-right">
+                      <button @click="openCampaignModal(c)" class="text-gray-400 hover:text-brand-600 transition mr-2" title="Sửa">
+                        <i class="ri-edit-line"></i>
+                      </button>
+                      <button @click="deleteCampaign(c)" class="text-gray-400 hover:text-red-500 transition" title="Xóa">
+                        <i class="ri-delete-bin-line"></i>
+                      </button>
+                    </td>
+                  </tr>
+                </template>
+              </tbody>
+            </table>
+          </div>
           <div x-show="campaigns.length === 0" class="text-center py-12 text-gray-400">
             <i class="ri-calendar-schedule-line text-4xl mb-2"></i>
-            <p>Chưa có campaign nào. Import Excel để tạo.</p>
+            <p>Chưa có campaign nào.</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Campaign Modal -->
+      <div x-show="showCampaignModal" class="fixed inset-0 bg-black/30 z-50 flex items-center justify-center p-4" @click.self="showCampaignModal=false">
+        <div class="bg-white rounded-xl shadow-xl w-full max-w-md p-5 fade-in">
+          <h3 class="text-lg font-bold mb-4" x-text="editingCampaign ? 'Sửa Campaign' : 'Tạo Campaign'"></h3>
+          <div class="space-y-4">
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-1">Tên Campaign *</label>
+              <input x-model="campaignForm.name" type="text" placeholder="VD: Content tháng 10"
+                class="w-full px-4 py-2.5 border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-brand-500 text-sm">
+            </div>
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-1">Mô tả</label>
+              <textarea x-model="campaignForm.description" rows="2" placeholder="Mô tả ngắn về campaign..."
+                class="w-full px-4 py-2.5 border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-brand-500 text-sm"></textarea>
+            </div>
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-1">Page *</label>
+              <select x-model="campaignForm.pageId" class="w-full px-4 py-2.5 border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-brand-500 text-sm"
+                :disabled="currentScope.type==='page'">
+                <option value="">— Chọn page —</option>
+                <template x-for="p in scopePages" :key="p.id">
+                  <option :value="p.id" x-text="p.name"></option>
+                </template>
+              </select>
+            </div>
+            <div class="grid grid-cols-2 gap-3">
+              <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">Ngày bắt đầu</label>
+                <input x-model="campaignForm.startDate" type="date" class="w-full px-3 py-2 border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-brand-500 text-sm">
+              </div>
+              <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">Ngày kết thúc</label>
+                <input x-model="campaignForm.endDate" type="date" class="w-full px-3 py-2 border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-brand-500 text-sm">
+              </div>
+            </div>
+            <div class="grid grid-cols-2 gap-3">
+              <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">Lead time gen</label>
+                <select x-model="campaignForm.genLeadTime" class="w-full px-3 py-2 border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-brand-500 text-sm">
+                  <option value="15">15 phút</option>
+                  <option value="30">30 phút</option>
+                  <option value="60">1 giờ</option>
+                  <option value="120">2 giờ</option>
+                  <option value="240">4 giờ</option>
+                  <option value="480">8 giờ</option>
+                  <option value="1440">24 giờ</option>
+                </select>
+              </div>
+              <div class="flex items-end pb-1">
+                <label class="flex items-center gap-2 cursor-pointer">
+                  <input type="checkbox" x-model="campaignForm.autoApprove" class="w-4 h-4 rounded border-gray-300 text-brand-600 focus:ring-brand-500">
+                  <span class="text-sm text-gray-700">Tự động duyệt</span>
+                </label>
+              </div>
+            </div>
+            <div x-show="campaignError" class="text-red-500 text-sm" x-text="campaignError"></div>
+            <div class="flex gap-3 pt-2">
+              <button @click="showCampaignModal=false" class="flex-1 py-2.5 border border-gray-300 rounded-lg text-gray-600 hover:bg-gray-50 transition">Hủy</button>
+              <button @click="saveCampaign()" class="flex-1 py-2.5 bg-brand-600 text-white rounded-lg font-medium hover:bg-brand-700 transition"
+                :disabled="!campaignForm.name || !campaignForm.pageId">
+                <span x-text="editingCampaign ? 'Cập nhật' : 'Tạo'"></span>
+              </button>
+            </div>
           </div>
         </div>
       </div>
@@ -1352,53 +1442,68 @@
                 :class="importTab==='ready' ? 'border-teal-300 text-teal-700 hover:bg-teal-50' : 'border-purple-300 text-purple-700 hover:bg-purple-50'">
                 <i class="ri-download-line"></i> Tải file mẫu
               </button>
-              <span class="text-xs text-gray-400" x-text="importTab==='ready' ? 'File mẫu có cột: Ngày, Giờ, Page, Chủ đề, Loại, Bài viết, Link ảnh, Link video' : 'File mẫu có cột: Ngày, Giờ, Page, Chủ đề, Loại, Ghi chú, Mô tả ảnh'"></span>
+              <span class="text-xs text-gray-400" x-text="importTab==='ready' ? 'File mẫu: Ngày, Giờ, Chủ đề, Loại, Bài viết, Link ảnh/video' : 'File mẫu: Ngày, Giờ, Chủ đề, Loại, Ghi chú, Mô tả ảnh'"></span>
+            </div>
+
+            <!-- Page & Campaign selectors -->
+            <div class="grid grid-cols-2 gap-4">
+              <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">Page *</label>
+                <select x-model="importForm.pageId" class="w-full px-4 py-2.5 border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-brand-500 text-sm"
+                  :disabled="currentScope.type==='page'">
+                  <option value="">— Chọn page —</option>
+                  <template x-for="p in scopePages" :key="p.id">
+                    <option :value="p.id" x-text="p.name"></option>
+                  </template>
+                </select>
+              </div>
+              <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">Campaign</label>
+                <select x-model="importForm.campaignId" class="w-full px-4 py-2.5 border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-brand-500 text-sm">
+                  <option value="">— Tạo mới —</option>
+                  <template x-for="c in importPageCampaigns" :key="c.id">
+                    <option :value="c.id" x-text="c.name"></option>
+                  </template>
+                </select>
+              </div>
+            </div>
+            <div x-show="!importForm.campaignId">
+              <label class="block text-sm font-medium text-gray-700 mb-1">Tên Campaign mới</label>
+              <input x-model="importForm.campaignName" type="text" placeholder="VD: Content tháng 10/2026"
+                class="w-full px-4 py-2.5 border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-brand-500 text-sm">
             </div>
 
             <!-- Column info -->
-            <div class="bg-gray-50 rounded-lg p-4">
-              <h4 class="text-sm font-semibold mb-3" x-text="importTab==='ready' ? 'Các cột trong file (nội dung có sẵn):' : 'Các cột trong file (AI gen):'"></h4>
-              <div class="overflow-x-auto">
+            <details class="bg-gray-50 rounded-lg">
+              <summary class="text-sm font-semibold p-3 cursor-pointer text-gray-600">Hướng dẫn cột trong file Excel</summary>
+              <div class="px-3 pb-3">
                 <table class="text-xs w-full border-collapse">
-                  <thead>
-                    <tr>
-                      <th class="text-left p-2 bg-gray-100 border border-gray-200 font-semibold">Tên cột</th>
-                      <th class="text-left p-2 bg-gray-100 border border-gray-200 font-semibold">Bắt buộc</th>
-                      <th class="text-left p-2 bg-gray-100 border border-gray-200 font-semibold">Mô tả</th>
-                      <th class="text-left p-2 bg-gray-100 border border-gray-200 font-semibold">Ví dụ</th>
-                    </tr>
-                  </thead>
+                  <thead><tr>
+                    <th class="text-left p-2 bg-gray-100 border border-gray-200 font-semibold">Tên cột</th>
+                    <th class="text-left p-2 bg-gray-100 border border-gray-200 font-semibold">Bắt buộc</th>
+                    <th class="text-left p-2 bg-gray-100 border border-gray-200 font-semibold">Mô tả</th>
+                  </tr></thead>
                   <tbody class="text-gray-600">
-                    <tr><td class="p-2 border border-gray-200 font-medium">Ngày</td><td class="p-2 border border-gray-200 text-red-500">✓</td><td class="p-2 border border-gray-200">Ngày đăng bài</td><td class="p-2 border border-gray-200">2026-10-01</td></tr>
-                    <tr><td class="p-2 border border-gray-200 font-medium">Giờ đăng</td><td class="p-2 border border-gray-200 text-gray-400">—</td><td class="p-2 border border-gray-200">Mặc định 09:00</td><td class="p-2 border border-gray-200">18:00</td></tr>
-                    <tr><td class="p-2 border border-gray-200 font-medium">Page</td><td class="p-2 border border-gray-200 text-red-500">✓</td><td class="p-2 border border-gray-200">Tên page (phải trùng với page đã thêm)</td><td class="p-2 border border-gray-200">BeKiddo</td></tr>
-                    <tr><td class="p-2 border border-gray-200 font-medium">Chủ đề</td><td class="p-2 border border-gray-200 text-red-500">✓</td><td class="p-2 border border-gray-200">Chủ đề / tiêu đề content</td><td class="p-2 border border-gray-200">Khuyến mãi mùa thu</td></tr>
-                    <tr><td class="p-2 border border-gray-200 font-medium">Loại</td><td class="p-2 border border-gray-200 text-gray-400">—</td><td class="p-2 border border-gray-200">image / video / text. Mặc định: image</td><td class="p-2 border border-gray-200">image</td></tr>
-                    <!-- Ready-made columns -->
+                    <tr><td class="p-2 border border-gray-200 font-medium">Ngày</td><td class="p-2 border border-gray-200 text-red-500">✓</td><td class="p-2 border border-gray-200">Ngày đăng (2026-10-01)</td></tr>
+                    <tr><td class="p-2 border border-gray-200 font-medium">Giờ đăng</td><td class="p-2 border border-gray-200 text-gray-400">—</td><td class="p-2 border border-gray-200">Mặc định 09:00</td></tr>
+                    <tr><td class="p-2 border border-gray-200 font-medium">Chủ đề</td><td class="p-2 border border-gray-200 text-red-500">✓</td><td class="p-2 border border-gray-200">Chủ đề / tiêu đề content</td></tr>
+                    <tr><td class="p-2 border border-gray-200 font-medium">Loại</td><td class="p-2 border border-gray-200 text-gray-400">—</td><td class="p-2 border border-gray-200">image / video / text</td></tr>
                     <template x-if="importTab==='ready'">
                       <tbody>
-                        <tr class="bg-teal-50/50"><td class="p-2 border border-gray-200 font-medium text-teal-700">Bài viết</td><td class="p-2 border border-gray-200 text-red-500">✓</td><td class="p-2 border border-gray-200">Caption / nội dung bài đăng</td><td class="p-2 border border-gray-200 text-teal-600">Flash Sale cực sốc! Giảm 70%...</td></tr>
-                        <tr class="bg-teal-50/50"><td class="p-2 border border-gray-200 font-medium text-teal-700">Link ảnh</td><td class="p-2 border border-gray-200 text-gray-400">—</td><td class="p-2 border border-gray-200">URL ảnh đính kèm</td><td class="p-2 border border-gray-200 text-teal-600">https://...jpg</td></tr>
-                        <tr class="bg-teal-50/50"><td class="p-2 border border-gray-200 font-medium text-teal-700">Link video</td><td class="p-2 border border-gray-200 text-gray-400">—</td><td class="p-2 border border-gray-200">URL video đính kèm</td><td class="p-2 border border-gray-200 text-teal-600">https://...mp4</td></tr>
+                        <tr class="bg-teal-50/50"><td class="p-2 border border-gray-200 font-medium text-teal-700">Bài viết</td><td class="p-2 border border-gray-200 text-red-500">✓</td><td class="p-2 border border-gray-200">Caption bài đăng</td></tr>
+                        <tr class="bg-teal-50/50"><td class="p-2 border border-gray-200 font-medium text-teal-700">Link ảnh / Link video</td><td class="p-2 border border-gray-200 text-gray-400">—</td><td class="p-2 border border-gray-200">URL media</td></tr>
                       </tbody>
                     </template>
-                    <!-- AI gen columns -->
                     <template x-if="importTab==='ai'">
                       <tbody>
-                        <tr class="bg-purple-50/50"><td class="p-2 border border-gray-200 font-medium text-purple-700">Ghi chú</td><td class="p-2 border border-gray-200 text-gray-400">—</td><td class="p-2 border border-gray-200">Hướng dẫn cho AI (tone, style, yêu cầu)</td><td class="p-2 border border-gray-200 text-purple-600">Tone vui vẻ, có emoji</td></tr>
-                        <tr class="bg-purple-50/50"><td class="p-2 border border-gray-200 font-medium text-purple-700">Mô tả ảnh</td><td class="p-2 border border-gray-200 text-gray-400">—</td><td class="p-2 border border-gray-200">Mô tả từng ảnh, cách nhau bằng dấu <b>|</b><br><span class="text-gray-400">1 mô tả = 1 ảnh. VD: 3 mô tả = AI gen 3 ảnh</span></td><td class="p-2 border border-gray-200 text-purple-600">Banner sale nền cam | Model mặc áo | Close-up vải</td></tr>
+                        <tr class="bg-purple-50/50"><td class="p-2 border border-gray-200 font-medium text-purple-700">Ghi chú</td><td class="p-2 border border-gray-200 text-gray-400">—</td><td class="p-2 border border-gray-200">Hướng dẫn cho AI</td></tr>
+                        <tr class="bg-purple-50/50"><td class="p-2 border border-gray-200 font-medium text-purple-700">Mô tả ảnh</td><td class="p-2 border border-gray-200 text-gray-400">—</td><td class="p-2 border border-gray-200">Mô tả ảnh, dấu | ngăn cách</td></tr>
                       </tbody>
                     </template>
                   </tbody>
                 </table>
               </div>
-            </div>
-
-            <div>
-              <label class="block text-sm font-medium text-gray-700 mb-1">Tên Campaign</label>
-              <input x-model="importForm.campaignName" type="text" placeholder="VD: Content tháng 10/2026"
-                class="w-full px-4 py-2.5 border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-brand-500">
-            </div>
+            </details>
 
             <div>
               <label class="block text-sm font-medium text-gray-700 mb-2">File Excel (.xlsx, .csv)</label>
@@ -1424,7 +1529,7 @@
               </div>
             </div>
 
-            <button @click="importExcel()" :disabled="!importForm.file || !importForm.campaignName || importLoading"
+            <button @click="importExcel()" :disabled="!importForm.file || !importForm.pageId || (!importForm.campaignId && !importForm.campaignName) || importLoading"
               class="w-full py-2.5 text-white rounded-lg font-medium disabled:opacity-50 transition"
               :class="importTab==='ready' ? 'bg-teal-600 hover:bg-teal-700' : 'bg-purple-600 hover:bg-purple-700'">
               <span x-show="!importLoading"><i class="ri-upload-line"></i> Import</span>
@@ -1853,8 +1958,13 @@ function app() {
     fbTokenLoading: false,
     pageError: '',
 
+    showCampaignModal: false,
+    editingCampaign: null,
+    campaignForm: { name: '', description: '', pageId: '', startDate: '', endDate: '', genLeadTime: '30', autoApprove: false },
+    campaignError: '',
+
     importTab: 'ready',
-    importForm: { campaignName: '', file: null },
+    importForm: { pageId: '', campaignId: '', campaignName: '', file: null },
     importResult: null,
     importError: '',
     importLoading: false,
@@ -2197,6 +2307,11 @@ function app() {
       try { this.pages = await this.api('/dashboard/pages'); } catch {}
     },
 
+    get importPageCampaigns() {
+      if (!this.importForm?.pageId) return [];
+      return (this.campaigns || []).filter(c => (c.pageId || c.page?.id) === this.importForm.pageId);
+    },
+
     async loadCampaigns() {
       try {
         const params = new URLSearchParams();
@@ -2321,14 +2436,58 @@ function app() {
       }
     },
 
+    openCampaignModal(c) {
+      this.campaignError = '';
+      if (c) {
+        this.editingCampaign = c;
+        this.campaignForm = {
+          name: c.name,
+          description: c.description || '',
+          pageId: c.pageId || c.page?.id || '',
+          startDate: c.startDate ? c.startDate.slice(0, 10) : '',
+          endDate: c.endDate ? c.endDate.slice(0, 10) : '',
+          genLeadTime: String(c.genLeadTime ?? 30),
+          autoApprove: c.autoApprove ?? false,
+        };
+      } else {
+        this.editingCampaign = null;
+        const defaultPageId = this.currentScope.type === 'page' ? this.currentScope.id : (this.scopePages[0]?.id || '');
+        this.campaignForm = { name: '', description: '', pageId: defaultPageId, startDate: '', endDate: '', genLeadTime: '30', autoApprove: false };
+      }
+      this.showCampaignModal = true;
+    },
+
+    async saveCampaign() {
+      this.campaignError = '';
+      try {
+        const body = {
+          name: this.campaignForm.name,
+          description: this.campaignForm.description || null,
+          pageId: this.campaignForm.pageId,
+          startDate: this.campaignForm.startDate || undefined,
+          endDate: this.campaignForm.endDate || null,
+          genLeadTime: Number(this.campaignForm.genLeadTime),
+          autoApprove: this.campaignForm.autoApprove,
+          userId: this.user.id,
+        };
+        if (this.editingCampaign) {
+          await this.api(`/campaigns/${this.editingCampaign.id}`, { method: 'PUT', body: JSON.stringify(body) });
+          this.showToast('Đã cập nhật campaign');
+        } else {
+          await this.api('/campaigns', { method: 'POST', body: JSON.stringify(body) });
+          this.showToast('Đã tạo campaign');
+        }
+        this.showCampaignModal = false;
+        await this.loadCampaigns();
+      } catch (e) {
+        this.campaignError = e.message;
+      }
+    },
+
     async updateCampaign(id, data) {
       try {
-        await this.api(`/campaigns/${id}`, {
-          method: 'PUT',
-          body: JSON.stringify(data),
-        });
+        await this.api(`/campaigns/${id}`, { method: 'PUT', body: JSON.stringify(data) });
         await this.loadCampaigns();
-        this.showToast('Đã cập nhật campaign');
       } catch (e) {
         this.showToast(e.message, 'error');
       }
@@ -2353,11 +2512,17 @@ function app() {
       try {
         const form = new FormData();
         form.append('file', this.importForm.file);
-        form.append('campaignName', this.importForm.campaignName);
+        form.append('pageId', this.importForm.pageId);
         form.append('userId', this.user.id);
+        if (this.importForm.campaignId) {
+          form.append('campaignId', this.importForm.campaignId);
+        } else {
+          form.append('campaignName', this.importForm.campaignName);
+        }
         this.importResult = await this.api('/campaigns/import', { method: 'POST', body: form });
         this.showToast(`Import thành công: ${this.importResult.stats.created} content`);
-        this.importForm = { campaignName: '', file: null };
+        this.importForm = { ...this.importForm, campaignId: '', campaignName: '', file: null };
+        this.loadCampaigns();
       } catch (e) {
         this.importError = e.message;
       } finally {
@@ -2806,6 +2971,8 @@ function app() {
       this.scopeSearch = '';
       this.dbFilter.pageId = '';
       this.dbFilter.campaignId = '';
+      this.importForm.pageId = scope.type === 'page' ? scope.id : '';
+      this.importForm.campaignId = '';
       this.loadScopePages();
       this.loadDashboard();
       if (this.page === 'content') this.loadContent();

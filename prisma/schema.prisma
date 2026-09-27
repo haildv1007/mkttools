@@ -81,6 +81,7 @@ model Page {
   updatedAt   DateTime @updatedAt @map("updated_at")
 
   user           User            @relation(fields: [userId], references: [id])
+  campaigns      Campaign[]
   contentItems   ContentItem[]
   workspacePages WorkspacePage[]
 
@@ -92,6 +93,7 @@ model Campaign {
   id          String    @id @default(cuid())
   name        String
   description String?
+  pageId        String    @map("page_id")
   startDate   DateTime  @map("start_date")
   endDate     DateTime? @map("end_date")
   isActive      Boolean   @default(true) @map("is_active")
@@ -101,6 +103,7 @@ model Campaign {
   createdAt     DateTime  @default(now()) @map("created_at")
   updatedAt     DateTime  @updatedAt @map("updated_at")
 
+  page         Page          @relation(fields: [pageId], references: [id])
   user         User          @relation(fields: [userId], references: [id])
   contentItems ContentItem[]
 

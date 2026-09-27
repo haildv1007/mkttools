@@ -1078,10 +1078,10 @@ router.post('/content', async (req: Request, res: Response) => {
     }
     let cId = campaignId;
     if (!cId) {
-      let defaultCampaign = await prisma.campaign.findFirst({ where: { name: 'Thủ công', isActive: true } });
+      let defaultCampaign = await prisma.campaign.findFirst({ where: { name: 'Thủ công', pageId: req.body.pageId, isActive: true } });
       if (!defaultCampaign) {
         defaultCampaign = await prisma.campaign.create({
-          data: { name: 'Thủ công', description: 'Content tạo thủ công', startDate: new Date(), userId: req.body.userId || 'system' },
+          data: { name: 'Thủ công', description: 'Content tạo thủ công', pageId: req.body.pageId, startDate: new Date(), userId: req.body.userId || 'system' },
         });
       }
       cId = defaultCampaign.id;

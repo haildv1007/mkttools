@@ -14,20 +14,20 @@ router.get('/template', (req: Request, res: Response) => {
   let filename: string;
 
   if (type === 'ai') {
-    headers = ['Ngày', 'Giờ đăng', 'Page', 'Chủ đề', 'Loại', 'Ghi chú', 'Mô tả ảnh (mỗi ảnh cách bằng dấu |)'];
+    headers = ['Ngày', 'Giờ đăng', 'Chủ đề', 'Loại', 'Ghi chú', 'Mô tả ảnh (mỗi ảnh cách bằng dấu |)'];
     examples = [
-      ['2026-10-01', '09:00', 'Shop ABC', 'Khuyến mãi mùa thu - Giảm 50%', 'image', 'Tone vui vẻ, có emoji', 'Banner sale 50% nền cam rực rỡ'],
-      ['2026-10-02', '18:00', 'Shop ABC', 'Review áo khoác mới về', 'image', 'Phong cách review chân thực', 'Flat lay áo khoác trên nền gỗ | Model nữ mặc áo khoác trên phố | Close-up chất liệu vải'],
-      ['2026-10-03', '10:00', 'Shop ABC', 'Combo tiết kiệm mùa đông', 'image', 'Nhấn mạnh giá hời', 'Ảnh 3 sản phẩm combo xếp cạnh nhau | Bảng so sánh giá lẻ vs combo'],
-      ['2026-10-04', '12:00', 'Shop ABC', 'Tips phối đồ mùa thu', 'text', 'Dạng listicle, 5 tips ngắn gọn', ''],
+      ['2026-10-01', '09:00', 'Khuyến mãi mùa thu - Giảm 50%', 'image', 'Tone vui vẻ, có emoji', 'Banner sale 50% nền cam rực rỡ'],
+      ['2026-10-02', '18:00', 'Review áo khoác mới về', 'image', 'Phong cách review chân thực', 'Flat lay áo khoác trên nền gỗ | Model nữ mặc áo khoác trên phố'],
+      ['2026-10-03', '10:00', 'Combo tiết kiệm mùa đông', 'image', 'Nhấn mạnh giá hời', 'Ảnh 3 sản phẩm combo xếp cạnh nhau'],
+      ['2026-10-04', '12:00', 'Tips phối đồ mùa thu', 'text', 'Dạng listicle, 5 tips ngắn gọn', ''],
     ];
     filename = 'mkttools-ai-gen.xlsx';
   } else {
-    headers = ['Ngày', 'Giờ đăng', 'Page', 'Chủ đề', 'Loại', 'Bài viết', 'Link ảnh', 'Link video'];
+    headers = ['Ngày', 'Giờ đăng', 'Chủ đề', 'Loại', 'Bài viết', 'Link ảnh', 'Link video'];
     examples = [
-      ['2026-10-01', '09:00', 'Shop ABC', 'Flash Sale cuối tuần', 'image', 'Flash Sale cực sốc! 🔥 Giảm đến 70% toàn bộ sản phẩm. Chỉ 2 ngày!', 'https://example.com/sale.jpg', ''],
-      ['2026-10-02', '20:00', 'Shop ABC', 'Unbox hàng mới về', 'video', 'Unbox lô hàng mới! Xem ngay 👀 #fashion #newcollection', '', 'https://example.com/unbox.mp4'],
-      ['2026-10-03', '10:00', 'Shop ABC', 'Feedback khách hàng', 'image', 'Cảm ơn chị đã tin tưởng shop ạ 🥰 #review #feedback', 'https://example.com/review.jpg', ''],
+      ['2026-10-01', '09:00', 'Flash Sale cuối tuần', 'image', 'Flash Sale cực sốc! 🔥 Giảm đến 70%!', 'https://example.com/sale.jpg', ''],
+      ['2026-10-02', '20:00', 'Unbox hàng mới về', 'video', 'Unbox lô hàng mới! Xem ngay 👀', '', 'https://example.com/unbox.mp4'],
+      ['2026-10-03', '10:00', 'Feedback khách hàng', 'image', 'Cảm ơn chị đã tin tưởng shop 🥰', 'https://example.com/review.jpg', ''],
     ];
     filename = 'mkttools-co-san.xlsx';
   }
@@ -46,46 +46,35 @@ router.post('/import', upload.single('file'), async (req: Request, res: Response
   try {
     if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
 
-    const { campaignName, userId } = req.body;
-    if (!campaignName || !userId) {
-      return res.status(400).json({ error: 'campaignName and userId required' });
+    const { pageId, campaignId, campaignName, userId } = req.body;
+    if (!pageId || !userId) {
+      return res.status(400).json({ error: 'pageId and userId required' });
     }
 
     const rows = parseExcelToSchedule(req.file.buffer);
-    console.log('[Import] Parsed rows:', rows.map(r => ({
-      topic: r.topic,
-      rawDate: String(r.rawDate),
-      rawTime: String(r.rawTime),
-      scheduledAt: r.scheduledAt.toISOString(),
-      scheduledAtVN: r.scheduledAt.toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh' }),
-    })));
     if (rows.length === 0) return res.status(400).json({ error: 'No valid rows in file' });
 
-    const pageNames = [...new Set(rows.map(r => r.page).filter(Boolean))];
-    const pages = await prisma.page.findMany({
-      where: { name: { in: pageNames }, isActive: true },
-    });
-    const pageMap = new Map(pages.map(p => [p.name, p.id]));
-
-    const campaign = await prisma.campaign.create({
-      data: {
-        name: campaignName,
-        startDate: rows[0].scheduledAt,
-        endDate: rows[rows.length - 1].scheduledAt,
-        userId,
-      },
-    });
+    let campaign: { id: string; name: string };
+    if (campaignId) {
+      const existing = await prisma.campaign.findUnique({ where: { id: campaignId } });
+      if (!existing) return res.status(404).json({ error: 'Campaign not found' });
+      campaign = existing;
+    } else {
+      const name = campaignName || `Import ${new Date().toLocaleDateString('vi-VN')}`;
+      campaign = await prisma.campaign.create({
+        data: {
+          name,
+          pageId,
+          startDate: rows[0].scheduledAt,
+          endDate: rows[rows.length - 1].scheduledAt,
+          userId,
+        },
+      });
+    }
 
     let created = 0;
-    let skipped = 0;
     for (const row of rows) {
-      const pageId = pageMap.get(row.page);
-      if (!pageId) { skipped++; continue; }
-
       const hasContent = !!(row.generatedText || row.imageUrl || row.videoUrl);
-      const isManualSource = row.source?.includes('sẵn') || row.source?.includes('san') || row.source === 'manual' || row.source === 'có sẵn';
-      const isAiSource = row.source === 'ai' || row.source?.includes('ai');
-      const resolvedSource = isManualSource || (!isAiSource && hasContent) ? 'IMPORT' : 'IMPORT';
       await prisma.contentItem.create({
         data: {
           campaignId: campaign.id,
@@ -98,7 +87,7 @@ router.post('/import', upload.single('file'), async (req: Request, res: Response
           generatedText: row.generatedText || null,
           generatedImageUrl: row.imageUrl || null,
           generatedVideoUrl: row.videoUrl || null,
-          source: resolvedSource,
+          source: 'IMPORT',
           status: hasContent ? 'PENDING_REVIEW' : 'DRAFT',
         },
       });
@@ -108,8 +97,7 @@ router.post('/import', upload.single('file'), async (req: Request, res: Response
     res.json({
       success: true,
       campaign: { id: campaign.id, name: campaign.name },
-      stats: { total: rows.length, created, skipped },
-      unmatchedPages: pageNames.filter(n => !pageMap.has(n)),
+      stats: { total: rows.length, created },
     });
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Unknown error';
@@ -118,28 +106,61 @@ router.post('/import', upload.single('file'), async (req: Request, res: Response
 });
 
 router.get('/', async (req: Request, res: Response) => {
-  const { scopeType, scopeId } = req.query;
-  const sType = String(scopeType || 'all');
-  const sId = scopeId ? String(scopeId) : undefined;
-  const scopePageIds = sType !== 'all' ? await resolvePageIds(sType, sId) : null;
+  const { scopeType, scopeId, pageId } = req.query;
 
   const where: Record<string, unknown> = {};
-  if (scopePageIds) {
-    where.contentItems = { some: { pageId: { in: scopePageIds } } };
+
+  if (pageId) {
+    where.pageId = String(pageId);
+  } else if (scopeType && scopeType !== 'all') {
+    const scopePageIds = await resolvePageIds(String(scopeType), scopeId ? String(scopeId) : undefined);
+    if (scopePageIds.length) {
+      where.pageId = { in: scopePageIds };
+    }
   }
 
   const campaigns = await prisma.campaign.findMany({
     where,
-    include: { _count: { select: { contentItems: true } } },
+    include: {
+      page: { select: { id: true, name: true, platform: true, externalId: true } },
+      _count: { select: { contentItems: true } },
+    },
     orderBy: { createdAt: 'desc' },
   });
   res.json(campaigns);
+});
+
+router.post('/', async (req: Request, res: Response) => {
+  try {
+    const { name, description, pageId, startDate, endDate, genLeadTime, autoApprove, userId } = req.body;
+    if (!name || !pageId) return res.status(400).json({ error: 'name and pageId required' });
+    const campaign = await prisma.campaign.create({
+      data: {
+        name,
+        description: description || null,
+        pageId,
+        startDate: startDate ? new Date(startDate) : new Date(),
+        endDate: endDate ? new Date(endDate) : null,
+        genLeadTime: genLeadTime ?? 30,
+        autoApprove: autoApprove ?? false,
+        userId: userId || (req as any).user?.id,
+      },
+      include: {
+        page: { select: { id: true, name: true, platform: true, externalId: true } },
+        _count: { select: { contentItems: true } },
+      },
+    });
+    res.json(campaign);
+  } catch (err) {
+    res.status(400).json({ error: err instanceof Error ? err.message : 'Failed to create campaign' });
+  }
 });
 
 router.get('/:id', async (req: Request, res: Response) => {
   const campaign = await prisma.campaign.findUnique({
     where: { id: String(req.params.id) },
     include: {
+      page: { select: { id: true, name: true, platform: true, externalId: true } },
       contentItems: {
         include: { page: true },
         orderBy: { scheduledAt: 'asc' },
@@ -153,12 +174,22 @@ router.get('/:id', async (req: Request, res: Response) => {
 router.put('/:id', async (req: Request, res: Response) => {
   try {
     const id = String(req.params.id);
-    const { name, genLeadTime, autoApprove } = req.body;
+    const { name, description, genLeadTime, autoApprove, startDate, endDate } = req.body;
     const data: Record<string, unknown> = {};
     if (name !== undefined) data.name = name;
+    if (description !== undefined) data.description = description;
     if (genLeadTime !== undefined) data.genLeadTime = Number(genLeadTime);
     if (autoApprove !== undefined) data.autoApprove = Boolean(autoApprove);
-    const campaign = await prisma.campaign.update({ where: { id }, data });
+    if (startDate !== undefined) data.startDate = new Date(startDate);
+    if (endDate !== undefined) data.endDate = endDate ? new Date(endDate) : null;
+    const campaign = await prisma.campaign.update({
+      where: { id },
+      data,
+      include: {
+        page: { select: { id: true, name: true, platform: true, externalId: true } },
+        _count: { select: { contentItems: true } },
+      },
+    });
     res.json(campaign);
   } catch (err) {
     res.status(400).json({ error: err instanceof Error ? err.message : 'Failed to update campaign' });
