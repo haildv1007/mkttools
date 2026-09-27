@@ -1752,12 +1752,13 @@ function app() {
         this.stats = stats;
         this.selectedTextProvider = stats.providers?.activeText || '';
         this.selectedImageProvider = stats.providers?.activeImage || '';
-        this.$nextTick(() => { this.renderPerfChart(); });
+        setTimeout(() => { this.renderPerfChart(); }, 100);
       } catch {}
       this.dashboardLoading = false;
     },
 
     renderPerfChart() {
+      if (typeof Chart === 'undefined') return;
       const ctx = document.getElementById('perfChart');
       if (!ctx || !this.db?.chart_performance) return;
       if (this._charts.perf) this._charts.perf.destroy();
