@@ -9,6 +9,19 @@ export class ReplicateImageProvider implements ImageProvider {
     this.apiKey = config.ai.image.replicateApiKey;
   }
 
+  async testConnection(): Promise<{ ok: boolean; error?: string }> {
+    try {
+      if (!this.apiKey) return { ok: false, error: 'REPLICATE_API_KEY chưa được cấu hình' };
+      const res = await fetch('https://api.replicate.com/v1/account', {
+        headers: { 'Authorization': `Bearer ${this.apiKey}` },
+      });
+      if (!res.ok) return { ok: false, error: `Replicate API lỗi: ${res.status}` };
+      return { ok: true };
+    } catch (e) {
+      return { ok: false, error: e instanceof Error ? e.message : 'Unknown error' };
+    }
+  }
+
   async generate(options: ImageGeneratorOptions): Promise<GeneratedImage> {
     const model = config.ai.image.defaultModel === 'flux-schnell'
       ? 'black-forest-labs/flux-schnell'

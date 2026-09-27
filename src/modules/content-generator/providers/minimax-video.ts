@@ -11,6 +11,20 @@ const API_BASE = 'https://api.minimax.io/v1';
 export class MinimaxVideoProvider implements VideoProvider {
   name = 'minimax';
 
+  async testConnection(): Promise<{ ok: boolean; error?: string }> {
+    try {
+      const apiKey = (await getSetting('MINIMAX_API_KEY')) || process.env.MINIMAX_API_KEY;
+      if (!apiKey) return { ok: false, error: 'MINIMAX_API_KEY chưa được cấu hình' };
+      const res = await fetch(`${API_BASE}/files/list?purpose=retrieval`, {
+        headers: { 'Authorization': `Bearer ${apiKey}` },
+      });
+      if (res.status === 401 || res.status === 403) return { ok: false, error: 'MINIMAX_API_KEY không hợp lệ' };
+      return { ok: true };
+    } catch (e) {
+      return { ok: false, error: e instanceof Error ? e.message : 'Unknown error' };
+    }
+  }
+
   async generate(options: VideoGeneratorOptions): Promise<GeneratedVideo> {
     const apiKey = (await getSetting('MINIMAX_API_KEY')) || process.env.MINIMAX_API_KEY;
     if (!apiKey) throw new Error('MINIMAX_API_KEY chưa được cấu hình');

@@ -10,6 +10,18 @@ const UPLOAD_DIR = path.join(process.cwd(), 'public', 'uploads');
 export class VeoVideoProvider implements VideoProvider {
   name = 'veo';
 
+  async testConnection(): Promise<{ ok: boolean; error?: string }> {
+    try {
+      const apiKey = (await getSetting('GEMINI_API_KEY')) || process.env.GEMINI_API_KEY;
+      if (!apiKey) return { ok: false, error: 'GEMINI_API_KEY chưa được cấu hình' };
+      const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${apiKey}`);
+      if (!res.ok) return { ok: false, error: `Gemini API lỗi: ${res.status}` };
+      return { ok: true };
+    } catch (e) {
+      return { ok: false, error: e instanceof Error ? e.message : 'Unknown error' };
+    }
+  }
+
   async generate(options: VideoGeneratorOptions): Promise<GeneratedVideo> {
     const apiKey = (await getSetting('GEMINI_API_KEY')) || process.env.GEMINI_API_KEY;
     if (!apiKey) throw new Error('GEMINI_API_KEY chưa được cấu hình');

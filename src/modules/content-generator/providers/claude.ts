@@ -29,6 +29,16 @@ Chỉ trả về JSON, không thêm gì khác.`;
     return this.parseResponse(text);
   }
 
+  async testConnection(): Promise<{ ok: boolean; error?: string }> {
+    try {
+      if (!config.ai.text.anthropicApiKey) return { ok: false, error: 'ANTHROPIC_API_KEY chưa được cấu hình' };
+      await this.client.messages.count_tokens({ model: config.ai.text.defaultModel || 'claude-sonnet-4-20250514', messages: [{ role: 'user', content: 'test' }] });
+      return { ok: true };
+    } catch (e) {
+      return { ok: false, error: e instanceof Error ? e.message : 'Unknown error' };
+    }
+  }
+
   private buildPrompt(options: TextGeneratorOptions): string {
     let prompt = `Viết bài đăng mạng xã hội cho page "${options.pageName}".
 Chủ đề: ${options.topic}

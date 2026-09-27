@@ -39,6 +39,18 @@ Trả về JSON với format: {"text": "nội dung bài đăng", "hashtags": ["t
     return this.parseResponse(raw);
   }
 
+  async testConnection(): Promise<{ ok: boolean; error?: string }> {
+    try {
+      const apiKey = config.ai.text.geminiApiKey;
+      if (!apiKey) return { ok: false, error: 'GEMINI_API_KEY chưa được cấu hình' };
+      const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${apiKey}`);
+      if (!res.ok) return { ok: false, error: `Gemini API lỗi: ${res.status}` };
+      return { ok: true };
+    } catch (e) {
+      return { ok: false, error: e instanceof Error ? e.message : 'Unknown error' };
+    }
+  }
+
   private buildPrompt(options: TextGeneratorOptions): string {
     let prompt = `Viết bài đăng mạng xã hội cho page "${options.pageName}".
 Chủ đề: ${options.topic}

@@ -1,6 +1,6 @@
 import { Router, Request, Response } from 'express';
 import { prisma } from '../../utils/db';
-import { listProviders, setTextProvider, setImageProvider, setVideoProvider, generateText, generateVideo } from '../content-generator';
+import { listProviders, setTextProvider, setImageProvider, setVideoProvider, generateText, generateVideo, testConnection } from '../content-generator';
 import { contentQueue, publishQueue } from '../../queues';
 import { getSetting, getSettings, setSettings } from '../settings';
 const router = Router();
@@ -399,8 +399,25 @@ router.get('/video-models', async (req: Request, res: Response) => {
   res.json(models[provider] || []);
 });
 
+router.post('/test-connection', async (req: Request, res: Response) => {
+  try {
+    const { type } = req.body;
+    if (!['text', 'image', 'video'].includes(type)) {
+      return res.status(400).json({ ok: false, error: 'Type phải là text, image hoặc video' });
+    }
+    const result = await testConnection(type);
+    res.json(result);
+  } catch (err) {
+    res.status(500).json({ ok: false, error: err instanceof Error ? err.message : 'Failed' });
+  }
+});
+
 router.post('/test-video', async (req: Request, res: Response) => {
   try {
+    const connCheck = await testConnection('video');
+    if (!connCheck.ok) {
+      return res.status(400).json({ success: false, error: `Kết nối thất bại: ${connCheck.error}` });
+    }
     const { prompt } = req.body;
     const testPrompt = prompt || 'A beautiful sunset over the ocean, waves gently rolling, cinematic';
     console.log(`[Test Video] Starting: ${testPrompt}`);

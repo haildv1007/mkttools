@@ -11,6 +11,20 @@ const API_BASE = 'https://api.dev.runwayml.com/v1';
 export class RunwayVideoProvider implements VideoProvider {
   name = 'runway';
 
+  async testConnection(): Promise<{ ok: boolean; error?: string }> {
+    try {
+      const apiKey = (await getSetting('RUNWAY_API_KEY')) || process.env.RUNWAY_API_KEY;
+      if (!apiKey) return { ok: false, error: 'RUNWAY_API_KEY chưa được cấu hình' };
+      const res = await fetch(`${API_BASE}/tasks?limit=1`, {
+        headers: { 'Authorization': `Bearer ${apiKey}` },
+      });
+      if (res.status === 401 || res.status === 403) return { ok: false, error: 'RUNWAY_API_KEY không hợp lệ' };
+      return { ok: true };
+    } catch (e) {
+      return { ok: false, error: e instanceof Error ? e.message : 'Unknown error' };
+    }
+  }
+
   async generate(options: VideoGeneratorOptions): Promise<GeneratedVideo> {
     const apiKey = (await getSetting('RUNWAY_API_KEY')) || process.env.RUNWAY_API_KEY;
     if (!apiKey) throw new Error('RUNWAY_API_KEY chưa được cấu hình');

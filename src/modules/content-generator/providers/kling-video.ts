@@ -11,6 +11,20 @@ const API_BASE = 'https://api.klingai.com/v1';
 export class KlingVideoProvider implements VideoProvider {
   name = 'kling';
 
+  async testConnection(): Promise<{ ok: boolean; error?: string }> {
+    try {
+      const apiKey = (await getSetting('KLING_API_KEY')) || process.env.KLING_API_KEY;
+      if (!apiKey) return { ok: false, error: 'KLING_API_KEY chưa được cấu hình' };
+      const res = await fetch(`${API_BASE}/models`, {
+        headers: { 'Authorization': `Bearer ${apiKey}` },
+      });
+      if (res.status === 401 || res.status === 403) return { ok: false, error: 'KLING_API_KEY không hợp lệ' };
+      return { ok: true };
+    } catch (e) {
+      return { ok: false, error: e instanceof Error ? e.message : 'Unknown error' };
+    }
+  }
+
   async generate(options: VideoGeneratorOptions): Promise<GeneratedVideo> {
     const apiKey = (await getSetting('KLING_API_KEY')) || process.env.KLING_API_KEY;
     if (!apiKey) throw new Error('KLING_API_KEY chưa được cấu hình');

@@ -804,6 +804,10 @@
                       <option :value="m.id" x-text="m.name + ' — ' + m.description" :selected="m.id === settingsForm.AI_VIDEO_MODEL"></option>
                     </template>
                   </select>
+                  <button @click="testConnectionCheck('video')"
+                    class="px-4 py-2.5 bg-gray-500 text-white rounded-lg hover:bg-gray-600 disabled:opacity-50 text-xs font-medium whitespace-nowrap">
+                    Check API
+                  </button>
                   <button @click="testVideo()" :disabled="testingVideo"
                     class="px-4 py-2.5 bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50 text-sm font-medium whitespace-nowrap">
                     <span x-show="!testingVideo">Test</span>
@@ -1297,6 +1301,22 @@ function app() {
     async onVideoProviderChange() {
       this.videoTestResult = '';
       await this.loadVideoModels();
+    },
+
+    async testConnectionCheck(type) {
+      this.videoTestResult = 'Đang kiểm tra kết nối...';
+      this.videoTestSuccess = true;
+      try {
+        const data = await this.api('/dashboard/test-connection', {
+          method: 'POST',
+          body: JSON.stringify({ type }),
+        });
+        this.videoTestSuccess = data.ok;
+        this.videoTestResult = data.ok ? `Kết nối ${type} OK!` : `Lỗi: ${data.error}`;
+      } catch (e) {
+        this.videoTestSuccess = false;
+        this.videoTestResult = e.message;
+      }
     },
 
     async testVideo() {

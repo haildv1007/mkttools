@@ -11,6 +11,18 @@ const UPLOAD_DIR = path.join(process.cwd(), 'public', 'uploads');
 export class DalleImageProvider implements ImageProvider {
   name = 'dalle';
 
+  async testConnection(): Promise<{ ok: boolean; error?: string }> {
+    try {
+      const apiKey = (await getSetting('OPENAI_API_KEY')) || config.ai.image.openaiApiKey;
+      if (!apiKey) return { ok: false, error: 'OPENAI_API_KEY chưa được cấu hình' };
+      const client = new OpenAI({ apiKey });
+      await client.models.list();
+      return { ok: true };
+    } catch (e) {
+      return { ok: false, error: e instanceof Error ? e.message : 'Unknown error' };
+    }
+  }
+
   async generate(options: ImageGeneratorOptions): Promise<GeneratedImage> {
     const apiKey = (await getSetting('OPENAI_API_KEY')) || config.ai.image.openaiApiKey;
     if (!apiKey) throw new Error('OPENAI_API_KEY chưa được cấu hình');

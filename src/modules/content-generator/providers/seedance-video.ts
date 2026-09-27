@@ -10,6 +10,21 @@ const UPLOAD_DIR = path.join(process.cwd(), 'public', 'uploads');
 export class SeedanceVideoProvider implements VideoProvider {
   name = 'seedance';
 
+  async testConnection(): Promise<{ ok: boolean; error?: string }> {
+    try {
+      const apiKey = (await getSetting('FAL_API_KEY')) || process.env.FAL_API_KEY;
+      if (!apiKey) return { ok: false, error: 'FAL_API_KEY chưa được cấu hình' };
+      const res = await fetch('https://queue.fal.run/fal-ai/fast-sdxl', {
+        method: 'OPTIONS',
+        headers: { 'Authorization': `Key ${apiKey}` },
+      });
+      if (res.status === 401 || res.status === 403) return { ok: false, error: 'FAL_API_KEY không hợp lệ' };
+      return { ok: true };
+    } catch (e) {
+      return { ok: false, error: e instanceof Error ? e.message : 'Unknown error' };
+    }
+  }
+
   async generate(options: VideoGeneratorOptions): Promise<GeneratedVideo> {
     const apiKey = (await getSetting('FAL_API_KEY')) || process.env.FAL_API_KEY;
     if (!apiKey) throw new Error('FAL_API_KEY chưa được cấu hình');

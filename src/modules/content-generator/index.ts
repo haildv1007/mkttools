@@ -133,3 +133,16 @@ export async function generateVideo(options: VideoGeneratorOptions): Promise<Gen
 export function registerVideoProvider(name: string, factory: () => VideoProvider): void {
   videoProviders[name] = factory;
 }
+
+export async function testConnection(type: 'text' | 'image' | 'video'): Promise<{ ok: boolean; error?: string }> {
+  try {
+    let provider: { testConnection?(): Promise<{ ok: boolean; error?: string }> };
+    if (type === 'text') provider = await getTextProvider();
+    else if (type === 'image') provider = await getImageProvider();
+    else provider = await getVideoProvider();
+    if (!provider.testConnection) return { ok: true };
+    return await provider.testConnection();
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : 'Unknown error' };
+  }
+}

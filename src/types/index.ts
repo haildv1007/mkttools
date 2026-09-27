@@ -43,11 +43,13 @@ export interface ImageGeneratorOptions {
 export interface TextProvider {
   name: string;
   generate(options: TextGeneratorOptions): Promise<GeneratedContent>;
+  testConnection?(): Promise<{ ok: boolean; error?: string }>;
 }
 
 export interface ImageProvider {
   name: string;
   generate(options: ImageGeneratorOptions): Promise<GeneratedImage>;
+  testConnection?(): Promise<{ ok: boolean; error?: string }>;
 }
 
 export interface PublishResult {
@@ -73,6 +75,7 @@ export interface VideoGeneratorOptions {
 export interface VideoProvider {
   name: string;
   generate(options: VideoGeneratorOptions): Promise<GeneratedVideo>;
+  testConnection?(): Promise<{ ok: boolean; error?: string }>;
 }
 
 export interface TelegramApprovalPayload {

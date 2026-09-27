@@ -33,6 +33,16 @@ Chỉ trả về JSON, không thêm gì khác.`,
     return this.parseResponse(raw);
   }
 
+  async testConnection(): Promise<{ ok: boolean; error?: string }> {
+    try {
+      if (!config.ai.text.openaiApiKey) return { ok: false, error: 'OPENAI_API_KEY chưa được cấu hình' };
+      await this.client.models.list();
+      return { ok: true };
+    } catch (e) {
+      return { ok: false, error: e instanceof Error ? e.message : 'Unknown error' };
+    }
+  }
+
   private buildPrompt(options: TextGeneratorOptions): string {
     let prompt = `Viết bài đăng mạng xã hội cho page "${options.pageName}".
 Chủ đề: ${options.topic}
