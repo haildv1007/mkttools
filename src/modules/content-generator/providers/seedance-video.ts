@@ -56,7 +56,7 @@ export class SeedanceVideoProvider implements VideoProvider {
       body: JSON.stringify(body),
     });
     const submitText = await submitRes.text();
-    let submitData: { request_id?: string; status_url?: string; error?: string };
+    let submitData: { request_id?: string; status_url?: string; response_url?: string; error?: string };
     try {
       submitData = JSON.parse(submitText);
     } catch {
@@ -68,9 +68,10 @@ export class SeedanceVideoProvider implements VideoProvider {
       throw new Error(`Seedance API error: ${submitData.error || JSON.stringify(submitData)}`);
     }
 
-    const requestId = submitData.request_id;
-    const statusUrl = `https://queue.fal.run/${endpoint}/requests/${requestId}/status`;
-    const resultUrl = `https://queue.fal.run/${endpoint}/requests/${requestId}`;
+    const statusUrl = submitData.status_url || `https://queue.fal.run/${endpoint}/requests/${submitData.request_id}/status`;
+    const resultUrl = submitData.response_url || `https://queue.fal.run/${endpoint}/requests/${submitData.request_id}`;
+    console.log(`[Seedance] Status URL: ${statusUrl}`);
+    console.log(`[Seedance] Result URL: ${resultUrl}`);
 
     const maxWait = 600000;
     const start = Date.now();
