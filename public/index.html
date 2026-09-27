@@ -532,8 +532,8 @@
                 <th class="text-left px-3 py-2.5 text-xs font-semibold text-gray-500 uppercase border-r border-gray-100 w-20">Nguồn</th>
                 <th class="text-left px-3 py-2.5 text-xs font-semibold text-gray-500 uppercase border-r border-gray-100 w-32">Campaign</th>
                 <th class="text-left px-3 py-2.5 text-xs font-semibold text-gray-500 uppercase border-r border-gray-100 w-36">Page</th>
-                <th class="text-left px-3 py-2.5 text-xs font-semibold text-gray-500 uppercase border-r border-gray-100 min-w-[160px]">Chủ đề</th>
-                <th class="text-left px-3 py-2.5 text-xs font-semibold text-gray-500 uppercase border-r border-gray-100 min-w-[120px]">Ghi chú</th>
+                <th class="text-left px-3 py-2.5 text-xs font-semibold text-gray-500 uppercase border-r border-gray-100 min-w-[200px]">Chủ đề</th>
+                <th class="text-left px-3 py-2.5 text-xs font-semibold text-gray-500 uppercase border-r border-gray-100 min-w-[180px]">Ghi chú</th>
                 <th class="text-left px-3 py-2.5 text-xs font-semibold text-gray-500 uppercase border-r border-gray-100 w-24">Định dạng</th>
                 <th class="text-left px-3 py-2.5 text-xs font-semibold text-gray-500 uppercase border-r border-gray-100 w-28">Lịch đăng</th>
                 <th class="text-left px-3 py-2.5 text-xs font-semibold text-gray-500 uppercase border-r border-gray-100 w-24">Trạng thái</th>
@@ -570,11 +570,16 @@
                   </td>
                   <!-- Chủ đề -->
                   <td class="px-3 py-2 border-r border-gray-50">
-                    <div class="font-medium text-gray-800 text-xs leading-snug truncate max-w-[160px]" x-text="item.topic" :title="item.topic"></div>
+                    <div class="font-medium text-gray-800 text-xs leading-snug cursor-pointer hover:text-brand-600 transition"
+                      style="display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden"
+                      x-text="item.topic" @click="showTextPopup('Chủ đề', item.topic)"></div>
                   </td>
                   <!-- Ghi chú -->
                   <td class="px-3 py-2 border-r border-gray-50">
-                    <div class="text-[11px] text-gray-500 truncate max-w-[120px]" x-text="item.notes || '—'" :title="item.notes"></div>
+                    <div x-show="item.notes" class="text-[11px] text-gray-500 leading-snug cursor-pointer hover:text-gray-800 transition"
+                      style="display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden"
+                      x-text="item.notes" @click="showTextPopup('Ghi chú', item.notes)"></div>
+                    <span x-show="!item.notes" class="text-[11px] text-gray-300">—</span>
                   </td>
                   <!-- Định dạng -->
                   <td class="px-3 py-2 border-r border-gray-50">
@@ -948,6 +953,17 @@
               </div>
             </div>
           </template>
+        </div>
+      </div>
+
+      <!-- Text Popup Modal -->
+      <div x-show="textPopup.show" class="fixed inset-0 bg-black/30 z-50 flex items-center justify-center p-4" @click.self="textPopup.show=false">
+        <div class="bg-white rounded-xl shadow-xl w-full max-w-lg p-5 fade-in max-h-[70vh] overflow-y-auto">
+          <div class="flex items-center justify-between mb-3">
+            <h3 class="text-sm font-bold text-gray-700" x-text="textPopup.title"></h3>
+            <button @click="textPopup.show=false" class="text-gray-400 hover:text-gray-600"><i class="ri-close-line text-lg"></i></button>
+          </div>
+          <div class="text-sm text-gray-700 whitespace-pre-wrap leading-relaxed" x-text="textPopup.content"></div>
         </div>
       </div>
 
@@ -1413,6 +1429,7 @@ function app() {
 
     showResultModal: false,
     resultItem: null,
+    textPopup: { show: false, title: '', content: '' },
     showErrorModal: false,
     errorItem: null,
 
@@ -1980,6 +1997,10 @@ function app() {
       const imgs = this.contentForm.images;
       const item = imgs.splice(from, 1)[0];
       imgs.splice(to, 0, item);
+    },
+
+    showTextPopup(title, content) {
+      this.textPopup = { show: true, title, content: content || '' };
     },
 
     viewResult(item) {
