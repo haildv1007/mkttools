@@ -113,22 +113,33 @@ async function fetchFbMetricsForItems(
     let batchFailed = false;
 
     for (const batch of batches) {
-      const fields = 'reactions.summary(true),comments.summary(true),shares,insights.metric(post_impressions,post_engaged_users)';
       const results = await Promise.allSettled(
         batch.map(async (postId) => {
-          const url = `https://graph.facebook.com/v21.0/${postId}?fields=${fields}&access_token=${encodeURIComponent(token)}`;
+          const url = `https://graph.facebook.com/v21.0/${postId}?fields=reactions.summary(true),comments.summary(true),shares&access_token=${encodeURIComponent(token)}`;
           const res = await fetch(url);
           const json = await res.json() as {
             reactions?: { summary?: { total_count?: number } };
             comments?: { summary?: { total_count?: number } };
             shares?: { count?: number };
-            insights?: { data?: Array<{ name: string; values?: Array<{ value: number }> }> };
             error?: { message?: string };
           };
           if (!res.ok || json.error) {
             throw new Error(json.error?.message || `HTTP ${res.status}`);
           }
-          return { postId, json };
+          let reach = 0, engagedUsers = 0;
+          try {
+            const insightsUrl = `https://graph.facebook.com/v21.0/${postId}/insights?metric=post_impressions,post_engaged_users&access_token=${encodeURIComponent(token)}`;
+            const insRes = await fetch(insightsUrl);
+            if (insRes.ok) {
+              const insJson = await insRes.json() as { data?: Array<{ name: string; values?: Array<{ value: number }> }> };
+              for (const m of insJson.data ?? []) {
+                const val = m.values?.[0]?.value ?? 0;
+                if (m.name === 'post_impressions') reach = val;
+                if (m.name === 'post_engaged_users') engagedUsers = val;
+              }
+            }
+          } catch {}
+          return { postId, json, reach, engagedUsers };
         })
       );
       for (const r of results) {
@@ -137,18 +148,10 @@ async function fetchFbMetricsForItems(
           batchFailed = true;
           continue;
         }
-        const { postId, json: postInfo } = r.value;
+        const { postId, json: postInfo, reach, engagedUsers } = r.value;
         const reactions = postInfo.reactions?.summary?.total_count ?? 0;
         const comments = postInfo.comments?.summary?.total_count ?? 0;
         const shares = postInfo.shares?.count ?? 0;
-        let reach = 0, engagedUsers = 0;
-        if (postInfo.insights?.data) {
-          for (const metric of postInfo.insights.data) {
-            const val = metric.values?.[0]?.value ?? 0;
-            if (metric.name === 'post_impressions') reach = val;
-            if (metric.name === 'post_engaged_users') engagedUsers = val;
-          }
-        }
         postDataMap.set(postId, { reactions, comments, shares, reach, engagedUsers, synced_at: new Date().toISOString() });
       }
     }
@@ -837,22 +840,33 @@ router.get('/stats/fb-insights', async (_req: Request, res: Response) => {
       }>();
 
       for (const batch of batches) {
-        const fields = 'reactions.summary(true),comments.summary(true),shares,insights.metric(post_impressions,post_engaged_users)';
         const results = await Promise.allSettled(
           batch.map(async (postId) => {
-            const url = `https://graph.facebook.com/v21.0/${postId}?fields=${fields}&access_token=${encodeURIComponent(token)}`;
+            const url = `https://graph.facebook.com/v21.0/${postId}?fields=reactions.summary(true),comments.summary(true),shares&access_token=${encodeURIComponent(token)}`;
             const res = await fetch(url);
             const json = await res.json() as {
               reactions?: { summary?: { total_count?: number } };
               comments?: { summary?: { total_count?: number } };
               shares?: { count?: number };
-              insights?: { data?: Array<{ name: string; values?: Array<{ value: number }> }> };
               error?: { message?: string };
             };
             if (!res.ok || json.error) {
               throw new Error(json.error?.message || `HTTP ${res.status}`);
             }
-            return { postId, json };
+            let reach = 0, engagedUsers = 0;
+            try {
+              const insUrl = `https://graph.facebook.com/v21.0/${postId}/insights?metric=post_impressions,post_engaged_users&access_token=${encodeURIComponent(token)}`;
+              const insRes = await fetch(insUrl);
+              if (insRes.ok) {
+                const insJson = await insRes.json() as { data?: Array<{ name: string; values?: Array<{ value: number }> }> };
+                for (const m of insJson.data ?? []) {
+                  const val = m.values?.[0]?.value ?? 0;
+                  if (m.name === 'post_impressions') reach = val;
+                  if (m.name === 'post_engaged_users') engagedUsers = val;
+                }
+              }
+            } catch {}
+            return { postId, json, reach, engagedUsers };
           })
         );
         for (const r of results) {
@@ -860,19 +874,10 @@ router.get('/stats/fb-insights', async (_req: Request, res: Response) => {
             pageResult.errors.push(`Post metrics: ${r.reason instanceof Error ? r.reason.message : 'Network error'}`);
             continue;
           }
-          const { postId, json: postInfo } = r.value;
+          const { postId, json: postInfo, reach, engagedUsers } = r.value;
           const reactions = postInfo.reactions?.summary?.total_count ?? 0;
           const comments = postInfo.comments?.summary?.total_count ?? 0;
           const shares = postInfo.shares?.count ?? 0;
-          let reach = 0;
-          let engagedUsers = 0;
-          if (postInfo.insights?.data) {
-            for (const metric of postInfo.insights.data) {
-              const val = metric.values?.[0]?.value ?? 0;
-              if (metric.name === 'post_impressions') reach = val;
-              if (metric.name === 'post_engaged_users') engagedUsers = val;
-            }
-          }
           postDataMap.set(postId, { reactions, comments, shares, reach, engagedUsers });
         }
       }
