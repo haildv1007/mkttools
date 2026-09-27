@@ -55,7 +55,13 @@ export class SeedanceVideoProvider implements VideoProvider {
       },
       body: JSON.stringify(body),
     });
-    const submitData = await submitRes.json() as { request_id?: string; status_url?: string; error?: string };
+    const submitText = await submitRes.text();
+    let submitData: { request_id?: string; status_url?: string; error?: string };
+    try {
+      submitData = JSON.parse(submitText);
+    } catch {
+      throw new Error(`Seedance: invalid submit response (${submitRes.status}): ${submitText.substring(0, 300)}`);
+    }
     console.log(`[Seedance] Submit response:`, JSON.stringify(submitData).substring(0, 300));
 
     if (!submitData.request_id) {
@@ -74,14 +80,27 @@ export class SeedanceVideoProvider implements VideoProvider {
       const statusRes = await fetch(statusUrl, {
         headers: { 'Authorization': `Key ${apiKey}` },
       });
-      const statusData = await statusRes.json() as { status?: string };
+      const statusText = await statusRes.text();
+      let statusData: { status?: string };
+      try {
+        statusData = JSON.parse(statusText);
+      } catch {
+        console.log(`[Seedance] Poll returned non-JSON (${statusRes.status}): ${statusText.substring(0, 200)}`);
+        continue;
+      }
       console.log(`[Seedance] Poll status: ${statusData.status}`);
 
       if (statusData.status === 'COMPLETED') {
         const resultRes = await fetch(resultUrl, {
           headers: { 'Authorization': `Key ${apiKey}` },
         });
-        const resultData = await resultRes.json() as { video?: { url?: string }; error?: string };
+        const resultText = await resultRes.text();
+        let resultData: { video?: { url?: string }; error?: string };
+        try {
+          resultData = JSON.parse(resultText);
+        } catch {
+          throw new Error(`Seedance: invalid result JSON: ${resultText.substring(0, 300)}`);
+        }
 
         const videoUrl = resultData.video?.url;
         if (!videoUrl) throw new Error(`Seedance: no video URL in result: ${JSON.stringify(resultData).substring(0, 300)}`);
