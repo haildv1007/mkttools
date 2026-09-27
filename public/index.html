@@ -274,7 +274,14 @@
               <template x-for="p in pages" :key="p.id">
                 <tr class="hover:bg-gray-50 transition">
                   <td class="px-6 py-4">
-                    <div class="font-medium" x-text="p.name"></div>
+                    <div class="flex items-center gap-3">
+                      <img x-show="p.platform==='FACEBOOK'" :src="'https://graph.facebook.com/' + p.externalId + '/picture?type=small'"
+                        class="w-8 h-8 rounded-full object-cover bg-gray-100 flex-shrink-0" onerror="this.style.display='none'">
+                      <div x-show="p.platform!=='FACEBOOK'" class="w-8 h-8 rounded-full bg-gray-900 flex items-center justify-center flex-shrink-0">
+                        <i class="ri-tiktok-fill text-white text-sm"></i>
+                      </div>
+                      <span class="font-medium" x-text="p.name"></span>
+                    </div>
                   </td>
                   <td class="px-6 py-4">
                     <span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium"

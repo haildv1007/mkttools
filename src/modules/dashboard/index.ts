@@ -92,8 +92,10 @@ router.get('/calendar', async (req: Request, res: Response) => {
 });
 
 // Pages CRUD
-router.get('/pages', async (_req: Request, res: Response) => {
+router.get('/pages', async (req: Request, res: Response) => {
+  const showAll = req.query.all === 'true';
   const pages = await prisma.page.findMany({
+    where: showAll ? {} : { isActive: true },
     include: { _count: { select: { contentItems: true } } },
     orderBy: { createdAt: 'desc' },
   });
