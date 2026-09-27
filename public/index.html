@@ -256,10 +256,28 @@
             </template>
           </div>
           <div class="flex flex-wrap items-center gap-2">
-            <select x-show="currentScope.type!=='page'" x-model="dbFilter.pageId" @change="loadDashboard()" class="text-xs border rounded-lg px-2 py-1.5 bg-white">
-              <option value="" x-text="currentScope.type==='workspace' ? 'Tất cả Page trong WS' : 'Tất cả Page'"></option>
-              <template x-for="p in scopePages" :key="p.id"><option :value="p.id" x-text="p.name"></option></template>
-            </select>
+            <div x-show="currentScope.type!=='page'" class="relative" @click.outside="dbPageDrop=false">
+              <button @click="dbPageDrop=!dbPageDrop" class="flex items-center gap-1.5 text-xs border rounded-lg px-2 py-1.5 bg-white hover:border-brand-300 transition min-w-[140px] text-left">
+                <template x-if="dbFilter.pageId && scopePages.find(p=>p.id===dbFilter.pageId)">
+                  <img :src="'https://graph.facebook.com/'+scopePages.find(p=>p.id===dbFilter.pageId)?.externalId+'/picture?type=small'" class="w-4 h-4 rounded-full shrink-0" onerror="this.style.display='none'">
+                </template>
+                <span class="truncate" x-text="dbFilter.pageId ? (scopePages.find(p=>p.id===dbFilter.pageId)?.name||'Page') : (currentScope.type==='workspace' ? 'Tất cả Page trong WS' : 'Tất cả Page')"></span>
+                <i class="ri-arrow-down-s-line text-gray-400 ml-auto shrink-0"></i>
+              </button>
+              <div x-show="dbPageDrop" x-cloak class="absolute top-full mt-1 left-0 bg-white border border-gray-200 rounded-lg shadow-lg z-50 min-w-[200px] max-h-[250px] overflow-y-auto">
+                <button @click="dbFilter.pageId=''; dbPageDrop=false; loadDashboard()" class="w-full flex items-center gap-2 px-3 py-2 text-xs hover:bg-gray-50 text-left" :class="!dbFilter.pageId && 'bg-brand-50 text-brand-700'">
+                  <i class="ri-global-line text-sm text-gray-400"></i>
+                  <span x-text="currentScope.type==='workspace' ? 'Tất cả Page trong WS' : 'Tất cả Page'"></span>
+                </button>
+                <template x-for="p in scopePages" :key="p.id">
+                  <button @click="dbFilter.pageId=p.id; dbPageDrop=false; loadDashboard()" class="w-full flex items-center gap-2 px-3 py-2 text-xs hover:bg-gray-50 text-left" :class="dbFilter.pageId===p.id && 'bg-brand-50 text-brand-700'">
+                    <img x-show="p.platform==='FACEBOOK'" :src="'https://graph.facebook.com/'+p.externalId+'/picture?type=small'" class="w-4 h-4 rounded-full shrink-0" onerror="this.style.display='none'">
+                    <i x-show="p.platform!=='FACEBOOK'" class="ri-tiktok-fill text-sm"></i>
+                    <span class="truncate" x-text="p.name"></span>
+                  </button>
+                </template>
+              </div>
+            </div>
             <select x-model="dbFilter.campaignId" @change="loadDashboard()" class="text-xs border rounded-lg px-2 py-1.5 bg-white">
               <option value="">Tất cả Campaign</option>
               <template x-for="c in campaigns" :key="c.id"><option :value="c.id" x-text="c.name"></option></template>
@@ -767,13 +785,28 @@
               <option value="AI">AI</option>
               <option value="MANUAL">Có sẵn</option>
             </select>
-            <select x-show="currentScope.type!=='page'" x-model="contentFilter.pageId" @change="loadContent()"
-              class="px-3 py-2 border border-gray-200 rounded-lg text-sm outline-none">
-              <option value="" x-text="currentScope.type==='workspace' ? 'Tất cả pages trong WS' : 'Tất cả pages'"></option>
-              <template x-for="p in scopePages" :key="p.id">
-                <option :value="p.id" x-text="p.name"></option>
-              </template>
-            </select>
+            <div x-show="currentScope.type!=='page'" class="relative" @click.outside="contentPageDrop=false">
+              <button @click="contentPageDrop=!contentPageDrop" class="flex items-center gap-1.5 px-3 py-2 border border-gray-200 rounded-lg text-sm hover:border-brand-300 transition min-w-[160px] text-left bg-white">
+                <template x-if="contentFilter.pageId && scopePages.find(p=>p.id===contentFilter.pageId)">
+                  <img :src="'https://graph.facebook.com/'+scopePages.find(p=>p.id===contentFilter.pageId)?.externalId+'/picture?type=small'" class="w-4 h-4 rounded-full shrink-0" onerror="this.style.display='none'">
+                </template>
+                <span class="truncate" x-text="contentFilter.pageId ? (scopePages.find(p=>p.id===contentFilter.pageId)?.name||'Page') : (currentScope.type==='workspace' ? 'Tất cả pages trong WS' : 'Tất cả pages')"></span>
+                <i class="ri-arrow-down-s-line text-gray-400 ml-auto shrink-0"></i>
+              </button>
+              <div x-show="contentPageDrop" x-cloak class="absolute top-full mt-1 left-0 bg-white border border-gray-200 rounded-lg shadow-lg z-50 min-w-[200px] max-h-[250px] overflow-y-auto">
+                <button @click="contentFilter.pageId=''; contentPageDrop=false; loadContent()" class="w-full flex items-center gap-2 px-3 py-2 text-sm hover:bg-gray-50 text-left" :class="!contentFilter.pageId && 'bg-brand-50 text-brand-700'">
+                  <i class="ri-global-line text-sm text-gray-400"></i>
+                  <span x-text="currentScope.type==='workspace' ? 'Tất cả pages trong WS' : 'Tất cả pages'"></span>
+                </button>
+                <template x-for="p in scopePages" :key="p.id">
+                  <button @click="contentFilter.pageId=p.id; contentPageDrop=false; loadContent()" class="w-full flex items-center gap-2 px-3 py-2 text-sm hover:bg-gray-50 text-left" :class="contentFilter.pageId===p.id && 'bg-brand-50 text-brand-700'">
+                    <img x-show="p.platform==='FACEBOOK'" :src="'https://graph.facebook.com/'+p.externalId+'/picture?type=small'" class="w-4 h-4 rounded-full shrink-0" onerror="this.style.display='none'">
+                    <i x-show="p.platform!=='FACEBOOK'" class="ri-tiktok-fill text-sm"></i>
+                    <span class="truncate" x-text="p.name"></span>
+                  </button>
+                </template>
+              </div>
+            </div>
             <select x-model="contentFilter.campaignId" @change="loadContent()"
               class="px-3 py-2 border border-gray-200 rounded-lg text-sm outline-none">
               <option value="">Tất cả campaigns</option>
@@ -1741,6 +1774,8 @@ function app() {
     workspaces: [],
     scopeDropdownOpen: false,
     scopeSearch: '',
+    dbPageDrop: false,
+    contentPageDrop: false,
     showWorkspaceModal: false,
     editingWorkspace: null,
     workspaceForm: { name: '', description: '', pageIds: [] },
