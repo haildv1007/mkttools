@@ -286,12 +286,16 @@ router.get('/stats/dashboard', async (req: Request, res: Response) => {
     const prevClicks = sumMetric(fbPrev, 'clicks');
     const curEngagement = curReactions + curComments + curShares;
     const prevEngagement = prevReactions + prevComments + prevShares;
-    const hasReach = fbCurrent.some(m => m.reach > 0);
+    const hasSyncedPosts = fbCurrent.some(m => {
+      const item = currentItems.find(i => i.id === m.contentItemId);
+      const saved = item?.metrics as { fb_synced_at?: string } | null;
+      return !!saved?.fb_synced_at;
+    });
     const curER = curReach > 0 ? Math.round((curEngagement / curReach) * 10000) / 100 : null;
     const prevER = prevReach > 0 ? Math.round((prevEngagement / prevReach) * 10000) / 100 : null;
 
     const kpis = {
-      total_reach: { value: hasReach ? curReach : null, delta_percent: hasReach ? deltaPercent(curReach, prevReach) : 0 },
+      total_reach: { value: hasSyncedPosts ? curReach : null, delta_percent: hasSyncedPosts ? deltaPercent(curReach, prevReach) : 0 },
       total_media_views: { value: curMediaViews, delta_percent: deltaPercent(curMediaViews, prevMediaViews) },
       total_engagement: { value: curEngagement, delta_percent: deltaPercent(curEngagement, prevEngagement) },
       total_reactions: { value: curReactions, delta_percent: deltaPercent(curReactions, prevReactions) },
@@ -1619,15 +1623,15 @@ router.post('/stats/fb-sync', async (req: Request, res: Response) => {
             }
           } catch {}
 
-          // Never overwrite existing non-zero with 0
+          // Persist API values directly; null means insights call failed → keep existing
           const existing = item.metrics as Record<string, number | string> | null;
           const metricsData: Prisma.InputJsonObject = {
-            fb_reactions: reactions || existing?.fb_reactions || 0,
-            fb_comments: comments || existing?.fb_comments || 0,
-            fb_shares: shares || existing?.fb_shares || 0,
-            fb_clicks: clicks ?? existing?.fb_clicks ?? 0,
-            fb_reach: reach ?? existing?.fb_reach ?? 0,
-            fb_media_views: mediaViews ?? existing?.fb_media_views ?? 0,
+            fb_reactions: reactions,
+            fb_comments: comments,
+            fb_shares: shares,
+            fb_clicks: clicks !== null ? clicks : (existing?.fb_clicks ?? 0),
+            fb_reach: reach !== null ? reach : (existing?.fb_reach ?? 0),
+            fb_media_views: mediaViews !== null ? mediaViews : (existing?.fb_media_views ?? 0),
             fb_synced_at: new Date().toISOString(),
           };
 

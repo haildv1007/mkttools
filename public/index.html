@@ -180,11 +180,23 @@
               <option value="">Tất cả Campaign</option>
               <template x-for="c in campaigns" :key="c.id"><option :value="c.id" x-text="c.name"></option></template>
             </select>
-            <select x-model="dbFilter.days" @change="loadDashboard()" class="text-xs border rounded-lg px-2 py-1.5 bg-white">
-              <option value="7">7 ngày</option>
-              <option value="30">30 ngày</option>
-              <option value="90">90 ngày</option>
+            <select x-model="dbFilter.preset" @change="onTimePresetChange()" class="text-xs border rounded-lg px-2 py-1.5 bg-white">
+              <option value="7d">7 ngày qua</option>
+              <option value="14d">14 ngày qua</option>
+              <option value="30d">30 ngày qua</option>
+              <option value="this_week">Tuần này</option>
+              <option value="last_week">Tuần trước</option>
+              <option value="this_month">Tháng này</option>
+              <option value="last_month">Tháng trước</option>
+              <option value="custom">Tùy chọn...</option>
             </select>
+            <template x-if="dbFilter.preset==='custom'">
+              <div class="flex items-center gap-1">
+                <input type="date" x-model="dbFilter.customFrom" @change="loadDashboard()" class="text-xs border rounded-lg px-2 py-1.5 bg-white" title="Từ ngày">
+                <span class="text-xs text-gray-400">→</span>
+                <input type="date" x-model="dbFilter.customTo" @change="loadDashboard()" class="text-xs border rounded-lg px-2 py-1.5 bg-white" title="Đến ngày">
+              </div>
+            </template>
             <span class="text-xs text-gray-400" x-show="dashboardLoading"><i class="ri-loader-4-line animate-spin"></i></span>
             <button @click="syncFbMetrics()" :disabled="fbSyncing" class="px-2.5 py-1.5 text-xs bg-blue-50 hover:bg-blue-100 text-blue-600 rounded-lg transition" :class="fbSyncing && 'opacity-50'"><i class="ri-refresh-line" :class="fbSyncing && 'animate-spin'"></i> Sync FB</button>
             <button @click="loadDashboard()" class="px-2.5 py-1.5 text-xs bg-gray-100 hover:bg-gray-200 rounded-lg transition"><i class="ri-refresh-line"></i></button>
@@ -196,7 +208,15 @@
           <!-- Performance Chart -->
           <div class="lg:col-span-2 bg-white rounded-xl border border-gray-100 shadow-sm p-5">
             <h3 class="font-semibold text-sm mb-3">Hiệu suất theo thời gian</h3>
-            <div style="height:220px"><canvas id="perfChart"></canvas></div>
+            <div style="height:340px; position:relative">
+              <canvas id="perfChart"></canvas>
+              <div x-show="db && (!db.chart_performance || !db.chart_performance.some(d => d.reach || d.media_views || d.engagement || d.posts_count))" class="absolute inset-0 flex items-center justify-center">
+                <div class="text-center text-gray-400 text-xs">
+                  <i class="ri-bar-chart-box-line text-3xl mb-2 block"></i>
+                  <p x-text="(db?.top_contents||[]).length ? 'Không có dữ liệu FB trong khoảng thời gian này. Bấm Sync FB để cập nhật.' : 'Chưa có bài đăng nào. Tạo content và đăng bài trước.'"></p>
+                </div>
+              </div>
+            </div>
           </div>
           <!-- Pipeline -->
           <div class="bg-white rounded-xl border border-gray-100 shadow-sm p-5">
@@ -316,8 +336,8 @@
                     <p class="text-xs font-medium truncate" x-text="p.name"></p>
                     <div class="flex items-center gap-2 mt-0.5">
                       <span class="text-[10px] text-gray-400" x-text="p.totalPosts+' bài'"></span>
-                      <span class="text-[10px] text-blue-500" x-text="'Reach: '+(p.reach||0).toLocaleString()"></span>
-                      <span class="text-[10px] text-indigo-500" x-text="'Eng: '+(p.engagement||0).toLocaleString()"></span>
+                      <span class="text-[10px] text-blue-500" x-text="'Σ Reach: '+(p.reach||0).toLocaleString()"></span>
+                      <span class="text-[10px] text-indigo-500" x-text="'Σ Eng: '+(p.engagement||0).toLocaleString()"></span>
                     </div>
                   </div>
                   <div class="text-right shrink-0">
@@ -346,8 +366,8 @@
                     <div class="h-full rounded-full" :style="'width:'+Math.min((c.er||0)*10,100)+'%;background:linear-gradient(90deg,#6366f1,#818cf8)'"></div>
                   </div>
                   <div class="flex gap-3 mt-1 text-[10px] text-gray-400">
-                    <span x-text="'Reach: '+(c.reach||0).toLocaleString()"></span>
-                    <span x-text="'Eng: '+(c.engagement||0).toLocaleString()"></span>
+                    <span x-text="'Σ Reach: '+(c.reach||0).toLocaleString()"></span>
+                    <span x-text="'Σ Eng: '+(c.engagement||0).toLocaleString()"></span>
                   </div>
                 </div>
               </template>
@@ -1596,7 +1616,7 @@ function app() {
 
     stats: {},
     db: null,
-    dbFilter: { pageId: '', campaignId: '', days: '30' },
+    dbFilter: { pageId: '', campaignId: '', preset: '30d', customFrom: '', customTo: '' },
     dbPendingTab: 'pending',
     dashboardCampaigns: [],
     dashboardPages: [],
@@ -1748,13 +1768,53 @@ function app() {
       this.page = 'dashboard';
     },
 
+    onTimePresetChange() {
+      if (this.dbFilter.preset !== 'custom') this.loadDashboard();
+    },
+
+    _computeDateRange() {
+      const tz = 'Asia/Ho_Chi_Minh';
+      const nowLocal = new Date(new Date().toLocaleString('en-US', { timeZone: tz }));
+      const today = new Date(nowLocal.getFullYear(), nowLocal.getMonth(), nowLocal.getDate());
+      const fmt = d => d.toISOString().slice(0, 10);
+      const p = this.dbFilter.preset;
+      if (p === 'custom') {
+        return { dateFrom: this.dbFilter.customFrom || fmt(new Date(today.getTime() - 30*86400000)), dateTo: this.dbFilter.customTo || fmt(today) };
+      }
+      if (p === 'this_week') {
+        const dow = today.getDay() || 7;
+        const mon = new Date(today.getTime() - (dow - 1) * 86400000);
+        return { dateFrom: fmt(mon), dateTo: fmt(today) };
+      }
+      if (p === 'last_week') {
+        const dow = today.getDay() || 7;
+        const thisMon = new Date(today.getTime() - (dow - 1) * 86400000);
+        const lastMon = new Date(thisMon.getTime() - 7 * 86400000);
+        const lastSun = new Date(thisMon.getTime() - 86400000);
+        return { dateFrom: fmt(lastMon), dateTo: fmt(lastSun) };
+      }
+      if (p === 'this_month') {
+        const first = new Date(today.getFullYear(), today.getMonth(), 1);
+        return { dateFrom: fmt(first), dateTo: fmt(today) };
+      }
+      if (p === 'last_month') {
+        const first = new Date(today.getFullYear(), today.getMonth() - 1, 1);
+        const last = new Date(today.getFullYear(), today.getMonth(), 0);
+        return { dateFrom: fmt(first), dateTo: fmt(last) };
+      }
+      const days = parseInt(p) || 30;
+      return { dateFrom: fmt(new Date(today.getTime() - days * 86400000)), dateTo: fmt(today) };
+    },
+
     async loadDashboard() {
       this.dashboardLoading = true;
       try {
         const params = new URLSearchParams();
         if (this.dbFilter.pageId) params.set('pageId', this.dbFilter.pageId);
         if (this.dbFilter.campaignId) params.set('campaignId', this.dbFilter.campaignId);
-        params.set('days', this.dbFilter.days);
+        const range = this._computeDateRange();
+        params.set('dateFrom', range.dateFrom);
+        params.set('dateTo', range.dateTo);
         const [db, stats] = await Promise.all([
           this.api('/dashboard/stats/dashboard?' + params.toString()),
           this.api('/dashboard/stats').catch(() => ({})),
