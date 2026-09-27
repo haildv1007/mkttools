@@ -32,7 +32,7 @@ Chỉ trả về JSON, không thêm gì khác.`;
   async testConnection(): Promise<{ ok: boolean; error?: string }> {
     try {
       if (!config.ai.text.anthropicApiKey) return { ok: false, error: 'ANTHROPIC_API_KEY chưa được cấu hình' };
-      await this.client.messages.count_tokens({ model: config.ai.text.defaultModel || 'claude-sonnet-4-20250514', messages: [{ role: 'user', content: 'test' }] });
+      await this.client.messages.countTokens({ model: config.ai.text.defaultModel || 'claude-sonnet-4-20250514', messages: [{ role: 'user', content: 'test' }] });
       return { ok: true };
     } catch (e) {
       return { ok: false, error: e instanceof Error ? e.message : 'Unknown error' };
