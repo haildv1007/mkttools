@@ -166,7 +166,7 @@
         <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 mb-5">
           <div>
             <h2 class="text-xl font-bold">Tổng quan</h2>
-            <p class="text-xs text-gray-400">Dữ liệu hiệu suất từ Facebook <span x-show="db?.synced_at" x-text="' · cập nhật '+ (db?.synced_at ? new Date(db.synced_at).toLocaleTimeString('vi-VN',{hour:'2-digit',minute:'2-digit'}) : '')"></span></p>
+            <p class="text-xs text-gray-400">Dữ liệu hiệu suất từ Facebook <span x-show="db?.synced_at" x-text="' · sync lần cuối '+ (db?.synced_at ? new Date(db.synced_at).toLocaleString('vi-VN',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}) : '')"></span><span x-show="!db?.synced_at && !dashboardLoading"> · chưa sync</span></p>
             <template x-if="db?.fb_errors?.length">
               <p class="text-xs text-red-500 mt-0.5"><i class="ri-error-warning-line"></i> <span x-text="db.fb_errors[0]"></span><span x-show="db.fb_errors.length>1" x-text="' (+' + (db.fb_errors.length-1) + ' lỗi khác)'"></span></p>
             </template>
@@ -186,6 +186,7 @@
               <option value="90">90 ngày</option>
             </select>
             <span class="text-xs text-gray-400" x-show="dashboardLoading"><i class="ri-loader-4-line animate-spin"></i></span>
+            <button @click="syncFbMetrics()" :disabled="fbSyncing" class="px-2.5 py-1.5 text-xs bg-blue-50 hover:bg-blue-100 text-blue-600 rounded-lg transition" :class="fbSyncing && 'opacity-50'"><i class="ri-refresh-line" :class="fbSyncing && 'animate-spin'"></i> Sync FB</button>
             <button @click="loadDashboard()" class="px-2.5 py-1.5 text-xs bg-gray-100 hover:bg-gray-200 rounded-lg transition"><i class="ri-refresh-line"></i></button>
           </div>
         </div>
@@ -254,7 +255,7 @@
                 <span class="text-[10px] font-medium" :class="(db?.kpis?.[k.key]?.delta_percent||0)>=0?'text-green-500':'text-red-500'"
                   x-text="((db?.kpis?.[k.key]?.delta_percent||0)>=0?'↑':'↓')+Math.abs(db?.kpis?.[k.key]?.delta_percent||0)+'%'"></span>
               </div>
-              <p class="text-lg font-bold" x-text="k.key==='engagement_rate'?(db?.kpis?.[k.key]?.value||0).toFixed(2)+'%':(db?.kpis?.[k.key]?.value||0).toLocaleString()"></p>
+              <p class="text-lg font-bold" x-text="(()=>{ const v=db?.kpis?.[k.key]?.value; if(v===null||v===undefined){ return '—'; } if(k.key==='engagement_rate') return v.toFixed(2)+'%'; return v.toLocaleString(); })()"></p>
               <p class="text-[10px] text-gray-400" x-text="k.label"></p>
             </div>
           </template>
@@ -1593,6 +1594,7 @@ function app() {
     dashboardUpcoming: [],
     dashboardRecent: [],
     dashboardLoading: false,
+    fbSyncing: false,
     fbInsights: null,
     fbInsightsLoading: false,
     timelineDays: 7,
@@ -1755,6 +1757,17 @@ function app() {
         setTimeout(() => { this.renderPerfChart(); }, 100);
       } catch {}
       this.dashboardLoading = false;
+    },
+
+    async syncFbMetrics() {
+      this.fbSyncing = true;
+      try {
+        const result = await this.api('/dashboard/stats/fb-sync', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ pageId: this.dbFilter.pageId || undefined }) });
+        const msg = `Sync xong: ${result.synced}/${result.total} bài` + (result.errors?.length ? ` (${result.errors.length} lỗi)` : '');
+        alert(msg);
+        await this.loadDashboard();
+      } catch (e) { alert('Sync failed: ' + e.message); }
+      this.fbSyncing = false;
     },
 
     renderPerfChart() {

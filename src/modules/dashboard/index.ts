@@ -63,7 +63,7 @@ interface FbPostMetrics {
   engagedUsers: number;
 }
 
-async function fetchFbMetricsForItems(
+async function readMetricsFromDb(
   items: Array<{
     id: string;
     socialPostId: string | null;
@@ -71,131 +71,33 @@ async function fetchFbMetricsForItems(
     publishedAt: Date | null;
     pageId: string;
     campaignId: string;
+    metrics?: unknown;
     page: { id: string; name: string; externalId: string; accessToken: string; platform: string };
   }>
-): Promise<{ metrics: FbPostMetrics[]; errors: string[] }> {
-  // Group by page, Facebook only
-  const byPage = new Map<string, { page: typeof items[0]['page']; items: typeof items }>();
+): Promise<{ metrics: FbPostMetrics[]; errors: string[]; lastSync: string | null }> {
+  const allMetrics: FbPostMetrics[] = [];
+  let lastSync: string | null = null;
+
   for (const item of items) {
     if (item.page.platform !== 'FACEBOOK' || !item.socialPostId) continue;
-    const existing = byPage.get(item.pageId);
-    if (existing) existing.items.push(item);
-    else byPage.set(item.pageId, { page: item.page, items: [item] });
+    const saved = item.metrics as { fb_reactions?: number; fb_comments?: number; fb_shares?: number; fb_impressions?: number | null; fb_engaged_users?: number | null; fb_synced_at?: string } | null;
+    const reactions = saved?.fb_reactions ?? 0;
+    const comments = saved?.fb_comments ?? 0;
+    const shares = saved?.fb_shares ?? 0;
+    const reach = saved?.fb_impressions ?? null;
+    const engagedUsers = saved?.fb_engaged_users ?? null;
+    if (saved?.fb_synced_at && (!lastSync || saved.fb_synced_at > lastSync)) {
+      lastSync = saved.fb_synced_at;
+    }
+    allMetrics.push({
+      contentItemId: item.id, socialPostId: item.socialPostId, topic: item.topic,
+      publishedAt: item.publishedAt, campaignId: item.campaignId, pageId: item.pageId,
+      pageName: item.page.name, pageExternalId: item.page.externalId,
+      reactions, comments, shares, reach: reach ?? 0, engagedUsers: engagedUsers ?? 0,
+    });
   }
 
-  const allMetrics: FbPostMetrics[] = [];
-  const fbErrors: string[] = [];
-
-  type MetricData = { reactions: number; comments: number; shares: number; reach: number; engagedUsers: number; synced_at?: string };
-
-  for (const [pageId, { page, items: pageItems }] of byPage) {
-    const cacheKey = `dashboard_fb_${pageId}`;
-    const cached = fbCache.get(cacheKey);
-    if (cached && Date.now() - cached.ts < FB_CACHE_TTL) {
-      const cachedMap = cached.data as Map<string, MetricData>;
-      for (const item of pageItems) {
-        const m = cachedMap.get(item.socialPostId!) ?? { reactions: 0, comments: 0, shares: 0, reach: 0, engagedUsers: 0 };
-        allMetrics.push({
-          contentItemId: item.id, socialPostId: item.socialPostId!, topic: item.topic,
-          publishedAt: item.publishedAt, campaignId: item.campaignId, pageId,
-          pageName: page.name, pageExternalId: page.externalId, ...m,
-        });
-      }
-      continue;
-    }
-
-    const token = page.accessToken;
-    const postIds = pageItems.map(i => i.socialPostId!);
-    const batches: string[][] = [];
-    for (let i = 0; i < postIds.length; i += 50) batches.push(postIds.slice(i, i + 50));
-
-    const postDataMap = new Map<string, MetricData>();
-    let batchFailed = false;
-
-    for (const batch of batches) {
-      const results = await Promise.allSettled(
-        batch.map(async (postId) => {
-          const url = `https://graph.facebook.com/v21.0/${postId}?fields=reactions.summary(true),comments.summary(true),shares&access_token=${encodeURIComponent(token)}`;
-          const res = await fetch(url);
-          const json = await res.json() as {
-            reactions?: { summary?: { total_count?: number } };
-            comments?: { summary?: { total_count?: number } };
-            shares?: { count?: number };
-            error?: { message?: string };
-          };
-          if (!res.ok || json.error) {
-            throw new Error(json.error?.message || `HTTP ${res.status}`);
-          }
-          let reach = 0, engagedUsers = 0;
-          try {
-            const insightsUrl = `https://graph.facebook.com/v21.0/${postId}/insights?metric=post_impressions,post_engaged_users&access_token=${encodeURIComponent(token)}`;
-            const insRes = await fetch(insightsUrl);
-            if (insRes.ok) {
-              const insJson = await insRes.json() as { data?: Array<{ name: string; values?: Array<{ value: number }> }> };
-              for (const m of insJson.data ?? []) {
-                const val = m.values?.[0]?.value ?? 0;
-                if (m.name === 'post_impressions') reach = val;
-                if (m.name === 'post_engaged_users') engagedUsers = val;
-              }
-            }
-          } catch {}
-          return { postId, json, reach, engagedUsers };
-        })
-      );
-      for (const r of results) {
-        if (r.status === 'rejected') {
-          fbErrors.push(`${page.name}: ${r.reason instanceof Error ? r.reason.message : 'fetch error'}`);
-          batchFailed = true;
-          continue;
-        }
-        const { postId, json: postInfo, reach, engagedUsers } = r.value;
-        const reactions = postInfo.reactions?.summary?.total_count ?? 0;
-        const comments = postInfo.comments?.summary?.total_count ?? 0;
-        const shares = postInfo.shares?.count ?? 0;
-        postDataMap.set(postId, { reactions, comments, shares, reach, engagedUsers, synced_at: new Date().toISOString() });
-      }
-    }
-
-    // Persist successfully fetched metrics to DB (non-blocking)
-    const updates: Array<Promise<unknown>> = [];
-    for (const [socialPostId, m] of postDataMap.entries()) {
-      const item = pageItems.find(i => i.socialPostId === socialPostId);
-      if (!item) continue;
-      updates.push(
-        prisma.contentItem.update({
-          where: { id: item.id },
-          data: { metrics: { fb_reactions: m.reactions, fb_comments: m.comments, fb_shares: m.shares, fb_impressions: m.reach, fb_engaged_users: m.engagedUsers, fb_synced_at: m.synced_at } },
-        }).catch(() => {})
-      );
-    }
-    Promise.all(updates).catch(() => {});
-
-    // Only cache if no batch failures
-    if (!batchFailed) {
-      fbCache.set(cacheKey, { data: postDataMap, ts: Date.now() });
-    }
-
-    for (const item of pageItems) {
-      let m = postDataMap.get(item.socialPostId!);
-      if (!m) {
-        // Fallback: use persisted metrics from DB instead of defaulting to 0
-        const dbItem = await prisma.contentItem.findUnique({ where: { id: item.id }, select: { metrics: true } }).catch(() => null);
-        const saved = dbItem?.metrics as { fb_reactions?: number; fb_comments?: number; fb_shares?: number; fb_impressions?: number; fb_engaged_users?: number } | null;
-        if (saved && (saved.fb_reactions || saved.fb_comments || saved.fb_shares || saved.fb_impressions)) {
-          m = { reactions: saved.fb_reactions ?? 0, comments: saved.fb_comments ?? 0, shares: saved.fb_shares ?? 0, reach: saved.fb_impressions ?? 0, engagedUsers: saved.fb_engaged_users ?? 0 };
-        } else {
-          m = { reactions: 0, comments: 0, shares: 0, reach: 0, engagedUsers: 0 };
-        }
-      }
-      allMetrics.push({
-        contentItemId: item.id, socialPostId: item.socialPostId!, topic: item.topic,
-        publishedAt: item.publishedAt, campaignId: item.campaignId, pageId,
-        pageName: page.name, pageExternalId: page.externalId, ...m,
-      });
-    }
-  }
-
-  return { metrics: allMetrics, errors: fbErrors };
+  return { metrics: allMetrics, errors: [], lastSync };
 }
 
 router.get('/stats', async (_req: Request, res: Response) => {
@@ -287,7 +189,7 @@ router.get('/stats/dashboard', async (req: Request, res: Response) => {
         },
         select: {
           id: true, socialPostId: true, topic: true, publishedAt: true,
-          pageId: true, campaignId: true, generatedText: true,
+          pageId: true, campaignId: true, generatedText: true, metrics: true,
           page: { select: { id: true, name: true, externalId: true, accessToken: true, platform: true } },
         },
       }),
@@ -300,7 +202,7 @@ router.get('/stats/dashboard', async (req: Request, res: Response) => {
         },
         select: {
           id: true, socialPostId: true, topic: true, publishedAt: true,
-          pageId: true, campaignId: true,
+          pageId: true, campaignId: true, metrics: true,
           page: { select: { id: true, name: true, externalId: true, accessToken: true, platform: true } },
         },
       }),
@@ -316,19 +218,20 @@ router.get('/stats/dashboard', async (req: Request, res: Response) => {
       }),
     ]);
 
-    // --- Fetch FB metrics (gracefully handle failures) ---
+    // --- Read FB metrics from DB (no live FB requests on dashboard load) ---
     let fbCurrent: FbPostMetrics[] = [];
     let fbPrev: FbPostMetrics[] = [];
-    let fb_errors: string[] = [];
+    const fb_errors: string[] = [];
+    let fb_last_sync: string | null = null;
     try {
       const [curResult, prevResult] = await Promise.all([
-        fetchFbMetricsForItems(currentItems),
-        fetchFbMetricsForItems(prevItems),
+        readMetricsFromDb(currentItems),
+        readMetricsFromDb(prevItems),
       ]);
       fbCurrent = curResult.metrics;
       fbPrev = prevResult.metrics;
-      fb_errors = [...curResult.errors, ...prevResult.errors];
-    } catch (e) { fb_errors.push(e instanceof Error ? e.message : 'FB fetch failed'); }
+      fb_last_sync = curResult.lastSync || prevResult.lastSync;
+    } catch (e) { fb_errors.push(e instanceof Error ? e.message : 'DB read failed'); }
 
     // --- Pipeline summary ---
     const countByStatus = (items: Array<{ status: string; scheduledAt?: Date | null }>, status: string) => {
@@ -378,16 +281,18 @@ router.get('/stats/dashboard', async (req: Request, res: Response) => {
     const prevShares = sumMetric(fbPrev, 'shares');
     const curEngagement = curReactions + curComments + curShares;
     const prevEngagement = prevReactions + prevComments + prevShares;
-    const curER = curReach > 0 ? Math.round((curEngagement / curReach) * 10000) / 100 : 0;
-    const prevER = prevReach > 0 ? Math.round((prevEngagement / prevReach) * 10000) / 100 : 0;
+    // If no post has impressions data, show null instead of 0
+    const hasImpressions = fbCurrent.some(m => m.reach > 0);
+    const curER = curReach > 0 ? Math.round((curEngagement / curReach) * 10000) / 100 : null;
+    const prevER = prevReach > 0 ? Math.round((prevEngagement / prevReach) * 10000) / 100 : null;
 
     const kpis = {
-      total_reach: { value: curReach, delta_percent: deltaPercent(curReach, prevReach) },
+      total_reach: { value: hasImpressions ? curReach : null, delta_percent: hasImpressions ? deltaPercent(curReach, prevReach) : 0 },
       total_engagement: { value: curEngagement, delta_percent: deltaPercent(curEngagement, prevEngagement) },
       total_reactions: { value: curReactions, delta_percent: deltaPercent(curReactions, prevReactions) },
       total_comments: { value: curComments, delta_percent: deltaPercent(curComments, prevComments) },
       total_shares: { value: curShares, delta_percent: deltaPercent(curShares, prevShares) },
-      engagement_rate: { value: curER, delta_percent: deltaPercent(curER, prevER) },
+      engagement_rate: { value: curER, delta_percent: curER !== null && prevER !== null ? deltaPercent(curER, prevER) : 0 },
     };
 
     // --- Chart performance: group by published date ---
@@ -505,18 +410,17 @@ router.get('/stats/dashboard', async (req: Request, res: Response) => {
       where: { ...baseWhere, status: 'PUBLISHED', publishedAt: { not: null } },
       select: {
         id: true, topic: true, publishedAt: true, socialPostId: true,
-        pageId: true, campaignId: true,
+        pageId: true, campaignId: true, metrics: true,
         page: { select: { id: true, name: true, externalId: true, accessToken: true, platform: true } },
       },
       orderBy: { publishedAt: 'desc' },
       take: 5,
     });
-    // Enrich with FB metrics
+    // Enrich with FB metrics from DB
     let recentFb: FbPostMetrics[] = [];
     try {
-      const recentResult = await fetchFbMetricsForItems(recentPublished);
+      const recentResult = await readMetricsFromDb(recentPublished);
       recentFb = recentResult.metrics;
-      fb_errors.push(...recentResult.errors);
     } catch { /* ignore */ }
     const recentFbMap = new Map(recentFb.map(m => [m.contentItemId, m]));
     const recent_posts = recentPublished.map(item => {
@@ -530,7 +434,7 @@ router.get('/stats/dashboard', async (req: Request, res: Response) => {
     });
 
     res.json({
-      synced_at: new Date().toISOString(),
+      synced_at: fb_last_sync || null,
       fb_errors: fb_errors.length ? fb_errors : undefined,
       filters: {
         dateFrom: currentFrom.toISOString(),
@@ -1487,6 +1391,166 @@ router.put('/settings', async (req: Request, res: Response) => {
     res.json({ success: true });
   } catch (err) {
     res.status(400).json({ error: err instanceof Error ? err.message : 'Failed to save settings' });
+  }
+});
+
+// --- FB Metrics Diagnostic: test which metrics actually return data ---
+router.get('/stats/fb-metric-test', async (req: Request, res: Response) => {
+  try {
+    const item = await prisma.contentItem.findFirst({
+      where: { status: 'PUBLISHED', socialPostId: { not: null }, page: { platform: 'FACEBOOK' } },
+      include: { page: true },
+      orderBy: { publishedAt: 'desc' },
+    });
+    if (!item || !item.socialPostId) return res.json({ error: 'No published FB post found' });
+
+    const postId = item.socialPostId;
+    const token = item.page.accessToken;
+    const results: Record<string, unknown> = { postId, pageName: item.page.name, topic: item.topic };
+
+    // Test basic engagement fields
+    try {
+      const url = `https://graph.facebook.com/v21.0/${postId}?fields=reactions.summary(true),comments.summary(true),shares&access_token=${encodeURIComponent(token)}`;
+      const r = await fetch(url);
+      results.basic = { status: r.status, data: await r.json() };
+    } catch (e) { results.basic = { error: String(e) }; }
+
+    // Test each insights metric individually
+    const metricsToTest = [
+      'post_impressions',
+      'post_impressions_unique',
+      'post_engaged_users',
+      'post_clicks',
+      'post_clicks_unique',
+      'post_reactions_by_type_total',
+    ];
+    results.insights = {};
+    for (const metric of metricsToTest) {
+      try {
+        const url = `https://graph.facebook.com/v21.0/${postId}/insights?metric=${metric}&access_token=${encodeURIComponent(token)}`;
+        const r = await fetch(url);
+        const json = await r.json() as Record<string, unknown>;
+        (results.insights as Record<string, unknown>)[metric] = { status: r.status, data: (json.data ?? json.error ?? json) as unknown };
+      } catch (e) { (results.insights as Record<string, unknown>)[metric] = { error: String(e) }; }
+    }
+
+    // Redact token from any error messages
+    const sanitized = JSON.parse(JSON.stringify(results).replace(new RegExp(token.slice(0, 20), 'g'), '[REDACTED]'));
+    res.json(sanitized);
+  } catch (err) {
+    res.status(500).json({ error: err instanceof Error ? err.message : 'Test failed' });
+  }
+});
+
+// --- Manual FB Metrics Sync ---
+router.post('/stats/fb-sync', async (req: Request, res: Response) => {
+  try {
+    const { pageId } = req.body || {};
+    const where: Record<string, unknown> = {
+      status: 'PUBLISHED',
+      socialPostId: { not: null },
+      page: { platform: 'FACEBOOK' },
+    };
+    if (pageId) where.pageId = String(pageId);
+
+    const items = await prisma.contentItem.findMany({
+      where,
+      select: {
+        id: true, socialPostId: true, topic: true, publishedAt: true,
+        pageId: true, campaignId: true, metrics: true,
+        page: { select: { id: true, name: true, externalId: true, accessToken: true, platform: true } },
+      },
+    });
+
+    const syncErrors: string[] = [];
+    let synced = 0;
+    let skipped = 0;
+
+    // Group by page
+    const byPage = new Map<string, { page: typeof items[0]['page']; items: typeof items }>();
+    for (const item of items) {
+      if (!item.socialPostId) continue;
+      const existing = byPage.get(item.pageId);
+      if (existing) existing.items.push(item);
+      else byPage.set(item.pageId, { page: item.page, items: [item] });
+    }
+
+    for (const [, { page, items: pageItems }] of byPage) {
+      const token = page.accessToken;
+
+      for (const item of pageItems) {
+        try {
+          // Fetch basic engagement
+          const url = `https://graph.facebook.com/v21.0/${item.socialPostId}?fields=reactions.summary(true),comments.summary(true),shares&access_token=${encodeURIComponent(token)}`;
+          const r = await fetch(url);
+          const json = await r.json() as {
+            reactions?: { summary?: { total_count?: number } };
+            comments?: { summary?: { total_count?: number } };
+            shares?: { count?: number };
+            error?: { message?: string };
+          };
+          if (!r.ok || json.error) {
+            syncErrors.push(`${page.name}/${item.topic}: ${json.error?.message || r.statusText}`);
+            skipped++;
+            continue;
+          }
+
+          const reactions = json.reactions?.summary?.total_count ?? 0;
+          const comments = json.comments?.summary?.total_count ?? 0;
+          const shares = json.shares?.count ?? 0;
+
+          // Try insights (fail gracefully)
+          let impressions: number | null = null;
+          let engagedUsers: number | null = null;
+          try {
+            const insUrl = `https://graph.facebook.com/v21.0/${item.socialPostId}/insights?metric=post_impressions,post_engaged_users&access_token=${encodeURIComponent(token)}`;
+            const insRes = await fetch(insUrl);
+            if (insRes.ok) {
+              const insJson = await insRes.json() as { data?: Array<{ name: string; values?: Array<{ value: number }> }> };
+              for (const m of insJson.data ?? []) {
+                const val = m.values?.[0]?.value;
+                if (m.name === 'post_impressions' && val !== undefined) impressions = val;
+                if (m.name === 'post_engaged_users' && val !== undefined) engagedUsers = val;
+              }
+            }
+          } catch {}
+
+          // Never overwrite existing non-zero with 0
+          const existing = item.metrics as Record<string, number | string> | null;
+          const metricsData: Prisma.InputJsonObject = {
+            fb_reactions: reactions || existing?.fb_reactions || 0,
+            fb_comments: comments || existing?.fb_comments || 0,
+            fb_shares: shares || existing?.fb_shares || 0,
+            fb_impressions: impressions ?? existing?.fb_impressions ?? null,
+            fb_engaged_users: engagedUsers ?? existing?.fb_engaged_users ?? null,
+            fb_synced_at: new Date().toISOString(),
+          };
+
+          await prisma.contentItem.update({
+            where: { id: item.id },
+            data: { metrics: metricsData },
+          });
+          synced++;
+        } catch (e) {
+          syncErrors.push(`${page.name}/${item.topic}: ${e instanceof Error ? e.message : 'error'}`);
+          skipped++;
+        }
+      }
+    }
+
+    // Clear in-memory cache so dashboard picks up fresh DB data
+    fbCache.clear();
+
+    res.json({
+      total: items.length,
+      synced,
+      skipped,
+      errors: syncErrors,
+      requests_made: items.length * 2,
+      synced_at: new Date().toISOString(),
+    });
+  } catch (err) {
+    res.status(500).json({ error: err instanceof Error ? err.message : 'Sync failed' });
   }
 });
 
