@@ -210,16 +210,7 @@
           <!-- Performance Chart -->
           <div class="lg:col-span-2 bg-white rounded-xl border border-gray-100 shadow-sm p-5">
             <h3 class="font-semibold text-sm mb-3">Hiệu suất theo thời gian</h3>
-            <div style="height:340px; position:relative">
-              <canvas id="perfChart" style="width:100%;height:100%"></canvas>
-              <div x-show="db && !db.chart_performance?.some(d => d.reach || d.media_views || d.engagement || d.posts_count)" x-cloak
-                class="absolute inset-0 flex items-center justify-center bg-white/90 pointer-events-none">
-                <div class="text-center text-gray-400 text-xs">
-                  <i class="ri-bar-chart-box-line text-3xl mb-2 block"></i>
-                  <p x-text="(db?.top_contents||[]).length ? 'Không có dữ liệu FB trong khoảng thời gian này. Bấm Sync FB để cập nhật.' : 'Chưa có bài đăng nào. Tạo content và đăng bài trước.'"></p>
-                </div>
-              </div>
-            </div>
+            <div id="perfChartWrap" style="height:340px; position:relative"></div>
           </div>
           <!-- Pipeline -->
           <div class="bg-white rounded-xl border border-gray-100 shadow-sm p-5">
@@ -1779,7 +1770,12 @@ function app() {
       const tz = 'Asia/Ho_Chi_Minh';
       const nowLocal = new Date(new Date().toLocaleString('en-US', { timeZone: tz }));
       const today = new Date(nowLocal.getFullYear(), nowLocal.getMonth(), nowLocal.getDate());
-      const fmt = d => d.toISOString().slice(0, 10);
+      const fmt = d => {
+        const yy = d.getFullYear();
+        const mm = String(d.getMonth() + 1).padStart(2, '0');
+        const dd = String(d.getDate()).padStart(2, '0');
+        return `${yy}-${mm}-${dd}`;
+      };
       const p = this.dbFilter.preset;
       if (p === 'today') {
         return { dateFrom: fmt(today), dateTo: fmt(today) };
@@ -1851,12 +1847,28 @@ function app() {
 
     renderPerfChart() {
       if (typeof Chart === 'undefined') return;
-      const ctx = document.getElementById('perfChart');
-      if (!ctx || !this.db?.chart_performance) return;
-      if (this._charts.perf) this._charts.perf.destroy();
-      const data = this.db.chart_performance;
-      const labels = data.map(d => { const dt = new Date(d.date); return dt.toLocaleDateString('vi-VN', {day:'2-digit', month:'2-digit'}); });
-      this._charts.perf = new Chart(ctx, {
+      const wrap = document.getElementById('perfChartWrap');
+      if (!wrap) return;
+      if (this._charts.perf) { this._charts.perf.destroy(); this._charts.perf = null; }
+      wrap.innerHTML = '';
+      const data = this.db?.chart_performance;
+      const hasData = data && data.some(d => d.reach || d.media_views || d.engagement || d.posts_count);
+      if (!data || !hasData) {
+        const emptyMsg = (this.db?.top_contents||[]).length
+          ? 'Không có dữ liệu FB trong khoảng thời gian này. Bấm Sync FB để cập nhật.'
+          : 'Chưa có bài đăng nào. Tạo content và đăng bài trước.';
+        wrap.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100%"><div style="text-align:center;color:#9ca3af;font-size:12px"><i class="ri-bar-chart-box-line" style="font-size:2rem;display:block;margin-bottom:8px"></i><p>' + emptyMsg + '</p></div></div>';
+        return;
+      }
+      const canvas = document.createElement('canvas');
+      canvas.style.width = '100%';
+      canvas.style.height = '100%';
+      wrap.appendChild(canvas);
+      const labels = data.map(d => {
+        const [y, m, dd] = d.date.split('-');
+        return dd + '/' + m;
+      });
+      this._charts.perf = new Chart(canvas, {
         type: 'bar',
         data: {
           labels,
