@@ -487,8 +487,7 @@
               class="px-3 py-2 border border-gray-200 rounded-lg text-sm outline-none">
               <option value="">Nguồn</option>
               <option value="AI">AI</option>
-              <option value="MANUAL">Thủ công</option>
-              <option value="IMPORT">Import</option>
+              <option value="MANUAL">Có sẵn</option>
             </select>
             <select x-model="contentFilter.pageId" @change="loadContent()"
               class="px-3 py-2 border border-gray-200 rounded-lg text-sm outline-none">
@@ -529,51 +528,55 @@
           <table class="w-full text-sm border-collapse min-w-[1100px]">
             <thead class="bg-gray-50 border-b border-gray-200 sticky top-0 z-10">
               <tr>
-                <th class="text-left px-3 py-2.5 text-xs font-semibold text-gray-500 uppercase border-r border-gray-100 w-24">Trạng thái</th>
+                <th class="text-left px-3 py-2.5 text-xs font-semibold text-gray-500 uppercase border-r border-gray-100 w-24">Ngày tạo</th>
                 <th class="text-left px-3 py-2.5 text-xs font-semibold text-gray-500 uppercase border-r border-gray-100 w-20">Nguồn</th>
                 <th class="text-left px-3 py-2.5 text-xs font-semibold text-gray-500 uppercase border-r border-gray-100 w-32">Campaign</th>
                 <th class="text-left px-3 py-2.5 text-xs font-semibold text-gray-500 uppercase border-r border-gray-100 w-36">Page</th>
-                <th class="text-left px-3 py-2.5 text-xs font-semibold text-gray-500 uppercase border-r border-gray-100 min-w-[180px]">Chủ đề</th>
-                <th class="text-left px-3 py-2.5 text-xs font-semibold text-gray-500 uppercase border-r border-gray-100 w-20">Loại</th>
-                <th class="text-left px-3 py-2.5 text-xs font-semibold text-gray-500 uppercase border-r border-gray-100 w-[180px]">Nội dung</th>
+                <th class="text-left px-3 py-2.5 text-xs font-semibold text-gray-500 uppercase border-r border-gray-100 min-w-[160px]">Chủ đề</th>
+                <th class="text-left px-3 py-2.5 text-xs font-semibold text-gray-500 uppercase border-r border-gray-100 min-w-[120px]">Ghi chú</th>
+                <th class="text-left px-3 py-2.5 text-xs font-semibold text-gray-500 uppercase border-r border-gray-100 w-24">Định dạng</th>
                 <th class="text-left px-3 py-2.5 text-xs font-semibold text-gray-500 uppercase border-r border-gray-100 w-28">Lịch đăng</th>
-                <th class="text-center px-3 py-2.5 text-xs font-semibold text-gray-500 uppercase border-r border-gray-100 w-16">Media</th>
-                <th class="text-right px-3 py-2.5 text-xs font-semibold text-gray-500 uppercase w-32">Thao tác</th>
+                <th class="text-left px-3 py-2.5 text-xs font-semibold text-gray-500 uppercase border-r border-gray-100 w-24">Trạng thái</th>
+                <th class="text-left px-3 py-2.5 text-xs font-semibold text-gray-500 uppercase border-r border-gray-100 w-[180px]">Kết quả</th>
+                <th class="text-center px-3 py-2.5 text-xs font-semibold text-gray-500 uppercase w-20">Thao tác</th>
               </tr>
             </thead>
             <tbody class="divide-y divide-gray-100">
               <template x-for="item in contentItems" :key="item.id">
                 <tr class="hover:bg-blue-50/40 transition group">
-                  <!-- Status -->
+                  <!-- Ngày tạo -->
                   <td class="px-3 py-2 border-r border-gray-50">
-                    <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium whitespace-nowrap" :class="statusClass(item.status)" x-text="statusLabel(item.status)"></span>
+                    <div class="text-xs text-gray-700" x-text="new Date(item.createdAt).toLocaleDateString('vi-VN', {timeZone:'Asia/Ho_Chi_Minh', day:'2-digit', month:'2-digit', year:'numeric'})"></div>
+                    <div class="text-[11px] text-gray-400" x-text="new Date(item.createdAt).toLocaleTimeString('vi-VN', {timeZone:'Asia/Ho_Chi_Minh', hour:'2-digit', minute:'2-digit'})"></div>
                   </td>
-                  <!-- Source -->
+                  <!-- Nguồn -->
                   <td class="px-3 py-2 border-r border-gray-50">
                     <span class="text-xs px-1.5 py-0.5 rounded whitespace-nowrap"
-                      :class="{'bg-purple-50 text-purple-600': item.source==='AI', 'bg-teal-50 text-teal-600': item.source==='MANUAL', 'bg-cyan-50 text-cyan-600': item.source==='IMPORT'}"
+                      :class="{'bg-purple-50 text-purple-600': item.source==='AI' || item.source==='IMPORT', 'bg-teal-50 text-teal-600': item.source==='MANUAL'}"
                       x-text="sourceLabel(item.source)"></span>
                   </td>
                   <!-- Campaign -->
                   <td class="px-3 py-2 border-r border-gray-50">
                     <span class="text-xs text-gray-600 truncate block max-w-[120px]" x-text="item.campaign?.name || '—'" :title="item.campaign?.name"></span>
                   </td>
-                  <!-- Page with profile picture -->
+                  <!-- Page -->
                   <td class="px-3 py-2 border-r border-gray-50">
                     <div class="flex items-center gap-1.5">
                       <img x-show="item.page?.platform==='FACEBOOK'" :src="'https://graph.facebook.com/' + item.page?.externalId + '/picture?type=small'"
-                        class="w-5 h-5 rounded-full object-cover flex-shrink-0 bg-gray-100"
-                        onerror="this.style.display='none'">
+                        class="w-5 h-5 rounded-full object-cover flex-shrink-0 bg-gray-100" onerror="this.style.display='none'">
                       <i x-show="item.page?.platform!=='FACEBOOK'" class="ri-tiktok-fill text-sm flex-shrink-0"></i>
                       <span x-text="item.page?.name" class="text-xs truncate max-w-[100px]" :title="item.page?.name"></span>
                     </div>
                   </td>
-                  <!-- Topic + Notes -->
+                  <!-- Chủ đề -->
                   <td class="px-3 py-2 border-r border-gray-50">
-                    <div class="font-medium text-gray-800 text-xs leading-snug" x-text="item.topic" :title="item.topic"></div>
-                    <div x-show="item.notes" class="text-[11px] text-gray-400 mt-0.5 truncate max-w-[180px]" x-text="item.notes"></div>
+                    <div class="font-medium text-gray-800 text-xs leading-snug truncate max-w-[160px]" x-text="item.topic" :title="item.topic"></div>
                   </td>
-                  <!-- Type -->
+                  <!-- Ghi chú -->
+                  <td class="px-3 py-2 border-r border-gray-50">
+                    <div class="text-[11px] text-gray-500 truncate max-w-[120px]" x-text="item.notes || '—'" :title="item.notes"></div>
+                  </td>
+                  <!-- Định dạng -->
                   <td class="px-3 py-2 border-r border-gray-50">
                     <span class="inline-flex items-center gap-1 text-xs px-1.5 py-0.5 rounded"
                       :class="{'bg-blue-50 text-blue-600': item.contentType==='IMAGE', 'bg-purple-50 text-purple-600': item.contentType==='VIDEO', 'bg-gray-100 text-gray-600': item.contentType==='TEXT'}">
@@ -581,65 +584,72 @@
                       <span x-text="item.contentType"></span>
                     </span>
                   </td>
-                  <!-- Content preview -->
-                  <td class="px-3 py-2 border-r border-gray-50">
-                    <div x-show="item.generatedText" class="text-[11px] text-gray-500 leading-snug cursor-pointer hover:text-gray-800" style="display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;max-width:180px" @click="viewResult(item)" x-text="item.generatedText?.substring(0,80)+(item.generatedText?.length>80?'...':'')"></div>
-                    <span x-show="!item.generatedText && item.status==='DRAFT'" class="text-[11px] text-gray-300 italic">Chưa có nội dung</span>
-                    <span x-show="!item.generatedText && item.status==='GENERATING'" class="text-[11px] text-purple-400"><i class="ri-loader-4-line animate-spin"></i> Đang gen...</span>
-                    <span x-show="!item.generatedText && item.status!=='DRAFT' && item.status!=='GENERATING'" class="text-gray-200 text-[11px]">—</span>
-                  </td>
-                  <!-- Scheduled -->
+                  <!-- Lịch đăng -->
                   <td class="px-3 py-2 border-r border-gray-50">
                     <div class="text-xs text-gray-700 font-medium" x-text="new Date(item.scheduledAt).toLocaleDateString('vi-VN', {timeZone:'Asia/Ho_Chi_Minh', day:'2-digit', month:'2-digit', year:'numeric'})"></div>
                     <div class="text-[11px] text-gray-400" x-text="new Date(item.scheduledAt).toLocaleTimeString('vi-VN', {timeZone:'Asia/Ho_Chi_Minh', hour:'2-digit', minute:'2-digit'})"></div>
                   </td>
-                  <!-- Media -->
-                  <td class="px-3 py-2 border-r border-gray-50 text-center">
-                    <div class="flex items-center gap-1 justify-center">
-                      <i x-show="item.generatedImageUrl || item.generatedImages?.length" class="ri-image-line text-blue-400" title="Có ảnh"></i>
-                      <i x-show="item.generatedVideoUrl" class="ri-video-line text-purple-400" title="Có video"></i>
-                      <span x-show="!item.generatedImageUrl && !item.generatedImages?.length && !item.generatedVideoUrl" class="text-gray-200">—</span>
-                    </div>
+                  <!-- Trạng thái -->
+                  <td class="px-3 py-2 border-r border-gray-50">
+                    <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium whitespace-nowrap" :class="statusClass(item.status)" x-text="statusLabel(item.status)"></span>
                   </td>
-                  <!-- Actions -->
-                  <td class="px-3 py-2 text-right">
-                    <div class="flex items-center justify-end gap-0.5">
-                      <button x-show="item.generatedText || item.generatedImageUrl || item.generatedVideoUrl" @click="viewResult(item)"
-                        class="p-1 text-gray-300 hover:text-brand-600 hover:bg-brand-50 rounded transition" title="Xem chi tiết">
-                        <i class="ri-eye-line"></i>
+                  <!-- Kết quả -->
+                  <td class="px-3 py-2 border-r border-gray-50">
+                    <div x-show="item.generatedText || item.generatedImageUrl" class="cursor-pointer hover:opacity-80" @click="viewResult(item)">
+                      <div class="flex items-center gap-2">
+                        <img x-show="item.generatedImageUrl" :src="item.generatedImageUrl" class="w-10 h-10 rounded object-cover flex-shrink-0 bg-gray-100" onerror="this.style.display='none'">
+                        <div x-show="item.generatedText" class="text-[11px] text-gray-500 leading-snug" style="display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;max-width:140px" x-text="item.generatedText?.substring(0,60)+(item.generatedText?.length>60?'...':'')"></div>
+                      </div>
+                    </div>
+                    <span x-show="!item.generatedText && !item.generatedImageUrl && item.status==='DRAFT'" class="text-[11px] text-gray-300 italic">Chưa có</span>
+                    <span x-show="!item.generatedText && !item.generatedImageUrl && item.status==='GENERATING'" class="text-[11px] text-purple-400"><i class="ri-loader-4-line animate-spin"></i> Đang gen...</span>
+                    <span x-show="!item.generatedText && !item.generatedImageUrl && item.status!=='DRAFT' && item.status!=='GENERATING'" class="text-gray-200 text-[11px]">—</span>
+                  </td>
+                  <!-- Thao tác - dropdown -->
+                  <td class="px-3 py-2 text-center">
+                    <div class="relative" x-data="{open:false}">
+                      <button @click="open=!open" class="p-1.5 text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition">
+                        <i class="ri-more-2-fill text-base"></i>
                       </button>
-                      <button x-show="item.status==='PENDING_REVIEW'" @click="approveContent(item.id)"
-                        class="p-1 text-gray-300 hover:text-green-600 hover:bg-green-50 rounded transition" title="Duyệt">
-                        <i class="ri-check-line"></i>
-                      </button>
-                      <button x-show="item.status==='PENDING_REVIEW'" @click="requestEditContent(item.id)"
-                        class="p-1 text-gray-300 hover:text-orange-600 hover:bg-orange-50 rounded transition" title="Yêu cầu sửa">
-                        <i class="ri-edit-line"></i>
-                      </button>
-                      <button x-show="item.status==='PENDING_REVIEW'" @click="rejectContent(item.id)"
-                        class="p-1 text-gray-300 hover:text-red-600 hover:bg-red-50 rounded transition" title="Hủy">
-                        <i class="ri-close-line"></i>
-                      </button>
-                      <button x-show="item.status==='DRAFT' || item.status==='FAILED'" @click="regenerateContent(item.id)"
-                        class="p-1 text-gray-300 hover:text-purple-600 hover:bg-purple-50 rounded transition" title="Gen content">
-                        <i class="ri-magic-line"></i>
-                      </button>
-                      <button x-show="item.status==='APPROVED'" @click="publishNow(item.id)"
-                        class="p-1 text-gray-300 hover:text-green-600 hover:bg-green-50 rounded transition" title="Đăng ngay">
-                        <i class="ri-send-plane-line"></i>
-                      </button>
-                      <button @click="editContent(item)"
-                        class="p-1 text-gray-300 hover:text-brand-600 hover:bg-brand-50 rounded transition" title="Sửa">
-                        <i class="ri-pencil-line"></i>
-                      </button>
-                      <button @click="deleteContent(item.id, item.topic)"
-                        class="p-1 text-gray-300 hover:text-red-600 hover:bg-red-50 rounded transition" title="Xóa">
-                        <i class="ri-delete-bin-line"></i>
-                      </button>
-                      <button x-show="item.status==='FAILED' && item.errorMessage" @click="viewError(item)"
-                        class="p-1 text-red-300 hover:text-red-600 hover:bg-red-50 rounded transition" title="Xem lỗi">
-                        <i class="ri-error-warning-line"></i>
-                      </button>
+                      <div x-show="open" @click.away="open=false" x-transition class="absolute right-0 top-full mt-1 bg-white rounded-lg shadow-lg border border-gray-100 py-1 z-30 min-w-[160px]">
+                        <button x-show="item.generatedText || item.generatedImageUrl || item.generatedVideoUrl" @click="viewResult(item); open=false"
+                          class="w-full text-left px-3 py-1.5 text-xs hover:bg-gray-50 flex items-center gap-2">
+                          <i class="ri-eye-line text-brand-500"></i> Xem kết quả
+                        </button>
+                        <button x-show="item.status==='DRAFT' || item.status==='FAILED'" @click="regenerateContent(item.id); open=false"
+                          class="w-full text-left px-3 py-1.5 text-xs hover:bg-gray-50 flex items-center gap-2">
+                          <i class="ri-magic-line text-purple-500"></i> Gen content
+                        </button>
+                        <button x-show="item.status==='PENDING_REVIEW'" @click="approveContent(item.id); open=false"
+                          class="w-full text-left px-3 py-1.5 text-xs hover:bg-gray-50 flex items-center gap-2">
+                          <i class="ri-check-line text-green-500"></i> Duyệt
+                        </button>
+                        <button x-show="item.status==='PENDING_REVIEW'" @click="regenerateContent(item.id); open=false"
+                          class="w-full text-left px-3 py-1.5 text-xs hover:bg-gray-50 flex items-center gap-2">
+                          <i class="ri-refresh-line text-orange-500"></i> Gen lại
+                        </button>
+                        <button x-show="item.status==='PENDING_REVIEW'" @click="rejectContent(item.id); open=false"
+                          class="w-full text-left px-3 py-1.5 text-xs hover:bg-gray-50 flex items-center gap-2">
+                          <i class="ri-close-line text-red-500"></i> Hủy
+                        </button>
+                        <button x-show="item.status==='APPROVED'" @click="publishNow(item.id); open=false"
+                          class="w-full text-left px-3 py-1.5 text-xs hover:bg-gray-50 flex items-center gap-2">
+                          <i class="ri-send-plane-line text-green-500"></i> Đăng ngay
+                        </button>
+                        <div x-show="item.status!=='PUBLISHED' && item.status!=='GENERATING'" class="border-t border-gray-100 my-1"></div>
+                        <button x-show="item.status!=='PUBLISHED' && item.status!=='GENERATING'" @click="editContent(item); open=false"
+                          class="w-full text-left px-3 py-1.5 text-xs hover:bg-gray-50 flex items-center gap-2">
+                          <i class="ri-pencil-line text-gray-500"></i> Sửa thông tin
+                        </button>
+                        <button x-show="item.status!=='PUBLISHED' && item.status!=='GENERATING'" @click="deleteContent(item.id, item.topic); open=false"
+                          class="w-full text-left px-3 py-1.5 text-xs hover:bg-red-50 flex items-center gap-2 text-red-500">
+                          <i class="ri-delete-bin-line"></i> Xóa
+                        </button>
+                        <button x-show="item.status==='FAILED' && item.errorMessage" @click="viewError(item); open=false"
+                          class="w-full text-left px-3 py-1.5 text-xs hover:bg-red-50 flex items-center gap-2 text-red-500">
+                          <i class="ri-error-warning-line"></i> Xem lỗi
+                        </button>
+                      </div>
                     </div>
                   </td>
                 </tr>
@@ -862,19 +872,23 @@
                 </div>
                 <div class="bg-gray-50 rounded-lg p-4 text-sm whitespace-pre-wrap max-h-64 overflow-y-auto" x-text="cleanText(resultItem.generatedText)"></div>
               </div>
-              <div x-show="resultItem.generatedImageUrl">
+              <div x-show="resultItem.generatedImageUrl || resultItem.generatedImages?.length">
                 <label class="block text-xs font-semibold text-gray-500 uppercase mb-1">Ảnh</label>
                 <div class="grid gap-2" :class="resultItem.generatedImages?.length > 1 ? 'grid-cols-2' : 'grid-cols-1'">
                   <template x-if="resultItem.generatedImages?.length > 0">
                     <template x-for="(img, idx) in resultItem.generatedImages" :key="idx">
                       <div class="relative">
-                        <img :src="img.url || img.localPath" class="rounded-lg w-full object-cover" style="max-height:300px" onerror="this.style.display='none'">
+                        <a :href="img.url || img.localPath" target="_blank">
+                          <img :src="img.url || img.localPath" class="rounded-lg w-full object-cover cursor-pointer hover:opacity-90 transition" style="max-height:300px" onerror="this.parentElement.innerHTML='<span class=\'text-xs text-gray-400\'>Ảnh không tải được</span>'">
+                        </a>
                         <p x-show="img.description" class="text-xs text-gray-400 mt-1" x-text="img.description"></p>
                       </div>
                     </template>
                   </template>
                   <template x-if="!resultItem.generatedImages?.length && resultItem.generatedImageUrl">
-                    <img :src="resultItem.generatedImageUrl" class="rounded-lg max-h-80 object-contain" onerror="this.style.display='none'">
+                    <a :href="resultItem.generatedImageUrl" target="_blank">
+                      <img :src="resultItem.generatedImageUrl" class="rounded-lg max-h-80 object-contain cursor-pointer hover:opacity-90 transition" onerror="this.parentElement.innerHTML='<span class=\'text-xs text-gray-400\'>Ảnh không tải được</span>'">
+                    </a>
                   </template>
                 </div>
               </div>
@@ -1997,7 +2011,7 @@ function app() {
     },
 
     sourceLabel(source) {
-      return { AI: 'AI', MANUAL: 'Thủ công', IMPORT: 'Import' }[source] || 'AI';
+      return { AI: 'AI', MANUAL: 'Có sẵn', IMPORT: 'AI' }[source] || 'AI';
     },
 
     showToast(message, type = 'success') {
