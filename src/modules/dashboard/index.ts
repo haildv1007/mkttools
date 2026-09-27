@@ -111,23 +111,24 @@ async function fetchFbMetricsForItems(
     for (const batch of batches) {
       try {
         const ids = batch.join(',');
-        const url = `https://graph.facebook.com/v21.0/?ids=${encodeURIComponent(ids)}&fields=likes.summary(true),comments.summary(true),shares,insights.metric(post_impressions,post_engaged_users)&access_token=${encodeURIComponent(token)}`;
+        const url = `https://graph.facebook.com/v21.0/?ids=${encodeURIComponent(ids)}&fields=reactions.summary(true),comments.summary(true),shares,insights.metric(post_impressions,post_engaged_users)&access_token=${encodeURIComponent(token)}`;
         const batchRes = await fetch(url);
         if (batchRes.ok) {
           const data = await batchRes.json() as Record<string, {
-            likes?: { summary?: { total_count?: number } };
+            reactions?: { summary?: { total_count?: number } };
             comments?: { summary?: { total_count?: number } };
             shares?: { count?: number };
             insights?: { data?: Array<{ name: string; values?: Array<{ value: number }> }> };
           }>;
           for (const [postId, postInfo] of Object.entries(data)) {
-            const reactions = postInfo.likes?.summary?.total_count ?? 0;
+            const reactions = postInfo.reactions?.summary?.total_count ?? 0;
             const comments = postInfo.comments?.summary?.total_count ?? 0;
             const shares = postInfo.shares?.count ?? 0;
             let reach = 0, engagedUsers = 0;
             if (postInfo.insights?.data) {
               for (const metric of postInfo.insights.data) {
                 const val = metric.values?.[0]?.value ?? 0;
+                // post_impressions = total impressions; used as "Reach" proxy since post_impressions_unique deprecated 06/2026
                 if (metric.name === 'post_impressions') reach = val;
                 if (metric.name === 'post_engaged_users') engagedUsers = val;
               }
@@ -259,10 +260,12 @@ router.get('/stats/dashboard', async (req: Request, res: Response) => {
           page: { select: { id: true, name: true, externalId: true, accessToken: true, platform: true } },
         },
       }),
+      // Pipeline: current state of ALL content (not period-scoped)
       prisma.contentItem.findMany({
-        where: { ...baseWhere, createdAt: { gte: currentFrom, lte: currentTo } },
+        where: { ...baseWhere },
         select: { id: true, status: true, scheduledAt: true },
       }),
+      // Previous period content for delta comparison
       prisma.contentItem.findMany({
         where: { ...baseWhere, createdAt: { gte: prevFrom, lte: prevTo } },
         select: { id: true, status: true },
@@ -298,10 +301,11 @@ router.get('/stats/dashboard', async (req: Request, res: Response) => {
     const prevPosted = countByStatus(allPrevContent, 'PUBLISHED');
     const curFailed = countByStatus(allCurrentContent, 'FAILED');
     const prevFailed = countByStatus(allPrevContent, 'FAILED');
-    const curTotal = allCurrentContent.length;
-    const prevTotal = allPrevContent.length;
-    const curRate = curTotal > 0 ? Math.round((curPosted / curTotal) * 10000) / 100 : 0;
-    const prevRate = prevTotal > 0 ? Math.round((prevPosted / prevTotal) * 10000) / 100 : 0;
+    // Success rate: published / (published + failed) — only content that attempted publish
+    const curAttempted = curPosted + curFailed;
+    const prevAttempted = prevPosted + prevFailed;
+    const curRate = curAttempted > 0 ? Math.round((curPosted / curAttempted) * 10000) / 100 : 0;
+    const prevRate = prevAttempted > 0 ? Math.round((prevPosted / prevAttempted) * 10000) / 100 : 0;
 
     const pipeline_summary = {
       pending_approval: { count: curPending, delta_percent: deltaPercent(curPending, prevPending) },
@@ -310,7 +314,7 @@ router.get('/stats/dashboard', async (req: Request, res: Response) => {
       scheduled: { count: curScheduled, delta_percent: deltaPercent(curScheduled, prevScheduled) },
       posted: { count: curPosted, delta_percent: deltaPercent(curPosted, prevPosted) },
       failed: { count: curFailed, delta_percent: deltaPercent(curFailed, prevFailed) },
-      success_publish_rate: { value: curRate, current: curPosted, total: curTotal, delta_percent: deltaPercent(curRate, prevRate) },
+      success_publish_rate: { value: curRate, current: curPosted, total: curAttempted, delta_percent: deltaPercent(curRate, prevRate) },
     };
 
     // --- KPIs from FB metrics ---
@@ -476,6 +480,7 @@ router.get('/stats/dashboard', async (req: Request, res: Response) => {
     });
 
     res.json({
+      synced_at: new Date().toISOString(),
       filters: {
         dateFrom: currentFrom.toISOString(),
         dateTo: currentTo.toISOString(),
@@ -786,17 +791,17 @@ router.get('/stats/fb-insights', async (_req: Request, res: Response) => {
       for (const batch of batches) {
         try {
           const ids = batch.join(',');
-          const url = `https://graph.facebook.com/v21.0/?ids=${encodeURIComponent(ids)}&fields=likes.summary(true),comments.summary(true),shares,insights.metric(post_impressions,post_engaged_users)&access_token=${encodeURIComponent(token)}`;
+          const url = `https://graph.facebook.com/v21.0/?ids=${encodeURIComponent(ids)}&fields=reactions.summary(true),comments.summary(true),shares,insights.metric(post_impressions,post_engaged_users)&access_token=${encodeURIComponent(token)}`;
           const batchRes = await fetch(url);
           if (batchRes.ok) {
             const data = await batchRes.json() as Record<string, {
-              likes?: { summary?: { total_count?: number } };
+              reactions?: { summary?: { total_count?: number } };
               comments?: { summary?: { total_count?: number } };
               shares?: { count?: number };
               insights?: { data?: Array<{ name: string; values?: Array<{ value: number }> }> };
             }>;
             for (const [postId, postInfo] of Object.entries(data)) {
-              const reactions = postInfo.likes?.summary?.total_count ?? 0;
+              const reactions = postInfo.reactions?.summary?.total_count ?? 0;
               const comments = postInfo.comments?.summary?.total_count ?? 0;
               const shares = postInfo.shares?.count ?? 0;
               let reach = 0;
@@ -804,7 +809,8 @@ router.get('/stats/fb-insights', async (_req: Request, res: Response) => {
               if (postInfo.insights?.data) {
                 for (const metric of postInfo.insights.data) {
                   const val = metric.values?.[0]?.value ?? 0;
-                  if (metric.name === 'post_impressions') reach = val;
+                  // post_impressions = total impressions; used as "Reach" proxy since post_impressions_unique deprecated 06/2026
+                if (metric.name === 'post_impressions') reach = val;
                   if (metric.name === 'post_engaged_users') engagedUsers = val;
                 }
               }
