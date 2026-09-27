@@ -165,7 +165,7 @@ router.get('/stats/dashboard', async (req: Request, res: Response) => {
       ? new Date(dateFrom as string)
       : new Date(now.getTime() - days * 24 * 60 * 60 * 1000);
     currentFrom.setHours(0, 0, 0, 0);
-    if (!dateTo) { currentTo.setHours(23, 59, 59, 999); }
+    currentTo.setHours(23, 59, 59, 999);
 
     const periodLength = currentTo.getTime() - currentFrom.getTime();
     const prevTo = new Date(currentFrom.getTime() - 1);
