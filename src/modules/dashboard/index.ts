@@ -113,46 +113,43 @@ async function fetchFbMetricsForItems(
     let batchFailed = false;
 
     for (const batch of batches) {
-      try {
-        const ids = batch.join(',');
-        const url = `https://graph.facebook.com/v21.0/?ids=${encodeURIComponent(ids)}&fields=reactions.summary(true),comments.summary(true),shares,insights.metric(post_impressions,post_engaged_users)&access_token=${encodeURIComponent(token)}`;
-        const batchRes = await fetch(url);
-        const rawJson = await batchRes.json() as Record<string, unknown>;
-        if (!batchRes.ok) {
-          const errMsg = (rawJson as { error?: { message?: string } })?.error?.message || `HTTP ${batchRes.status}`;
-          fbErrors.push(`${page.name}: ${errMsg}`);
-          batchFailed = true;
-          continue;
-        }
-        for (const [postId, postInfoRaw] of Object.entries(rawJson)) {
-          const postInfo = postInfoRaw as {
+      const fields = 'reactions.summary(true),comments.summary(true),shares,insights.metric(post_impressions,post_engaged_users)';
+      const results = await Promise.allSettled(
+        batch.map(async (postId) => {
+          const url = `https://graph.facebook.com/v21.0/${postId}?fields=${fields}&access_token=${encodeURIComponent(token)}`;
+          const res = await fetch(url);
+          const json = await res.json() as {
             reactions?: { summary?: { total_count?: number } };
             comments?: { summary?: { total_count?: number } };
             shares?: { count?: number };
             insights?: { data?: Array<{ name: string; values?: Array<{ value: number }> }> };
             error?: { message?: string };
           };
-          if (postInfo.error) {
-            fbErrors.push(`Post ${postId}: ${postInfo.error.message}`);
-            continue;
+          if (!res.ok || json.error) {
+            throw new Error(json.error?.message || `HTTP ${res.status}`);
           }
-          const reactions = postInfo.reactions?.summary?.total_count ?? 0;
-          const comments = postInfo.comments?.summary?.total_count ?? 0;
-          const shares = postInfo.shares?.count ?? 0;
-          let reach = 0, engagedUsers = 0;
-          if (postInfo.insights?.data) {
-            for (const metric of postInfo.insights.data) {
-              const val = metric.values?.[0]?.value ?? 0;
-              // post_impressions = total impressions (proxy for reach; post_impressions_unique deprecated 06/2026)
-              if (metric.name === 'post_impressions') reach = val;
-              if (metric.name === 'post_engaged_users') engagedUsers = val;
-            }
-          }
-          postDataMap.set(postId, { reactions, comments, shares, reach, engagedUsers, synced_at: new Date().toISOString() });
+          return { postId, json };
+        })
+      );
+      for (const r of results) {
+        if (r.status === 'rejected') {
+          fbErrors.push(`${page.name}: ${r.reason instanceof Error ? r.reason.message : 'fetch error'}`);
+          batchFailed = true;
+          continue;
         }
-      } catch (e) {
-        fbErrors.push(`${page.name}: ${e instanceof Error ? e.message : 'fetch error'}`);
-        batchFailed = true;
+        const { postId, json: postInfo } = r.value;
+        const reactions = postInfo.reactions?.summary?.total_count ?? 0;
+        const comments = postInfo.comments?.summary?.total_count ?? 0;
+        const shares = postInfo.shares?.count ?? 0;
+        let reach = 0, engagedUsers = 0;
+        if (postInfo.insights?.data) {
+          for (const metric of postInfo.insights.data) {
+            const val = metric.values?.[0]?.value ?? 0;
+            if (metric.name === 'post_impressions') reach = val;
+            if (metric.name === 'post_engaged_users') engagedUsers = val;
+          }
+        }
+        postDataMap.set(postId, { reactions, comments, shares, reach, engagedUsers, synced_at: new Date().toISOString() });
       }
     }
 
@@ -840,39 +837,43 @@ router.get('/stats/fb-insights', async (_req: Request, res: Response) => {
       }>();
 
       for (const batch of batches) {
-        try {
-          const ids = batch.join(',');
-          const url = `https://graph.facebook.com/v21.0/?ids=${encodeURIComponent(ids)}&fields=reactions.summary(true),comments.summary(true),shares,insights.metric(post_impressions,post_engaged_users)&access_token=${encodeURIComponent(token)}`;
-          const batchRes = await fetch(url);
-          if (batchRes.ok) {
-            const data = await batchRes.json() as Record<string, {
+        const fields = 'reactions.summary(true),comments.summary(true),shares,insights.metric(post_impressions,post_engaged_users)';
+        const results = await Promise.allSettled(
+          batch.map(async (postId) => {
+            const url = `https://graph.facebook.com/v21.0/${postId}?fields=${fields}&access_token=${encodeURIComponent(token)}`;
+            const res = await fetch(url);
+            const json = await res.json() as {
               reactions?: { summary?: { total_count?: number } };
               comments?: { summary?: { total_count?: number } };
               shares?: { count?: number };
               insights?: { data?: Array<{ name: string; values?: Array<{ value: number }> }> };
-            }>;
-            for (const [postId, postInfo] of Object.entries(data)) {
-              const reactions = postInfo.reactions?.summary?.total_count ?? 0;
-              const comments = postInfo.comments?.summary?.total_count ?? 0;
-              const shares = postInfo.shares?.count ?? 0;
-              let reach = 0;
-              let engagedUsers = 0;
-              if (postInfo.insights?.data) {
-                for (const metric of postInfo.insights.data) {
-                  const val = metric.values?.[0]?.value ?? 0;
-                  // post_impressions = total impressions; used as "Reach" proxy since post_impressions_unique deprecated 06/2026
-                if (metric.name === 'post_impressions') reach = val;
-                  if (metric.name === 'post_engaged_users') engagedUsers = val;
-                }
-              }
-              postDataMap.set(postId, { reactions, comments, shares, reach, engagedUsers });
+              error?: { message?: string };
+            };
+            if (!res.ok || json.error) {
+              throw new Error(json.error?.message || `HTTP ${res.status}`);
             }
-          } else {
-            const errBody = await batchRes.json().catch(() => ({})) as { error?: { message?: string } };
-            pageResult.errors.push(`Post metrics batch: ${errBody?.error?.message ?? batchRes.statusText}`);
+            return { postId, json };
+          })
+        );
+        for (const r of results) {
+          if (r.status === 'rejected') {
+            pageResult.errors.push(`Post metrics: ${r.reason instanceof Error ? r.reason.message : 'Network error'}`);
+            continue;
           }
-        } catch (err) {
-          pageResult.errors.push(`Post metrics batch: ${err instanceof Error ? err.message : 'Network error'}`);
+          const { postId, json: postInfo } = r.value;
+          const reactions = postInfo.reactions?.summary?.total_count ?? 0;
+          const comments = postInfo.comments?.summary?.total_count ?? 0;
+          const shares = postInfo.shares?.count ?? 0;
+          let reach = 0;
+          let engagedUsers = 0;
+          if (postInfo.insights?.data) {
+            for (const metric of postInfo.insights.data) {
+              const val = metric.values?.[0]?.value ?? 0;
+              if (metric.name === 'post_impressions') reach = val;
+              if (metric.name === 'post_engaged_users') engagedUsers = val;
+            }
+          }
+          postDataMap.set(postId, { reactions, comments, shares, reach, engagedUsers });
         }
       }
 
