@@ -885,9 +885,9 @@
             <h2 class="text-xl font-bold">Import Content</h2>
             <p class="text-sm text-gray-400 mt-0.5">Nhập content từ file Excel hoặc Google Sheets</p>
           </div>
-          <a href="/api/campaigns/template" download class="px-3 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-600 hover:bg-gray-50 transition flex items-center gap-1">
+          <button @click="downloadTemplate()" class="px-3 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-600 hover:bg-gray-50 transition flex items-center gap-1">
             <i class="ri-download-line"></i> Tải file mẫu
-          </a>
+          </button>
         </div>
 
         <div class="bg-white rounded-xl border border-gray-100 shadow-sm p-6 max-w-3xl">
@@ -1872,6 +1872,17 @@ function app() {
       } catch (e) { this.showToast(e.message, 'error'); }
     },
 
+    async downloadTemplate() {
+      try {
+        const res = await fetch('/api/campaigns/template', { headers: { 'Authorization': `Bearer ${this.token}` } });
+        const blob = await res.blob();
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = 'mkttools-template.xlsx';
+        a.click();
+        URL.revokeObjectURL(a.href);
+      } catch (e) { this.showToast('Lỗi tải template', 'error'); }
+    },
     async approveContent(id) {
       if (!confirm('Duyệt content này?')) return;
       try {
