@@ -683,13 +683,20 @@
             <div class="grid grid-cols-2 gap-4">
               <div>
                 <label class="block text-sm font-medium text-gray-700 mb-1">Page <span class="text-red-500">*</span></label>
-                <select x-model="contentForm.pageId"
-                  class="w-full px-4 py-2.5 border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-brand-500 text-sm">
-                  <option value="">Chọn page</option>
-                  <template x-for="p in pages" :key="p.id">
-                    <option :value="p.id" x-text="p.name + ' (' + p.platform + ')'"></option>
+                <div class="relative">
+                  <select x-model="contentForm.pageId"
+                    class="w-full pl-10 pr-4 py-2.5 border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-brand-500 text-sm appearance-none">
+                    <option value="">Chọn page</option>
+                    <template x-for="p in pages" :key="p.id">
+                      <option :value="p.id" x-text="p.name + ' (' + p.platform + ')'"></option>
+                    </template>
+                  </select>
+                  <template x-if="contentForm.pageId">
+                    <img :src="'https://graph.facebook.com/' + (pages.find(p=>p.id===contentForm.pageId)?.externalId) + '/picture?type=small'"
+                      class="absolute left-2.5 top-1/2 -translate-y-1/2 w-6 h-6 rounded-full object-cover bg-gray-100" onerror="this.style.display='none'">
                   </template>
-                </select>
+                  <i x-show="!contentForm.pageId" class="ri-store-2-line absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"></i>
+                </div>
               </div>
               <div>
                 <label class="block text-sm font-medium text-gray-700 mb-1">Loại content</label>
@@ -739,10 +746,28 @@
                 class="w-full px-4 py-2.5 border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-brand-500 text-sm"></textarea>
             </div>
 
-            <!-- Image: upload hoặc URL (cả 2 mode, khi contentType=IMAGE) -->
-            <div x-show="contentForm.contentType === 'IMAGE'">
-              <label class="block text-sm font-medium text-gray-700 mb-1">Ảnh</label>
-              <div x-show="!contentForm.imageUrl && !contentForm.imageFile">
+            <!-- Image upload (chỉ hiện khi manual + IMAGE, hoặc khi đang edit có ảnh) -->
+            <div x-show="contentForm.contentType === 'IMAGE' && (contentForm.mode==='manual' || (contentForm.mode==='ai' && contentForm.images.length > 0))">
+              <label class="block text-sm font-medium text-gray-700 mb-1">Ảnh <span class="text-xs text-gray-400 font-normal">(tối đa 10 ảnh, kéo để sắp xếp)</span></label>
+              <!-- Image list with drag reorder -->
+              <div class="space-y-2 mb-2">
+                <template x-for="(img, idx) in contentForm.images" :key="idx">
+                  <div class="flex items-center gap-2 p-2 bg-gray-50 rounded-lg group" draggable="true"
+                    @dragstart="contentForm._dragIdx=idx" @dragover.prevent @drop.prevent="reorderImage(contentForm._dragIdx, idx)">
+                    <i class="ri-draggable text-gray-300 cursor-grab"></i>
+                    <img :src="img.url || (img.file ? URL.createObjectURL(img.file) : '')" class="w-12 h-12 rounded object-cover bg-gray-200 flex-shrink-0" onerror="this.src=''">
+                    <div class="flex-1 min-w-0">
+                      <p class="text-xs text-gray-600 truncate" x-text="img.file?.name || img.url || ''"></p>
+                      <p class="text-[11px] text-gray-400" x-text="'Ảnh ' + (idx+1)"></p>
+                    </div>
+                    <button @click="contentForm.images.splice(idx,1)" type="button" class="p-1 text-gray-300 hover:text-red-500 transition">
+                      <i class="ri-close-line"></i>
+                    </button>
+                  </div>
+                </template>
+              </div>
+              <!-- Add more images -->
+              <div x-show="contentForm.images.length < 10">
                 <div class="flex gap-2 mb-2">
                   <button @click="contentForm.imageInputMode='upload'" type="button"
                     :class="contentForm.imageInputMode==='upload' ? 'bg-brand-50 text-brand-600 border-brand-300' : 'bg-white text-gray-500 border-gray-200'"
@@ -757,30 +782,19 @@
                 </div>
                 <div x-show="contentForm.imageInputMode==='upload'">
                   <div class="border-2 border-dashed border-gray-300 rounded-xl p-4 text-center hover:border-brand-400 transition cursor-pointer"
-                    @click="$refs.imageInput.click()" @dragover.prevent @drop.prevent="contentForm.imageFile=$event.dataTransfer.files[0]">
-                    <input type="file" x-ref="imageInput" accept=".jpg,.jpeg,.png,.gif,.webp" @change="contentForm.imageFile=$event.target.files[0]" class="hidden">
+                    @click="$refs.multiImageInput.click()" @dragover.prevent @drop.prevent="addImageFiles($event.dataTransfer.files)">
+                    <input type="file" x-ref="multiImageInput" accept=".jpg,.jpeg,.png,.gif,.webp" multiple @change="addImageFiles($event.target.files); $event.target.value=''" class="hidden">
                     <i class="ri-image-add-line text-2xl text-gray-300 mb-1"></i>
-                    <p x-show="!contentForm.imageFile" class="text-xs text-gray-400">Kéo thả ảnh hoặc click để chọn</p>
-                    <p x-show="contentForm.imageFile" class="text-xs text-brand-600 font-medium" x-text="contentForm.imageFile?.name"></p>
+                    <p class="text-xs text-gray-400">Kéo thả hoặc click để chọn ảnh (chọn nhiều)</p>
                   </div>
-                  <p class="text-xs text-gray-400 mt-1">JPG, PNG, GIF, WebP — tối đa 20MB</p>
+                  <p class="text-xs text-gray-400 mt-1">JPG, PNG, GIF, WebP — tối đa 20MB/ảnh</p>
                 </div>
-                <div x-show="contentForm.imageInputMode==='url'">
-                  <input x-model="contentForm.imageUrl" type="url" placeholder="https://... (link ảnh trực tiếp)"
-                    class="w-full px-4 py-2.5 border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-brand-500 text-sm">
-                </div>
-              </div>
-              <div x-show="contentForm.imageUrl || contentForm.imageFile" class="space-y-2">
-                <div x-show="contentForm.imageUrl" class="flex items-center gap-2">
-                  <img :src="contentForm.imageUrl" class="h-20 rounded-lg object-cover" onerror="this.style.display='none'">
-                  <div>
-                    <span class="text-xs text-green-600 flex items-center gap-1"><i class="ri-check-line"></i> Đã có ảnh</span>
-                    <button @click="contentForm.imageUrl=''" type="button" class="text-xs text-red-500 hover:text-red-700">Xóa</button>
-                  </div>
-                </div>
-                <div x-show="contentForm.imageFile && !contentForm.imageUrl" class="flex items-center gap-2">
-                  <span class="text-xs text-brand-600" x-text="contentForm.imageFile?.name"></span>
-                  <button @click="contentForm.imageFile=null" type="button" class="text-xs text-red-500 hover:text-red-700">Xóa</button>
+                <div x-show="contentForm.imageInputMode==='url'" class="flex gap-2">
+                  <input x-ref="imageUrlInput" type="url" placeholder="https://... (link ảnh trực tiếp)"
+                    class="flex-1 px-4 py-2.5 border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-brand-500 text-sm"
+                    @keydown.enter.prevent="addImageUrl($refs.imageUrlInput.value); $refs.imageUrlInput.value=''">
+                  <button @click="addImageUrl($refs.imageUrlInput.value); $refs.imageUrlInput.value=''" type="button"
+                    class="px-3 py-2 bg-brand-50 text-brand-600 rounded-lg text-xs font-medium hover:bg-brand-100 transition">Thêm</button>
                 </div>
               </div>
             </div>
@@ -1393,7 +1407,7 @@ function app() {
 
     showContentForm: false,
     editingContent: null,
-    contentForm: { pageId: '', topic: '', contentType: 'IMAGE', scheduledDate: '', scheduledTime: '09:00', notes: '', imageDescriptions: '', videoFile: null, videoUrl: '', mode: 'ai', generatedText: '', imageUrl: '', manualVideoUrl: '', imageFile: null, imageInputMode: 'upload', videoInputMode: 'upload' },
+    contentForm: { pageId: '', topic: '', contentType: 'IMAGE', scheduledDate: '', scheduledTime: '09:00', notes: '', imageDescriptions: '', videoFile: null, videoUrl: '', mode: 'ai', generatedText: '', manualVideoUrl: '', images: [], imageInputMode: 'upload', videoInputMode: 'upload', _dragIdx: -1 },
     contentFormError: '',
     contentFormSaving: false,
 
@@ -1843,11 +1857,11 @@ function app() {
         videoUrl: '',
         mode: 'ai',
         generatedText: '',
-        imageUrl: '',
         manualVideoUrl: '',
-        imageFile: null,
+        images: [],
         imageInputMode: 'upload',
         videoInputMode: 'upload',
+        _dragIdx: -1,
       };
       this.contentFormError = '';
       this.showContentForm = true;
@@ -1857,6 +1871,12 @@ function app() {
       this.editingContent = item;
       const d = new Date(item.scheduledAt);
       const isManual = item.source === 'MANUAL' || item.source === 'IMPORT';
+      const existingImages = [];
+      if (item.generatedImages?.length) {
+        item.generatedImages.forEach(img => existingImages.push({ url: img.url || img.localPath, file: null }));
+      } else if (item.generatedImageUrl) {
+        existingImages.push({ url: item.generatedImageUrl, file: null });
+      }
       this.contentForm = {
         pageId: item.pageId,
         topic: item.topic,
@@ -1869,11 +1889,11 @@ function app() {
         videoUrl: item.generatedVideoUrl || '',
         mode: isManual ? 'manual' : 'ai',
         generatedText: item.generatedText || '',
-        imageUrl: item.generatedImageUrl || '',
         manualVideoUrl: item.generatedVideoUrl || '',
-        imageFile: null,
-        imageInputMode: item.generatedImageUrl ? 'url' : 'upload',
+        images: existingImages,
+        imageInputMode: 'upload',
         videoInputMode: item.generatedVideoUrl ? 'url' : 'upload',
+        _dragIdx: -1,
       };
       this.contentFormError = '';
       this.showContentForm = true;
@@ -1898,10 +1918,12 @@ function app() {
           imageDescriptions: this.contentForm.imageDescriptions,
         };
         if (isManual) {
+          const urlImages = this.contentForm.images.filter(i => i.url && !i.file);
           Object.assign(payload, {
             generatedText: this.contentForm.generatedText,
-            imageUrl: this.contentForm.imageUrl,
+            imageUrl: urlImages.length > 0 ? urlImages[0].url : '',
             videoUrl: this.contentForm.manualVideoUrl,
+            imageUrls: urlImages.map(i => i.url),
           });
         }
         let contentId;
@@ -1923,10 +1945,11 @@ function app() {
           contentId = created.id;
           this.showToast(isManual ? 'Thêm content có sẵn → Chờ duyệt' : 'Thêm content thành công');
         }
-        if (this.contentForm.imageFile && contentId) {
+        const fileImages = this.contentForm.images.filter(i => i.file);
+        if (fileImages.length > 0 && contentId) {
           const form = new FormData();
-          form.append('image', this.contentForm.imageFile);
-          await this.api(`/dashboard/content/${contentId}/upload-image`, { method: 'POST', body: form });
+          fileImages.forEach(i => form.append('images', i.file));
+          await this.api(`/dashboard/content/${contentId}/upload-images`, { method: 'POST', body: form });
         }
         if (this.contentForm.videoFile && contentId) {
           const form = new FormData();
@@ -1940,6 +1963,23 @@ function app() {
       } finally {
         this.contentFormSaving = false;
       }
+    },
+
+    addImageFiles(files) {
+      for (const f of files) {
+        if (this.contentForm.images.length >= 10) break;
+        this.contentForm.images.push({ url: '', file: f });
+      }
+    },
+    addImageUrl(url) {
+      if (!url || this.contentForm.images.length >= 10) return;
+      this.contentForm.images.push({ url, file: null });
+    },
+    reorderImage(from, to) {
+      if (from === to) return;
+      const imgs = this.contentForm.images;
+      const item = imgs.splice(from, 1)[0];
+      imgs.splice(to, 0, item);
     },
 
     viewResult(item) {

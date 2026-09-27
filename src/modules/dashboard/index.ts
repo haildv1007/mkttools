@@ -262,7 +262,7 @@ router.patch('/content/:id', async (req: Request, res: Response) => {
 
 router.post('/content', async (req: Request, res: Response) => {
   try {
-    const { pageId, topic, contentType, scheduledAt, notes, imageDescriptions, campaignId, generatedText, imageUrl, videoUrl } = req.body;
+    const { pageId, topic, contentType, scheduledAt, notes, imageDescriptions, campaignId, generatedText, imageUrl, videoUrl, imageUrls } = req.body;
     if (!pageId || !topic || !scheduledAt) {
       return res.status(400).json({ error: 'Thiếu thông tin: pageId, topic, scheduledAt là bắt buộc' });
     }
@@ -288,6 +288,7 @@ router.post('/content', async (req: Request, res: Response) => {
         imageDescriptions: imageDescriptions || null,
         generatedText: generatedText || null,
         generatedImageUrl: imageUrl || null,
+        generatedImages: imageUrls?.length > 0 ? JSON.parse(JSON.stringify(imageUrls.map((u: string) => ({ url: u })))) : undefined,
         generatedVideoUrl: videoUrl || null,
         source: hasContent ? 'MANUAL' : 'AI',
         status: hasContent ? 'PENDING_REVIEW' : 'DRAFT',
@@ -368,6 +369,32 @@ router.post('/content/:id/upload-image', imageUpload.single('image'), async (req
     });
 
     res.json({ success: true, imageUrl, filename: req.file.filename, size: req.file.size });
+  } catch (err) {
+    res.status(400).json({ error: err instanceof Error ? err.message : 'Upload failed' });
+  }
+});
+
+router.post('/content/:id/upload-images', imageUpload.array('images', 10), async (req: Request, res: Response) => {
+  try {
+    const id = req.params.id as string;
+    const files = req.files as Express.Multer.File[];
+    if (!files || files.length === 0) return res.status(400).json({ error: 'Không có file ảnh' });
+
+    const appUrl = process.env.APP_URL || `${req.protocol}://${req.get('host')}`;
+    const images = files.map(f => ({
+      url: `${appUrl}/uploads/images/${f.filename}`,
+      localPath: f.path,
+    }));
+
+    await prisma.contentItem.update({
+      where: { id },
+      data: {
+        generatedImageUrl: images[0].url,
+        generatedImages: JSON.parse(JSON.stringify(images)),
+      },
+    });
+
+    res.json({ success: true, images });
   } catch (err) {
     res.status(400).json({ error: err instanceof Error ? err.message : 'Upload failed' });
   }
