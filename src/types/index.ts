@@ -30,6 +30,7 @@ export interface GeneratedImage {
 export interface TextGeneratorOptions {
   topic: string;
   pageName: string;
+  pageContext?: string;
   contentType: ContentType;
   notes?: string;
   tone?: string;

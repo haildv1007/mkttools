@@ -32,6 +32,7 @@ export function startWorkers() {
     const textResult = await generateText({
       topic: item.topic,
       pageName: item.page.name,
+      pageContext: item.page.context || undefined,
       contentType: item.contentType,
       notes: item.notes || undefined,
     });

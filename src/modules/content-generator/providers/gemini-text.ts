@@ -56,6 +56,7 @@ Trả về JSON với format: {"text": "nội dung bài đăng", "hashtags": ["t
 Chủ đề: ${options.topic}
 Loại content: ${options.contentType}`;
 
+    if (options.pageContext) prompt += `\nThông tin về page (ADN thương hiệu): ${options.pageContext}`;
     if (options.notes) prompt += `\nGhi chú thêm: ${options.notes}`;
     if (options.tone) prompt += `\nTone giọng: ${options.tone}`;
     if (options.language) prompt += `\nNgôn ngữ: ${options.language}`;

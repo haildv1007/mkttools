@@ -189,6 +189,7 @@ async function handleRegenerate(contentItemId: string, chatId: number, feedback?
     const result = await generateText({
       topic: item.topic,
       pageName: item.page.name,
+      pageContext: item.page.context || undefined,
       contentType: item.contentType,
       notes: item.notes || undefined,
       previousFeedback: feedback,

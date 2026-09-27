@@ -72,6 +72,7 @@ model Page {
   name        String
   externalId  String   @map("external_id")
   accessToken String   @map("access_token")
+  context     String?
   isActive    Boolean  @default(true) @map("is_active")
   metadata    Json?
   userId      String   @map("user_id")
