@@ -11,6 +11,7 @@ import { KlingVideoProvider } from './providers/kling-video';
 import { MinimaxVideoProvider } from './providers/minimax-video';
 import { RunwayVideoProvider } from './providers/runway-video';
 import { VeoVideoProvider } from './providers/veo-video';
+import { SeedanceVideoProvider } from './providers/seedance-video';
 
 const textProviders: Record<string, () => TextProvider> = {
   claude: () => new ClaudeTextProvider(),
@@ -29,6 +30,7 @@ const videoProviders: Record<string, () => VideoProvider> = {
   kling: () => new KlingVideoProvider(),
   minimax: () => new MinimaxVideoProvider(),
   runway: () => new RunwayVideoProvider(),
+  seedance: () => new SeedanceVideoProvider(),
 };
 
 let activeTextProvider: TextProvider | null = null;

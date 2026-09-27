@@ -390,6 +390,11 @@ router.get('/video-models', async (req: Request, res: Response) => {
       { id: 'gen4_turbo', name: 'Gen-4 Turbo', description: 'Mới nhất, chất lượng cao' },
       { id: 'gen3a_turbo', name: 'Gen-3α Turbo', description: 'Nhanh, chất lượng tốt' },
     ],
+    seedance: [
+      { id: 'seedance-2.5', name: 'Seedance 2.5', description: 'Mới nhất, chất lượng cao nhất + audio' },
+      { id: 'seedance-2.0', name: 'Seedance 2.0', description: '#1 ranking, video + audio, giá rẻ' },
+      { id: 'seedance-2.0-fast', name: 'Seedance 2.0 Fast', description: 'Nhanh hơn, giá rẻ hơn' },
+    ],
   };
   res.json(models[provider] || []);
 });

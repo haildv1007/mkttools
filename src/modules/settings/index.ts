@@ -19,6 +19,7 @@ const SETTING_KEYS = [
   'KLING_API_KEY',
   'MINIMAX_API_KEY',
   'RUNWAY_API_KEY',
+  'FAL_API_KEY',
 ] as const;
 
 export async function getSetting(key: string): Promise<string | null> {
