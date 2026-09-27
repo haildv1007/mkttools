@@ -439,15 +439,38 @@
         </div>
       </div>
 
-      <!-- Content List -->
+      <!-- Content List (Sheet View) -->
       <div x-show="page==='content'" class="fade-in">
-        <div class="flex items-center justify-between mb-6">
-          <h2 class="text-xl font-bold">Content</h2>
+        <!-- Header -->
+        <div class="flex items-center justify-between mb-4">
+          <div>
+            <h2 class="text-xl font-bold">Content</h2>
+            <p class="text-sm text-gray-400 mt-0.5">Tổng: <strong x-text="contentTotal"></strong> items</p>
+          </div>
           <div class="flex gap-2">
+            <button @click="bulkGenerate()" x-show="contentItems.some(i => i.status==='DRAFT')"
+              class="px-3 py-2 bg-purple-500 text-white rounded-lg text-sm font-medium hover:bg-purple-600 transition flex items-center gap-1">
+              <i class="ri-magic-line"></i> Gen tất cả Draft
+            </button>
+            <button @click="openContentForm()"
+              class="px-3 py-2 bg-brand-600 text-white rounded-lg text-sm font-medium hover:bg-brand-700 transition flex items-center gap-1">
+              <i class="ri-add-line"></i> Thêm content
+            </button>
+          </div>
+        </div>
+
+        <!-- Filters -->
+        <div class="bg-white rounded-xl border border-gray-100 shadow-sm p-3 mb-4">
+          <div class="flex flex-wrap gap-2 items-center">
+            <div class="relative flex-1 min-w-[200px]">
+              <i class="ri-search-line absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"></i>
+              <input x-model="contentFilter.search" @input.debounce.400ms="loadContent()" type="text" placeholder="Tìm theo chủ đề..."
+                class="w-full pl-9 pr-3 py-2 border border-gray-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-brand-500">
+            </div>
             <select x-model="contentFilter.status" @change="loadContent()"
-              class="px-3 py-2 border border-gray-300 rounded-lg text-sm outline-none focus:ring-2 focus:ring-brand-500">
-              <option value="">Tất cả trạng thái</option>
-              <option value="DRAFT">Draft</option>
+              class="px-3 py-2 border border-gray-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-brand-500">
+              <option value="">Trạng thái</option>
+              <option value="DRAFT">Nháp</option>
               <option value="GENERATING">Đang gen</option>
               <option value="PENDING_REVIEW">Chờ duyệt</option>
               <option value="APPROVED">Đã duyệt</option>
@@ -455,60 +478,270 @@
               <option value="FAILED">Lỗi</option>
             </select>
             <select x-model="contentFilter.pageId" @change="loadContent()"
-              class="px-3 py-2 border border-gray-300 rounded-lg text-sm outline-none focus:ring-2 focus:ring-brand-500">
+              class="px-3 py-2 border border-gray-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-brand-500">
               <option value="">Tất cả pages</option>
               <template x-for="p in pages" :key="p.id">
                 <option :value="p.id" x-text="p.name"></option>
               </template>
             </select>
+            <input x-model="contentFilter.dateFrom" @change="loadContent()" type="date"
+              class="px-3 py-2 border border-gray-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-brand-500">
+            <span class="text-gray-400 text-sm">→</span>
+            <input x-model="contentFilter.dateTo" @change="loadContent()" type="date"
+              class="px-3 py-2 border border-gray-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-brand-500">
+            <button x-show="contentFilter.search || contentFilter.status || contentFilter.pageId || contentFilter.dateFrom || contentFilter.dateTo"
+              @click="contentFilter={status:'',pageId:'',search:'',dateFrom:'',dateTo:''}; loadContent()"
+              class="px-3 py-2 text-gray-400 hover:text-red-500 text-sm" title="Xóa bộ lọc">
+              <i class="ri-filter-off-line"></i> Xóa lọc
+            </button>
           </div>
         </div>
 
-        <div class="space-y-3">
-          <template x-for="item in contentItems" :key="item.id">
-            <div class="bg-white rounded-xl border border-gray-100 shadow-sm p-5 hover:shadow-md transition">
-              <div class="flex items-start justify-between">
-                <div class="flex-1 min-w-0">
-                  <div class="flex items-center gap-2 mb-2">
-                    <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium" :class="statusClass(item.status)" x-text="statusLabel(item.status)"></span>
-                    <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs bg-gray-100 text-gray-600">
-                      <i :class="item.page?.platform==='FACEBOOK' ? 'ri-facebook-fill text-blue-500' : 'ri-tiktok-fill'"></i>
-                      <span x-text="item.page?.name"></span>
+        <!-- Table -->
+        <div class="bg-white rounded-xl border border-gray-100 shadow-sm overflow-x-auto">
+          <table class="w-full text-sm">
+            <thead class="bg-gray-50 border-b border-gray-100">
+              <tr>
+                <th class="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase w-24">Trạng thái</th>
+                <th class="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase">Page</th>
+                <th class="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase">Chủ đề</th>
+                <th class="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase w-16">Loại</th>
+                <th class="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase w-28">Ngày tạo</th>
+                <th class="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase w-28">Lịch đăng</th>
+                <th class="text-center px-4 py-3 text-xs font-semibold text-gray-500 uppercase w-20">Kết quả</th>
+                <th class="text-right px-4 py-3 text-xs font-semibold text-gray-500 uppercase w-32">Thao tác</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-gray-50">
+              <template x-for="item in contentItems" :key="item.id">
+                <tr class="hover:bg-blue-50/30 transition">
+                  <!-- Status -->
+                  <td class="px-4 py-3">
+                    <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium whitespace-nowrap" :class="statusClass(item.status)" x-text="statusLabel(item.status)"></span>
+                  </td>
+                  <!-- Page -->
+                  <td class="px-4 py-3">
+                    <span class="inline-flex items-center gap-1 text-xs">
+                      <i :class="item.page?.platform==='FACEBOOK' ? 'ri-facebook-fill text-blue-500' : 'ri-tiktok-fill'" class="text-sm"></i>
+                      <span x-text="item.page?.name" class="truncate max-w-[120px]"></span>
                     </span>
-                    <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs bg-gray-100 text-gray-600" x-text="item.contentType"></span>
-                  </div>
-                  <h3 class="font-medium" x-text="item.topic"></h3>
-                  <p x-show="item.generatedText" class="text-sm text-gray-500 mt-2 line-clamp-2" x-text="cleanText(item.generatedText)"></p>
-                  <div class="flex items-center gap-4 mt-3 text-xs text-gray-400">
-                    <span><i class="ri-calendar-line"></i> <span x-text="new Date(item.scheduledAt).toLocaleString('vi-VN', {timeZone:'Asia/Ho_Chi_Minh'})"></span></span>
-                    <span x-show="item.campaign"><i class="ri-folder-line"></i> <span x-text="item.campaign?.name"></span></span>
-                  </div>
-                </div>
-                <div class="flex gap-1 ml-4">
-                  <button x-show="item.status==='DRAFT' || item.status==='FAILED'" @click="regenerateContent(item.id)"
-                    class="p-2 text-gray-400 hover:text-brand-600 hover:bg-brand-50 rounded-lg transition" title="Gen content">
-                    <i class="ri-magic-line"></i>
-                  </button>
-                  <button x-show="item.status==='APPROVED'" @click="publishNow(item.id)"
-                    class="p-2 text-gray-400 hover:text-green-600 hover:bg-green-50 rounded-lg transition" title="Đăng ngay">
-                    <i class="ri-send-plane-line"></i>
-                  </button>
-                  <button @click="deleteContent(item.id, item.topic)"
-                    class="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition" title="Xóa">
-                    <i class="ri-delete-bin-line"></i>
-                  </button>
-                </div>
-              </div>
-            </div>
-          </template>
+                  </td>
+                  <!-- Topic -->
+                  <td class="px-4 py-3">
+                    <div class="font-medium text-gray-800 truncate max-w-[280px]" x-text="item.topic" :title="item.topic"></div>
+                    <div x-show="item.notes" class="text-xs text-gray-400 truncate max-w-[280px]" x-text="item.notes"></div>
+                  </td>
+                  <!-- Type -->
+                  <td class="px-4 py-3">
+                    <span class="text-xs px-1.5 py-0.5 rounded bg-gray-100 text-gray-600" x-text="item.contentType"></span>
+                  </td>
+                  <!-- Created -->
+                  <td class="px-4 py-3 text-xs text-gray-500 whitespace-nowrap" x-text="new Date(item.createdAt).toLocaleDateString('vi-VN')"></td>
+                  <!-- Scheduled -->
+                  <td class="px-4 py-3 text-xs text-gray-500 whitespace-nowrap" x-text="new Date(item.scheduledAt).toLocaleString('vi-VN', {timeZone:'Asia/Ho_Chi_Minh', day:'2-digit', month:'2-digit', hour:'2-digit', minute:'2-digit'})"></td>
+                  <!-- Result -->
+                  <td class="px-4 py-3 text-center">
+                    <button x-show="item.generatedText || item.generatedImageUrl" @click="viewResult(item)"
+                      class="text-brand-500 hover:text-brand-700 transition" title="Xem kết quả">
+                      <i class="ri-eye-line text-lg"></i>
+                    </button>
+                    <button x-show="item.status==='FAILED' && item.errorMessage" @click="viewError(item)"
+                      class="text-red-400 hover:text-red-600 transition" title="Xem lỗi">
+                      <i class="ri-error-warning-line text-lg"></i>
+                    </button>
+                    <span x-show="!item.generatedText && !item.generatedImageUrl && !(item.status==='FAILED' && item.errorMessage)"
+                      class="text-gray-300">—</span>
+                  </td>
+                  <!-- Actions -->
+                  <td class="px-4 py-3 text-right">
+                    <div class="flex items-center justify-end gap-0.5">
+                      <button x-show="item.status==='DRAFT' || item.status==='FAILED'" @click="regenerateContent(item.id)"
+                        class="p-1.5 text-gray-400 hover:text-purple-600 hover:bg-purple-50 rounded transition" title="Gen content">
+                        <i class="ri-magic-line"></i>
+                      </button>
+                      <button x-show="item.status==='APPROVED'" @click="publishNow(item.id)"
+                        class="p-1.5 text-gray-400 hover:text-green-600 hover:bg-green-50 rounded transition" title="Đăng ngay">
+                        <i class="ri-send-plane-line"></i>
+                      </button>
+                      <button @click="editContent(item)"
+                        class="p-1.5 text-gray-400 hover:text-brand-600 hover:bg-brand-50 rounded transition" title="Sửa">
+                        <i class="ri-pencil-line"></i>
+                      </button>
+                      <button @click="deleteContent(item.id, item.topic)"
+                        class="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded transition" title="Xóa">
+                        <i class="ri-delete-bin-line"></i>
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              </template>
+            </tbody>
+          </table>
           <div x-show="contentItems.length === 0" class="text-center py-12 text-gray-400">
             <i class="ri-article-line text-4xl mb-2"></i>
             <p>Chưa có content nào.</p>
           </div>
         </div>
+      </div>
 
-        <div class="flex items-center justify-between mt-4 text-sm text-gray-500">
-          <span>Tổng: <strong x-text="contentTotal"></strong> items</span>
+      <!-- Content Form Modal (Add/Edit) -->
+      <div x-show="showContentForm" class="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" @click.self="showContentForm=false">
+        <div class="bg-white rounded-2xl shadow-xl w-full max-w-2xl p-6 fade-in max-h-[90vh] overflow-y-auto">
+          <h3 class="text-lg font-bold mb-4" x-text="editingContent ? 'Sửa Content' : 'Thêm Content mới'"></h3>
+          <div class="space-y-4">
+            <div class="grid grid-cols-2 gap-4">
+              <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">Page <span class="text-red-500">*</span></label>
+                <select x-model="contentForm.pageId"
+                  class="w-full px-4 py-2.5 border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-brand-500 text-sm">
+                  <option value="">Chọn page</option>
+                  <template x-for="p in pages" :key="p.id">
+                    <option :value="p.id" x-text="p.name + ' (' + p.platform + ')'"></option>
+                  </template>
+                </select>
+              </div>
+              <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">Loại content</label>
+                <select x-model="contentForm.contentType"
+                  class="w-full px-4 py-2.5 border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-brand-500 text-sm">
+                  <option value="POST">POST (Chỉ text)</option>
+                  <option value="IMAGE">IMAGE (Text + Ảnh)</option>
+                  <option value="VIDEO">VIDEO (Có video)</option>
+                </select>
+              </div>
+            </div>
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-1">Chủ đề <span class="text-red-500">*</span></label>
+              <input x-model="contentForm.topic" type="text" placeholder="VD: Khuyến mãi mùa thu, sản phẩm mới..."
+                class="w-full px-4 py-2.5 border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-brand-500 text-sm">
+            </div>
+            <div class="grid grid-cols-2 gap-4">
+              <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">Ngày đăng <span class="text-red-500">*</span></label>
+                <input x-model="contentForm.scheduledDate" type="date"
+                  class="w-full px-4 py-2.5 border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-brand-500 text-sm">
+              </div>
+              <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">Giờ đăng</label>
+                <input x-model="contentForm.scheduledTime" type="time"
+                  class="w-full px-4 py-2.5 border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-brand-500 text-sm">
+              </div>
+            </div>
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-1">Ghi chú / Yêu cầu cho AI</label>
+              <textarea x-model="contentForm.notes" rows="2" placeholder="VD: Tone vui vẻ, nhắc đến giảm giá 30%, viết bằng tiếng Việt..."
+                class="w-full px-4 py-2.5 border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-brand-500 text-sm"></textarea>
+            </div>
+            <div x-show="contentForm.contentType === 'IMAGE'">
+              <label class="block text-sm font-medium text-gray-700 mb-1">Mô tả ảnh (AI gen)</label>
+              <textarea x-model="contentForm.imageDescriptions" rows="2" placeholder="Mô tả từng ảnh, cách nhau bằng dấu | VD: Ảnh sản phẩm chính | Ảnh lifestyle khách hàng"
+                class="w-full px-4 py-2.5 border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-brand-500 text-sm"></textarea>
+              <p class="text-xs text-gray-400 mt-1">Nhiều ảnh cách nhau bằng dấu <b>|</b></p>
+            </div>
+            <div x-show="contentForm.contentType === 'VIDEO'">
+              <label class="block text-sm font-medium text-gray-700 mb-1">Video</label>
+              <div class="border-2 border-dashed border-gray-300 rounded-xl p-6 text-center">
+                <i class="ri-video-upload-line text-3xl text-gray-300 mb-2"></i>
+                <p class="text-sm text-gray-400">Tải lên video hoặc đồng bộ từ tools tạo video</p>
+                <p class="text-xs text-gray-300 mt-1">Tính năng đang phát triển — sẽ hỗ trợ kết nối GPU cá nhân</p>
+              </div>
+            </div>
+            <div x-show="contentFormError" class="text-red-500 text-sm" x-text="contentFormError"></div>
+            <div class="flex gap-3 pt-2">
+              <button @click="showContentForm=false" class="flex-1 py-2.5 border border-gray-300 rounded-lg text-gray-600 hover:bg-gray-50 transition">Hủy</button>
+              <button @click="saveContent()" :disabled="contentFormSaving"
+                class="flex-1 py-2.5 bg-brand-600 text-white rounded-lg font-medium hover:bg-brand-700 disabled:opacity-50 transition">
+                <span x-show="!contentFormSaving" x-text="editingContent ? 'Cập nhật' : 'Thêm'"></span>
+                <span x-show="contentFormSaving"><i class="ri-loader-4-line animate-spin"></i> Đang lưu...</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- View Result Modal -->
+      <div x-show="showResultModal" class="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" @click.self="showResultModal=false">
+        <div class="bg-white rounded-2xl shadow-xl w-full max-w-3xl p-6 fade-in max-h-[90vh] overflow-y-auto">
+          <div class="flex items-center justify-between mb-4">
+            <h3 class="text-lg font-bold">Kết quả Content</h3>
+            <button @click="showResultModal=false" class="text-gray-400 hover:text-gray-600"><i class="ri-close-line text-xl"></i></button>
+          </div>
+          <template x-if="resultItem">
+            <div class="space-y-4">
+              <div class="flex items-center gap-2 text-sm text-gray-500">
+                <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium" :class="statusClass(resultItem.status)" x-text="statusLabel(resultItem.status)"></span>
+                <span x-text="resultItem.page?.name"></span>
+                <span>•</span>
+                <span x-text="resultItem.contentType"></span>
+                <span x-show="resultItem.aiModel">• AI: <span x-text="resultItem.aiModel"></span></span>
+              </div>
+              <div>
+                <label class="block text-xs font-semibold text-gray-500 uppercase mb-1">Chủ đề</label>
+                <p class="text-sm" x-text="resultItem.topic"></p>
+              </div>
+              <div x-show="resultItem.generatedText">
+                <div class="flex items-center justify-between mb-1">
+                  <label class="text-xs font-semibold text-gray-500 uppercase">Bài viết</label>
+                  <button @click="copyText(cleanText(resultItem.generatedText))" class="text-xs text-brand-500 hover:text-brand-700 flex items-center gap-1">
+                    <i class="ri-file-copy-line"></i> Copy
+                  </button>
+                </div>
+                <div class="bg-gray-50 rounded-lg p-4 text-sm whitespace-pre-wrap max-h-64 overflow-y-auto" x-text="cleanText(resultItem.generatedText)"></div>
+              </div>
+              <div x-show="resultItem.generatedImageUrl">
+                <label class="block text-xs font-semibold text-gray-500 uppercase mb-1">Ảnh</label>
+                <div class="grid gap-2" :class="resultItem.generatedImages?.length > 1 ? 'grid-cols-2' : 'grid-cols-1'">
+                  <template x-if="resultItem.generatedImages?.length > 0">
+                    <template x-for="(img, idx) in resultItem.generatedImages" :key="idx">
+                      <div class="relative">
+                        <img :src="img.url || img.localPath" class="rounded-lg w-full object-cover" style="max-height:300px" onerror="this.style.display='none'">
+                        <p x-show="img.description" class="text-xs text-gray-400 mt-1" x-text="img.description"></p>
+                      </div>
+                    </template>
+                  </template>
+                  <template x-if="!resultItem.generatedImages?.length && resultItem.generatedImageUrl">
+                    <img :src="resultItem.generatedImageUrl" class="rounded-lg max-h-80 object-contain" onerror="this.style.display='none'">
+                  </template>
+                </div>
+              </div>
+              <div x-show="resultItem.publishedAt" class="text-xs text-gray-400">
+                Đã đăng lúc: <span x-text="new Date(resultItem.publishedAt).toLocaleString('vi-VN', {timeZone:'Asia/Ho_Chi_Minh'})"></span>
+              </div>
+            </div>
+          </template>
+        </div>
+      </div>
+
+      <!-- View Error Modal -->
+      <div x-show="showErrorModal" class="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" @click.self="showErrorModal=false">
+        <div class="bg-white rounded-2xl shadow-xl w-full max-w-lg p-6 fade-in">
+          <div class="flex items-center gap-3 mb-4">
+            <div class="w-10 h-10 bg-red-50 rounded-xl flex items-center justify-center">
+              <i class="ri-error-warning-line text-red-500 text-xl"></i>
+            </div>
+            <div>
+              <h3 class="font-bold">Chi tiết lỗi</h3>
+              <p class="text-xs text-gray-400" x-text="errorItem?.topic"></p>
+            </div>
+          </div>
+          <template x-if="errorItem">
+            <div class="space-y-3">
+              <div class="bg-red-50 rounded-lg p-4">
+                <p class="text-sm text-red-700 whitespace-pre-wrap" x-text="errorItem.errorMessage"></p>
+              </div>
+              <div class="text-xs text-gray-400">
+                <p>Số lần thử: <span x-text="errorItem.retryCount || 0"></span></p>
+                <p>AI Model: <span x-text="errorItem.aiModel || '—'"></span></p>
+              </div>
+              <div class="flex gap-3 pt-2">
+                <button @click="showErrorModal=false" class="flex-1 py-2 border border-gray-300 rounded-lg text-gray-600 hover:bg-gray-50 transition text-sm">Đóng</button>
+                <button @click="showErrorModal=false; regenerateContent(errorItem.id)"
+                  class="flex-1 py-2 bg-purple-500 text-white rounded-lg font-medium hover:bg-purple-600 transition text-sm flex items-center justify-center gap-1">
+                  <i class="ri-magic-line"></i> Thử lại
+                </button>
+              </div>
+            </div>
+          </template>
         </div>
       </div>
 
@@ -898,7 +1131,18 @@ function app() {
     campaigns: [],
     contentItems: [],
     contentTotal: 0,
-    contentFilter: { status: '', pageId: '' },
+    contentFilter: { status: '', pageId: '', search: '', dateFrom: '', dateTo: '' },
+
+    showContentForm: false,
+    editingContent: null,
+    contentForm: { pageId: '', topic: '', contentType: 'IMAGE', scheduledDate: '', scheduledTime: '09:00', notes: '', imageDescriptions: '' },
+    contentFormError: '',
+    contentFormSaving: false,
+
+    showResultModal: false,
+    resultItem: null,
+    showErrorModal: false,
+    errorItem: null,
 
     showPageModal: false,
     editingPage: null,
@@ -1042,6 +1286,9 @@ function app() {
         const params = new URLSearchParams();
         if (this.contentFilter.status) params.set('status', this.contentFilter.status);
         if (this.contentFilter.pageId) params.set('pageId', this.contentFilter.pageId);
+        if (this.contentFilter.search) params.set('search', this.contentFilter.search);
+        if (this.contentFilter.dateFrom) params.set('dateFrom', this.contentFilter.dateFrom);
+        if (this.contentFilter.dateTo) params.set('dateTo', this.contentFilter.dateTo);
         const data = await this.api(`/dashboard/content?${params}`);
         this.contentItems = data.items;
         this.contentTotal = data.total;
@@ -1316,6 +1563,113 @@ function app() {
       } catch (e) {
         this.showToast(e.message, 'error');
       }
+    },
+
+    openContentForm() {
+      this.editingContent = null;
+      const tomorrow = new Date();
+      tomorrow.setDate(tomorrow.getDate() + 1);
+      this.contentForm = {
+        pageId: this.pages[0]?.id || '',
+        topic: '',
+        contentType: 'IMAGE',
+        scheduledDate: tomorrow.toISOString().split('T')[0],
+        scheduledTime: '09:00',
+        notes: '',
+        imageDescriptions: '',
+      };
+      this.contentFormError = '';
+      this.showContentForm = true;
+    },
+
+    editContent(item) {
+      this.editingContent = item;
+      const d = new Date(item.scheduledAt);
+      this.contentForm = {
+        pageId: item.pageId,
+        topic: item.topic,
+        contentType: item.contentType,
+        scheduledDate: d.toISOString().split('T')[0],
+        scheduledTime: d.toTimeString().slice(0, 5),
+        notes: item.notes || '',
+        imageDescriptions: item.imageDescriptions || '',
+      };
+      this.contentFormError = '';
+      this.showContentForm = true;
+    },
+
+    async saveContent() {
+      this.contentFormError = '';
+      if (!this.contentForm.pageId || !this.contentForm.topic || !this.contentForm.scheduledDate) {
+        this.contentFormError = 'Vui lòng điền Page, Chủ đề và Ngày đăng';
+        return;
+      }
+      this.contentFormSaving = true;
+      try {
+        const scheduledAt = `${this.contentForm.scheduledDate}T${this.contentForm.scheduledTime || '09:00'}:00`;
+        if (this.editingContent) {
+          await this.api(`/dashboard/content/${this.editingContent.id}`, {
+            method: 'PATCH',
+            body: JSON.stringify({
+              pageId: this.contentForm.pageId,
+              topic: this.contentForm.topic,
+              contentType: this.contentForm.contentType,
+              scheduledAt,
+              notes: this.contentForm.notes,
+              imageDescriptions: this.contentForm.imageDescriptions,
+            }),
+          });
+          this.showToast('Cập nhật content thành công');
+        } else {
+          await this.api('/dashboard/content', {
+            method: 'POST',
+            body: JSON.stringify({
+              pageId: this.contentForm.pageId,
+              topic: this.contentForm.topic,
+              contentType: this.contentForm.contentType,
+              scheduledAt,
+              notes: this.contentForm.notes,
+              imageDescriptions: this.contentForm.imageDescriptions,
+              userId: this.user.id,
+            }),
+          });
+          this.showToast('Thêm content thành công');
+        }
+        this.showContentForm = false;
+        await this.loadContent();
+      } catch (e) {
+        this.contentFormError = e.message;
+      } finally {
+        this.contentFormSaving = false;
+      }
+    },
+
+    viewResult(item) {
+      this.resultItem = item;
+      this.showResultModal = true;
+    },
+
+    viewError(item) {
+      this.errorItem = item;
+      this.showErrorModal = true;
+    },
+
+    async copyText(text) {
+      try {
+        await navigator.clipboard.writeText(text);
+        this.showToast('Đã copy!');
+      } catch { this.showToast('Không thể copy', 'error'); }
+    },
+
+    async bulkGenerate() {
+      const drafts = this.contentItems.filter(i => i.status === 'DRAFT');
+      if (!drafts.length) return;
+      if (!confirm(`Gen content cho ${drafts.length} bài Draft?`)) return;
+      try {
+        await this.api('/dashboard/content/generate-all-drafts', { method: 'POST' });
+        this.showToast(`Đã đưa ${drafts.length} bài vào hàng đợi gen`);
+        setTimeout(() => this.loadContent(), 2000);
+      } catch (e) { this.showToast(e.message, 'error'); }
     },
 
     showToast(message, type = 'success') {

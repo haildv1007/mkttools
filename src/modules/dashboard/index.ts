@@ -128,10 +128,21 @@ router.post('/pages/fb-token-exchange', async (req: Request, res: Response) => {
 
 // Content items
 router.get('/content', async (req: Request, res: Response) => {
-  const { status, pageId, limit = '50', offset = '0' } = req.query;
+  const { status, pageId, limit = '50', offset = '0', search, dateFrom, dateTo } = req.query;
   const where: Record<string, unknown> = {};
   if (status) where.status = String(status);
   if (pageId) where.pageId = String(pageId);
+  if (search) where.topic = { contains: String(search), mode: 'insensitive' };
+  if (dateFrom || dateTo) {
+    const dateFilter: Record<string, Date> = {};
+    if (dateFrom) dateFilter.gte = new Date(String(dateFrom));
+    if (dateTo) {
+      const end = new Date(String(dateTo));
+      end.setHours(23, 59, 59, 999);
+      dateFilter.lte = end;
+    }
+    where.scheduledAt = dateFilter;
+  }
 
   const [items, total] = await Promise.all([
     prisma.contentItem.findMany({
@@ -195,12 +206,51 @@ router.delete('/content/:id', async (req: Request, res: Response) => {
 
 router.patch('/content/:id', async (req: Request, res: Response) => {
   const id = req.params.id as string;
-  const { scheduledAt, status } = req.body;
+  const { scheduledAt, status, topic, notes, contentType, imageDescriptions } = req.body;
   const data: Record<string, unknown> = {};
   if (scheduledAt) data.scheduledAt = new Date(scheduledAt);
   if (status) data.status = status;
-  const item = await prisma.contentItem.update({ where: { id }, data });
+  if (topic !== undefined) data.topic = topic;
+  if (notes !== undefined) data.notes = notes;
+  if (contentType) data.contentType = contentType;
+  if (imageDescriptions !== undefined) data.imageDescriptions = imageDescriptions;
+  const item = await prisma.contentItem.update({ where: { id }, data, include: { page: true, campaign: true } });
   res.json(item);
+});
+
+router.post('/content', async (req: Request, res: Response) => {
+  try {
+    const { pageId, topic, contentType, scheduledAt, notes, imageDescriptions, campaignId } = req.body;
+    if (!pageId || !topic || !scheduledAt) {
+      return res.status(400).json({ error: 'Thiếu thông tin: pageId, topic, scheduledAt là bắt buộc' });
+    }
+    let cId = campaignId;
+    if (!cId) {
+      let defaultCampaign = await prisma.campaign.findFirst({ where: { name: 'Thủ công', isActive: true } });
+      if (!defaultCampaign) {
+        defaultCampaign = await prisma.campaign.create({
+          data: { name: 'Thủ công', description: 'Content tạo thủ công', startDate: new Date(), userId: req.body.userId || 'system' },
+        });
+      }
+      cId = defaultCampaign.id;
+    }
+    const item = await prisma.contentItem.create({
+      data: {
+        campaignId: cId,
+        pageId,
+        topic,
+        contentType: contentType || 'IMAGE',
+        scheduledAt: new Date(scheduledAt),
+        notes: notes || null,
+        imageDescriptions: imageDescriptions || null,
+        status: 'DRAFT',
+      },
+      include: { page: true, campaign: true },
+    });
+    res.json(item);
+  } catch (err) {
+    res.status(400).json({ error: err instanceof Error ? err.message : 'Failed to create content' });
+  }
 });
 
 // AI Provider management
