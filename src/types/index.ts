@@ -59,24 +59,6 @@ export interface PublishResult {
   url?: string;
 }
 
-export interface GeneratedVideo {
-  url: string;
-  localPath?: string;
-  duration?: number;
-}
-
-export interface VideoGeneratorOptions {
-  prompt: string;
-  imageUrl?: string;
-  duration?: number;
-  aspectRatio?: string;
-}
-
-export interface VideoProvider {
-  name: string;
-  generate(options: VideoGeneratorOptions): Promise<GeneratedVideo>;
-  testConnection?(): Promise<{ ok: boolean; error?: string }>;
-}
 
 export interface TelegramApprovalPayload {
   contentItemId: string;

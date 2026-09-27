@@ -788,91 +788,6 @@
             </div>
           </div>
 
-          <!-- Video AI -->
-          <div class="bg-white rounded-xl border border-gray-100 shadow-sm p-6">
-            <div class="flex items-center gap-3 mb-5">
-              <div class="w-10 h-10 bg-red-50 rounded-xl flex items-center justify-center">
-                <i class="ri-video-fill text-red-600 text-xl"></i>
-              </div>
-              <div>
-                <h3 class="font-semibold">Video AI</h3>
-                <p class="text-xs text-gray-400">Chọn nhà cung cấp tạo video AI</p>
-              </div>
-            </div>
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-              <div>
-                <label class="block text-sm font-medium text-gray-700 mb-1">Provider</label>
-                <select x-model="settingsForm.AI_VIDEO_PROVIDER" @change="onVideoProviderChange()"
-                  class="w-full px-4 py-2.5 border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-brand-500">
-                  <option value="veo">Google Veo (có audio)</option>
-                  <option value="minimax">Minimax / Hailuo</option>
-                  <option value="kling">Kling (Kuaishou)</option>
-                  <option value="runway">Runway</option>
-                  <option value="seedance">Seedance (ByteDance) — có audio</option>
-                </select>
-              </div>
-              <div>
-                <label class="block text-sm font-medium text-gray-700 mb-1">Model</label>
-                <div class="flex gap-2">
-                  <select x-model="settingsForm.AI_VIDEO_MODEL"
-                    class="flex-1 px-4 py-2.5 border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-brand-500">
-                    <template x-for="m in videoModels" :key="m.id">
-                      <option :value="m.id" x-text="m.name + ' — ' + m.description" :selected="m.id === settingsForm.AI_VIDEO_MODEL"></option>
-                    </template>
-                  </select>
-                  <button @click="testConnectionCheck('video')"
-                    class="px-4 py-2.5 bg-gray-500 text-white rounded-lg hover:bg-gray-600 disabled:opacity-50 text-xs font-medium whitespace-nowrap">
-                    Check API
-                  </button>
-                  <button @click="testVideo()" :disabled="testingVideo"
-                    class="px-4 py-2.5 bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50 text-sm font-medium whitespace-nowrap">
-                    <span x-show="!testingVideo">Test</span>
-                    <span x-show="testingVideo">Đang tạo...</span>
-                  </button>
-                </div>
-                <div class="mt-2 space-y-2">
-                  <input x-model="videoTestPrompt" type="text" placeholder="Nhập prompt test video (VD: Cảnh biển hoàng hôn, sóng vỗ nhẹ...)"
-                    class="w-full px-4 py-2 border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-brand-500 text-sm">
-                  <input x-model="videoTestImageUrl" type="text" placeholder="Image URL cho Image-to-Video (tùy chọn, để trống = text-to-video)"
-                    class="w-full px-4 py-2 border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-brand-500 text-sm">
-                </div>
-                <p x-show="videoTestResult" :class="videoTestSuccess ? 'text-green-600' : 'text-red-500'"
-                  x-text="videoTestResult" class="text-xs mt-1"></p>
-              </div>
-            </div>
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div x-show="settingsForm.AI_VIDEO_PROVIDER === 'veo'">
-                <label class="block text-sm font-medium text-gray-700 mb-1">Gemini API Key (cho Veo)</label>
-                <input :value="settingsForm.GEMINI_API_KEY ? '••••' + settingsForm.GEMINI_API_KEY.slice(-6) : ''" disabled
-                  class="w-full px-4 py-2.5 border border-gray-200 rounded-lg bg-gray-50 font-mono text-sm text-gray-400">
-                <p class="text-xs text-gray-400 mt-1">Dùng chung key Gemini ở mục Text. Veo 3.0 gen video có nhạc + lời + SFX</p>
-              </div>
-              <div x-show="settingsForm.AI_VIDEO_PROVIDER === 'kling'">
-                <label class="block text-sm font-medium text-gray-700 mb-1">Kling API Key</label>
-                <input x-model="settingsForm.KLING_API_KEY" type="text" placeholder="api-key-kling-..."
-                  class="w-full px-4 py-2.5 border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-brand-500 font-mono text-sm">
-                <p class="text-xs text-gray-400 mt-1">Lấy key tại <a href="https://platform.klingai.com" target="_blank" class="text-brand-600 underline">platform.klingai.com</a> → API Key</p>
-              </div>
-              <div x-show="settingsForm.AI_VIDEO_PROVIDER === 'minimax'">
-                <label class="block text-sm font-medium text-gray-700 mb-1">Minimax API Key</label>
-                <input x-model="settingsForm.MINIMAX_API_KEY" type="text" placeholder="eyJ..."
-                  class="w-full px-4 py-2.5 border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-brand-500 font-mono text-sm">
-                <p class="text-xs text-gray-400 mt-1">Lấy key tại <a href="https://platform.minimaxi.com" target="_blank" class="text-brand-600 underline">platform.minimaxi.com</a></p>
-              </div>
-              <div x-show="settingsForm.AI_VIDEO_PROVIDER === 'runway'">
-                <label class="block text-sm font-medium text-gray-700 mb-1">Runway API Key</label>
-                <input x-model="settingsForm.RUNWAY_API_KEY" type="text" placeholder="key_..."
-                  class="w-full px-4 py-2.5 border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-brand-500 font-mono text-sm">
-                <p class="text-xs text-gray-400 mt-1">Lấy key tại <a href="https://dev.runwayml.com" target="_blank" class="text-brand-600 underline">dev.runwayml.com</a></p>
-              </div>
-              <div x-show="settingsForm.AI_VIDEO_PROVIDER === 'seedance'">
-                <label class="block text-sm font-medium text-gray-700 mb-1">fal.ai API Key</label>
-                <input x-model="settingsForm.FAL_API_KEY" type="text" placeholder="fal_..."
-                  class="w-full px-4 py-2.5 border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-brand-500 font-mono text-sm">
-                <p class="text-xs text-gray-400 mt-1">Đăng ký tại <a href="https://fal.ai/dashboard/keys" target="_blank" class="text-brand-600 underline">fal.ai</a> → Dashboard → Keys</p>
-              </div>
-            </div>
-          </div>
 
           <!-- Facebook App -->
           <div class="bg-white rounded-xl border border-gray-100 shadow-sm p-6">
@@ -1003,12 +918,6 @@ function app() {
     testingImageModel: false,
     imageModelTestResult: '',
     imageModelTestSuccess: false,
-    videoModels: [],
-    videoTestPrompt: '',
-    videoTestImageUrl: '',
-    testingVideo: false,
-    videoTestResult: '',
-    videoTestSuccess: false,
 
     toast: { show: false, message: '', type: 'success' },
 
@@ -1282,7 +1191,6 @@ function app() {
         } else if (this.settingsForm.AI_IMAGE_PROVIDER === 'dalle') {
           await this.loadOpenaiImageModels();
         }
-        await this.loadVideoModels();
       } catch {}
     },
 
@@ -1323,56 +1231,6 @@ function app() {
         this.imageModelTestResult = e.message;
       } finally {
         this.testingImageModel = false;
-      }
-    },
-
-    async loadVideoModels() {
-      try {
-        const provider = this.settingsForm.AI_VIDEO_PROVIDER || 'kling';
-        this.videoModels = await this.api(`/dashboard/video-models?provider=${provider}`);
-        if (this.videoModels.length && !this.videoModels.find(m => m.id === this.settingsForm.AI_VIDEO_MODEL)) {
-          this.settingsForm.AI_VIDEO_MODEL = this.videoModels[0].id;
-        }
-      } catch {}
-    },
-
-    async onVideoProviderChange() {
-      this.videoTestResult = '';
-      await this.loadVideoModels();
-    },
-
-    async testConnectionCheck(type) {
-      this.videoTestResult = 'Đang kiểm tra kết nối...';
-      this.videoTestSuccess = true;
-      try {
-        const data = await this.api('/dashboard/test-connection', {
-          method: 'POST',
-          body: JSON.stringify({ type }),
-        });
-        this.videoTestSuccess = data.ok;
-        this.videoTestResult = data.ok ? `Kết nối ${type} OK!` : `Lỗi: ${data.error}`;
-      } catch (e) {
-        this.videoTestSuccess = false;
-        this.videoTestResult = e.message;
-      }
-    },
-
-    async testVideo() {
-      this.testingVideo = true;
-      this.videoTestResult = 'Đang gửi request tạo video (sẽ mất 1-5 phút)...';
-      this.videoTestSuccess = true;
-      try {
-        const data = await this.api('/dashboard/test-video', {
-          method: 'POST',
-          body: JSON.stringify({ prompt: this.videoTestPrompt || 'A beautiful sunset over the ocean, waves gently rolling, cinematic quality', imageUrl: this.videoTestImageUrl || undefined }),
-        });
-        this.videoTestSuccess = data.success;
-        this.videoTestResult = data.success ? `Video tạo thành công! ${data.url || ''}` : (data.error || 'Lỗi');
-      } catch (e) {
-        this.videoTestSuccess = false;
-        this.videoTestResult = e.message;
-      } finally {
-        this.testingVideo = false;
       }
     },
 

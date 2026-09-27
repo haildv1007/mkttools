@@ -1,6 +1,6 @@
 import { Router, Request, Response } from 'express';
 import { prisma } from '../../utils/db';
-import { listProviders, setTextProvider, setImageProvider, setVideoProvider, generateText, generateVideo, testConnection } from '../content-generator';
+import { listProviders, setTextProvider, setImageProvider, generateText, testConnection } from '../content-generator';
 import { contentQueue, publishQueue } from '../../queues';
 import { getSetting, getSettings, setSettings } from '../settings';
 const router = Router();
@@ -217,14 +217,6 @@ router.put('/providers/text', async (req: Request, res: Response) => {
   }
 });
 
-router.put('/providers/video', async (req: Request, res: Response) => {
-  try {
-    setVideoProvider(req.body.provider);
-    res.json({ success: true, providers: await listProviders() });
-  } catch (err) {
-    res.status(400).json({ error: err instanceof Error ? err.message : 'Invalid provider' });
-  }
-});
 
 router.put('/providers/image', async (req: Request, res: Response) => {
   try {
@@ -372,69 +364,16 @@ router.post('/test-openai-image-model', async (req: Request, res: Response) => {
   }
 });
 
-// Video models
-router.get('/video-models', async (req: Request, res: Response) => {
-  const provider = String(req.query.provider || 'kling');
-  const models: Record<string, Array<{ id: string; name: string; description: string }>> = {
-    veo: [
-      { id: 'veo-3.1-generate-preview', name: 'Veo 3.1', description: 'Video + audio (nhạc, lời, SFX) — Google mới nhất' },
-      { id: 'veo-2.0-generate-001', name: 'Veo 2.0', description: 'Video only, không có audio' },
-    ],
-    kling: [
-      { id: 'kling-v2', name: 'Kling V2', description: 'Chất lượng cao' },
-      { id: 'kling-v1-5', name: 'Kling V1.5', description: 'Nhanh, chất lượng tốt' },
-      { id: 'kling-v1', name: 'Kling V1', description: 'Model gốc' },
-    ],
-    minimax: [
-      { id: 'MiniMax-H3', name: 'H3 (Hailuo 3.0)', description: 'Video 2K + audio — mới nhất, xịn nhất' },
-      { id: 'MiniMax-Hailuo-2.3', name: 'Hailuo 2.3', description: 'Video chất lượng cao, nhanh' },
-      { id: 'MiniMax-Hailuo-02', name: 'Hailuo-02', description: 'Text-to-video ổn định' },
-      { id: 'T2V-01-Director', name: 'T2V-01-Director', description: 'Điều khiển camera' },
-      { id: 'I2V-01', name: 'I2V-01', description: 'Ảnh thành video' },
-      { id: 'I2V-01-live', name: 'I2V-01-Live', description: 'Ảnh thành video, realistic' },
-      { id: 'S2V-01', name: 'S2V-01', description: 'Subject-to-video' },
-    ],
-    runway: [
-      { id: 'gen4_turbo', name: 'Gen-4 Turbo', description: 'Mới nhất, chất lượng cao' },
-      { id: 'gen3a_turbo', name: 'Gen-3α Turbo', description: 'Nhanh, chất lượng tốt' },
-    ],
-    seedance: [
-      { id: 'seedance-2.5', name: 'Seedance 2.5', description: 'Mới nhất, chất lượng cao nhất + audio' },
-      { id: 'seedance-2.0', name: 'Seedance 2.0', description: '#1 ranking, video + audio, giá rẻ' },
-      { id: 'seedance-2.0-fast', name: 'Seedance 2.0 Fast', description: 'Nhanh hơn, giá rẻ hơn' },
-    ],
-  };
-  res.json(models[provider] || []);
-});
-
 router.post('/test-connection', async (req: Request, res: Response) => {
   try {
     const { type } = req.body;
-    if (!['text', 'image', 'video'].includes(type)) {
-      return res.status(400).json({ ok: false, error: 'Type phải là text, image hoặc video' });
+    if (!['text', 'image'].includes(type)) {
+      return res.status(400).json({ ok: false, error: 'Type phải là text hoặc image' });
     }
     const result = await testConnection(type);
     res.json(result);
   } catch (err) {
     res.status(500).json({ ok: false, error: err instanceof Error ? err.message : 'Failed' });
-  }
-});
-
-router.post('/test-video', async (req: Request, res: Response) => {
-  try {
-    const connCheck = await testConnection('video');
-    if (!connCheck.ok) {
-      return res.status(400).json({ success: false, error: `Kết nối thất bại: ${connCheck.error}` });
-    }
-    const { prompt, imageUrl } = req.body;
-    const testPrompt = prompt || 'A beautiful sunset over the ocean, waves gently rolling, cinematic';
-    console.log(`[Test Video] Starting: ${testPrompt}${imageUrl ? ` (image: ${imageUrl})` : ''}`);
-    const result = await generateVideo({ prompt: testPrompt, imageUrl });
-    console.log('[Test Video] Success:', result.url);
-    res.json({ success: true, url: result.url });
-  } catch (err) {
-    console.error('[Test Video] Failed:', err);
-    res.status(500).json({ success: false, error: err instanceof Error ? err.message : 'Failed' });
   }
 });
 
