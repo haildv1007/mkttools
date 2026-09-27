@@ -210,14 +210,18 @@
           <!-- Performance Chart -->
           <div class="lg:col-span-2 bg-white rounded-xl border border-gray-100 shadow-sm p-5">
             <h3 class="font-semibold text-sm mb-3">Hiệu suất theo thời gian</h3>
-            <div style="height:340px; position:relative">
-              <div x-show="!db || !db.chart_performance || !db.chart_performance.some(d => d.reach || d.media_views || d.engagement || d.posts_count)" class="absolute inset-0 flex items-center justify-center z-10 bg-white">
-                <div class="text-center text-gray-400 text-xs">
-                  <i class="ri-bar-chart-box-line text-3xl mb-2 block"></i>
-                  <p x-text="(db?.top_contents||[]).length ? 'Không có dữ liệu FB trong khoảng thời gian này. Bấm Sync FB để cập nhật.' : 'Chưa có bài đăng nào. Tạo content và đăng bài trước.'"></p>
+            <div style="height:340px">
+              <template x-if="db && db.chart_performance && db.chart_performance.some(d => d.reach || d.media_views || d.engagement || d.posts_count)">
+                <canvas id="perfChart"></canvas>
+              </template>
+              <template x-if="!db || !db.chart_performance || !db.chart_performance.some(d => d.reach || d.media_views || d.engagement || d.posts_count)">
+                <div class="h-full flex items-center justify-center">
+                  <div class="text-center text-gray-400 text-xs">
+                    <i class="ri-bar-chart-box-line text-3xl mb-2 block"></i>
+                    <p x-text="(db?.top_contents||[]).length ? 'Không có dữ liệu FB trong khoảng thời gian này. Bấm Sync FB để cập nhật.' : 'Chưa có bài đăng nào. Tạo content và đăng bài trước.'"></p>
+                  </div>
                 </div>
-              </div>
-              <canvas id="perfChart"></canvas>
+              </template>
             </div>
           </div>
           <!-- Pipeline -->
@@ -1832,7 +1836,7 @@ function app() {
         this.stats = stats;
         this.selectedTextProvider = stats.providers?.activeText || '';
         this.selectedImageProvider = stats.providers?.activeImage || '';
-        setTimeout(() => { this.renderPerfChart(); }, 100);
+        this.$nextTick(() => { setTimeout(() => { this.renderPerfChart(); }, 50); });
       } catch {}
       this.dashboardLoading = false;
     },

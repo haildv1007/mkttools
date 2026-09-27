@@ -158,14 +158,19 @@ router.get('/stats/dashboard', async (req: Request, res: Response) => {
     const { pageId, campaignId, dateFrom, dateTo, days: daysParam } = req.query;
     const days = parseInt(daysParam as string, 10) || 30;
 
-    // Calculate date range
+    // Calculate date range in Asia/Ho_Chi_Minh (UTC+7)
+    const TZ_OFFSET = '+07:00';
     const now = new Date();
-    const currentTo = dateTo ? new Date(dateTo as string) : now;
     const currentFrom = dateFrom
-      ? new Date(dateFrom as string)
+      ? new Date(`${dateFrom as string}T00:00:00${TZ_OFFSET}`)
       : new Date(now.getTime() - days * 24 * 60 * 60 * 1000);
-    currentFrom.setHours(0, 0, 0, 0);
-    currentTo.setHours(23, 59, 59, 999);
+    const currentTo = dateTo
+      ? new Date(`${dateTo as string}T23:59:59.999${TZ_OFFSET}`)
+      : new Date(`${now.toLocaleString('sv-SE', { timeZone: 'Asia/Ho_Chi_Minh' }).slice(0, 10)}T23:59:59.999${TZ_OFFSET}`);
+    if (!dateFrom) {
+      const fromStr = new Date(currentFrom.getTime()).toLocaleString('sv-SE', { timeZone: 'Asia/Ho_Chi_Minh' }).slice(0, 10);
+      currentFrom.setTime(new Date(`${fromStr}T00:00:00${TZ_OFFSET}`).getTime());
+    }
 
     const periodLength = currentTo.getTime() - currentFrom.getTime();
     const prevTo = new Date(currentFrom.getTime() - 1);
