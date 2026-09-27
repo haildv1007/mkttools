@@ -120,8 +120,9 @@ export class SeedanceVideoProvider implements VideoProvider {
 
         const videoUrl = resultData.video?.url;
         if (!videoUrl) throw new Error(`Seedance: no video URL in result: ${JSON.stringify(resultData).substring(0, 300)}`);
+        console.log(`[Seedance] Video URL: ${videoUrl}`);
 
-        return this.downloadVideo(videoUrl);
+        return this.downloadVideo(videoUrl, apiKey);
       }
 
       if (statusData.status === 'FAILED') {
@@ -131,15 +132,30 @@ export class SeedanceVideoProvider implements VideoProvider {
     throw new Error('Seedance: timeout waiting for video (10 min)');
   }
 
-  private async downloadVideo(url: string): Promise<GeneratedVideo> {
-    const res = await fetch(url);
-    if (!res.ok) throw new Error(`Seedance: failed to download video (${res.status})`);
-    const buffer = Buffer.from(await res.arrayBuffer());
-    if (!fs.existsSync(UPLOAD_DIR)) fs.mkdirSync(UPLOAD_DIR, { recursive: true });
-    const filename = `vid-${crypto.randomUUID()}.mp4`;
-    const filePath = path.join(UPLOAD_DIR, filename);
-    fs.writeFileSync(filePath, buffer);
-    const appUrl = process.env.APP_URL || `http://localhost:${config.port}`;
-    return { url: `${appUrl}/uploads/${filename}`, localPath: filePath };
+  private async downloadVideo(url: string, apiKey?: string): Promise<GeneratedVideo> {
+    const headers: Record<string, string> = {};
+    if (apiKey) headers['Authorization'] = `Key ${apiKey}`;
+
+    for (let attempt = 1; attempt <= 3; attempt++) {
+      try {
+        const res = await fetch(url, { headers });
+        if (res.ok) {
+          const buffer = Buffer.from(await res.arrayBuffer());
+          if (!fs.existsSync(UPLOAD_DIR)) fs.mkdirSync(UPLOAD_DIR, { recursive: true });
+          const filename = `vid-${crypto.randomUUID()}.mp4`;
+          const filePath = path.join(UPLOAD_DIR, filename);
+          fs.writeFileSync(filePath, buffer);
+          const appUrl = process.env.APP_URL || `http://localhost:${config.port}`;
+          return { url: `${appUrl}/uploads/${filename}`, localPath: filePath };
+        }
+        console.log(`[Seedance] Download attempt ${attempt} failed (${res.status}), ${attempt < 3 ? 'retrying in 5s...' : 'returning remote URL'}`);
+        if (attempt < 3) await new Promise(r => setTimeout(r, 5000));
+      } catch (e) {
+        console.log(`[Seedance] Download attempt ${attempt} error: ${e instanceof Error ? e.message : e}`);
+        if (attempt < 3) await new Promise(r => setTimeout(r, 5000));
+      }
+    }
+    console.log(`[Seedance] Download failed, returning remote URL: ${url}`);
+    return { url };
   }
 }
