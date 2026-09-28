@@ -1276,7 +1276,7 @@
                 class="w-full text-left px-3 py-1.5 text-xs hover:bg-gray-50 flex items-center gap-2"><i class="ri-sort-asc text-gray-400"></i> Sắp xếp tăng dần</button>
               <button x-show="dgCtxMenu.col.sortable !== false" @click="dgSortBy=dgCtxMenu.col.key; dgSortDir='desc'; dgPage=1; loadContent(); dgCtxMenu=null"
                 class="w-full text-left px-3 py-1.5 text-xs hover:bg-gray-50 flex items-center gap-2"><i class="ri-sort-desc text-gray-400"></i> Sắp xếp giảm dần</button>
-              <button x-show="dgCtxMenu.col.filterable" @click="dgOpenHeaderFilter(dgCtxMenu.col); dgCtxMenu=null"
+              <button x-show="dgCtxMenu.col.filterable" @click="dgOpenHeaderFilter(dgCtxMenu.col, dgCtxMenu.x, dgCtxMenu.y); dgCtxMenu=null"
                 class="w-full text-left px-3 py-1.5 text-xs hover:bg-gray-50 flex items-center gap-2"><i class="ri-filter-3-line text-gray-400"></i> Lọc cột này</button>
               <div class="border-t border-gray-100 my-1"></div>
               <button @click="dgCtxMenu.col.pinned=!dgCtxMenu.col.pinned; dgSaveCols(); dgCtxMenu=null"
@@ -1347,9 +1347,9 @@
 
               <!-- Numeric filter (metrics) -->
               <template x-if="dgHeaderFilter.col.filterable==='numeric'">
-                <div class="space-y-2">
-                  <select x-model="(dgHeaderFilterData[dgHeaderFilter.col.key]||{}).op"
-                    @change="if(!dgHeaderFilterData[dgHeaderFilter.col.key]) dgHeaderFilterData[dgHeaderFilter.col.key]={op:'gt',val:''}; dgHeaderFilterData[dgHeaderFilter.col.key].op=$event.target.value"
+                <div class="space-y-2" x-init="if(!dgHeaderFilterData[dgHeaderFilter.col.key]) dgHeaderFilterData[dgHeaderFilter.col.key]={op:'gt',val:''}">
+                  <select :value="(dgHeaderFilterData[dgHeaderFilter.col.key]||{}).op||'gt'"
+                    @change="dgHeaderFilterData[dgHeaderFilter.col.key].op=$event.target.value"
                     class="w-full px-2 py-1.5 border border-gray-200 rounded text-xs outline-none">
                     <option value="gt">Lớn hơn (&gt;)</option>
                     <option value="gte">Lớn hơn hoặc bằng (&gt;=)</option>
@@ -1358,7 +1358,7 @@
                     <option value="equals">Bằng (=)</option>
                   </select>
                   <input type="number" :value="(dgHeaderFilterData[dgHeaderFilter.col.key]||{}).val||''"
-                    @input="if(!dgHeaderFilterData[dgHeaderFilter.col.key]) dgHeaderFilterData[dgHeaderFilter.col.key]={op:'gt',val:''}; dgHeaderFilterData[dgHeaderFilter.col.key].val=$event.target.value"
+                    @input="dgHeaderFilterData[dgHeaderFilter.col.key].val=$event.target.value"
                     placeholder="Giá trị..." class="w-full px-2 py-1.5 border border-gray-200 rounded text-xs outline-none focus:ring-1 focus:ring-brand-500">
                 </div>
               </template>
@@ -2692,6 +2692,10 @@ function app() {
           if (mf && mf.op && mf.val !== '' && mf.val !== undefined) metricFilter[metricKey] = { op: mf.op, val: Number(mf.val) };
         }
         if (Object.keys(metricFilter).length) params.set('metricFilter', JSON.stringify(metricFilter));
+        if (hf.createdAt_from) params.set('createdFrom', hf.createdAt_from);
+        if (hf.createdAt_to) params.set('createdTo', hf.createdAt_to);
+        if (hf.publishedAt_from) params.set('publishedFrom', hf.publishedAt_from);
+        if (hf.publishedAt_to) params.set('publishedTo', hf.publishedAt_to);
         params.set('page', String(this.dgPage));
         params.set('pageSize', String(this.dgPageSize));
         params.set('sortBy', this.dgSortBy);
@@ -2715,7 +2719,7 @@ function app() {
     },
 
     dgColStyle(col, ci) {
-      let s = 'min-width:'+col.minW+'px; width:'+col.w+'px; max-width:'+(col.maxW||600)+'px; position:relative;';
+      let s = 'min-width:'+col.minW+'px; width:'+col.w+'px; max-width:'+(col.maxW||600)+'px;';
       if (col.pinned) {
         let left = 0;
         const vis = this.dgVisibleCols;
@@ -2723,6 +2727,8 @@ function app() {
         s += ' left:'+left+'px;';
         const nextCol = vis[ci+1];
         if (!nextCol || !nextCol.pinned) s += ' box-shadow: 2px 0 4px -2px rgba(0,0,0,0.1);';
+      } else {
+        s += ' position:relative;';
       }
       return s;
     },
@@ -2835,9 +2841,9 @@ function app() {
       this.dgBulkAll = this.dgBulkSelected.length === this.contentItems.length && this.contentItems.length > 0;
     },
 
-    dgOpenHeaderFilter(col) {
-      const th = this.$refs.dgScroll?.querySelector(`th`);
-      this.dgHeaderFilter = { x: 200, y: 200, col };
+    dgOpenHeaderFilter(col, x, y) {
+      x = x || 200; y = y || 200;
+      this.dgHeaderFilter = { x: Math.min(x, window.innerWidth - 300), y: Math.min(y, window.innerHeight - 350), col };
       if (col.filterable === 'campaign-select') this.dgLoadCascadeCampaigns();
     },
 

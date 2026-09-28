@@ -1006,6 +1006,7 @@ router.get('/content', async (req: Request, res: Response) => {
   const {
     status, pageId, pageSize = '50', page: pageNum = '1', search, dateFrom, dateTo, source, campaignId, contentType,
     statuses, pageIds, sources, contentTypes, campaignIds, metricFilter,
+    createdFrom, createdTo, publishedFrom, publishedTo,
     scopeType, scopeId, sortBy = 'scheduledAt', sortDir = 'desc',
   } = req.query;
 
@@ -1051,6 +1052,18 @@ router.get('/content', async (req: Request, res: Response) => {
       dateFilter.lte = end;
     }
     baseWhere.scheduledAt = dateFilter;
+  }
+  if (createdFrom || createdTo) {
+    const df: Record<string, Date> = {};
+    if (createdFrom) df.gte = new Date(String(createdFrom));
+    if (createdTo) { const e = new Date(String(createdTo)); e.setHours(23, 59, 59, 999); df.lte = e; }
+    baseWhere.createdAt = df;
+  }
+  if (publishedFrom || publishedTo) {
+    const df: Record<string, Date> = {};
+    if (publishedFrom) df.gte = new Date(String(publishedFrom));
+    if (publishedTo) { const e = new Date(String(publishedTo)); e.setHours(23, 59, 59, 999); df.lte = e; }
+    baseWhere.publishedAt = df;
   }
 
   const metricFilters = parseMetricFilters(metricFilter);
