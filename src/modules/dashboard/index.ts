@@ -1088,7 +1088,7 @@ router.get('/content', async (req: Request, res: Response) => {
   const take = Math.min(Math.max(1, Number(pageSize)), 200);
   const skip = (Math.max(1, Number(pageNum)) - 1) * take;
 
-  const [items, total, statusGroups] = await Promise.all([
+  const [items, total, statusGroups, metricsRows] = await Promise.all([
     prisma.contentItem.findMany({
       where,
       include: {
@@ -1101,6 +1101,7 @@ router.get('/content', async (req: Request, res: Response) => {
     }),
     prisma.contentItem.count({ where }),
     prisma.contentItem.groupBy({ by: ['status'], where: baseWhere, _count: true }),
+    prisma.contentItem.findMany({ where, select: { metrics: true } }),
   ]);
 
   const statusCounts: Record<string, number> = {};
@@ -1112,7 +1113,37 @@ router.get('/content', async (req: Request, res: Response) => {
   }
   statusCounts.ALL = allCount;
 
-  res.json({ items, total, statusCounts, page: Math.floor(skip / take) + 1, pageSize: take });
+  // Aggregate metrics summary across entire filtered dataset
+  let metricItemCount = 0;
+  let viewersSum = 0, viewsSum = 0, reactionsSum = 0, commentsSum = 0, sharesSum = 0, clicksSum = 0;
+  for (const row of metricsRows) {
+    const m = row.metrics as Record<string, number> | null;
+    if (!m || m.fb_reach == null) continue;
+    metricItemCount++;
+    viewersSum += Number(m.fb_reach) || 0;
+    viewsSum += Number(m.fb_media_views) || 0;
+    reactionsSum += Number(m.fb_reactions) || 0;
+    commentsSum += Number(m.fb_comments) || 0;
+    sharesSum += Number(m.fb_shares) || 0;
+    clicksSum += Number(m.fb_clicks) || 0;
+  }
+  const engagementSum = reactionsSum + commentsSum + sharesSum;
+  const engViewer = viewersSum > 0 ? Math.round((engagementSum / viewersSum) * 10000) / 100 : null;
+
+  const summary = {
+    resultCount: total,
+    metricItemCount,
+    viewersSum: metricItemCount ? viewersSum : null,
+    viewsSum: metricItemCount ? viewsSum : null,
+    engagementSum: metricItemCount ? engagementSum : null,
+    reactionsSum: metricItemCount ? reactionsSum : null,
+    commentsSum: metricItemCount ? commentsSum : null,
+    sharesSum: metricItemCount ? sharesSum : null,
+    clicksSum: metricItemCount ? clicksSum : null,
+    engViewer,
+  };
+
+  res.json({ items, total, statusCounts, summary, page: Math.floor(skip / take) + 1, pageSize: take });
 });
 
 // Campaigns filtered by a set of page IDs — used for the cascading Page → Campaign filter

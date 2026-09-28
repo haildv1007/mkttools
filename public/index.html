@@ -1174,6 +1174,81 @@
                   </template>
                 </tbody>
               </table>
+              <!-- Summary Footer -->
+              <div x-show="dgSummaryVisible && dgSummary && contentTotal > 0" class="border-t-2 border-gray-200 bg-gray-50/80" style="min-width:100%;width:max-content">
+                <div class="flex">
+                  <template x-for="(col, ci) in dgVisibleCols" :key="col.key">
+                    <div class="border-r border-gray-100 flex-shrink-0"
+                      :class="[dgDensity==='compact' ? 'px-2 py-2' : 'px-3 py-2.5', col.pinned ? 'sticky z-[5] bg-gray-50' : '']"
+                      :style="dgColStyle(col, ci)">
+                      <!-- Label in first non-checkbox pinned or topic column -->
+                      <template x-if="col.key==='topic'">
+                        <div>
+                          <div class="text-xs font-semibold text-gray-700" x-text="'Kết quả từ ' + (dgSummary?.resultCount||0).toLocaleString('vi-VN') + ' nội dung'"></div>
+                          <button @click="dgSummaryVisible=false; try{localStorage.setItem('mkt_dg_summary','hidden')}catch{}" class="text-[10px] text-gray-400 hover:text-brand-500">Ẩn kết quả</button>
+                        </div>
+                      </template>
+                      <template x-if="col.key==='checkbox' || col.key==='thumbnail'"><span></span></template>
+                      <!-- Metric values -->
+                      <template x-if="col.key==='viewers'">
+                        <div class="text-right">
+                          <div class="text-xs font-bold tabular-nums text-gray-800" x-text="dgSummary?.viewersSum!=null ? dgSummary.viewersSum.toLocaleString('vi-VN') : '—'"></div>
+                          <div class="text-[9px] text-gray-400" title="Tổng số người xem duy nhất của từng bài. Một người xem nhiều bài có thể được tính nhiều lần.">Tổng theo bài</div>
+                        </div>
+                      </template>
+                      <template x-if="col.key==='mediaViews'">
+                        <div class="text-right">
+                          <div class="text-xs font-bold tabular-nums text-gray-800" x-text="dgSummary?.viewsSum!=null ? dgSummary.viewsSum.toLocaleString('vi-VN') : '—'"></div>
+                          <div class="text-[9px] text-gray-400" title="Tổng lượt xem của các bài trong kết quả hiện tại.">Tổng</div>
+                        </div>
+                      </template>
+                      <template x-if="col.key==='engagement'">
+                        <div class="text-right">
+                          <div class="text-xs font-bold tabular-nums text-gray-800" x-text="dgSummary?.engagementSum!=null ? dgSummary.engagementSum.toLocaleString('vi-VN') : '—'"></div>
+                          <div class="text-[9px] text-gray-400" title="Tổng Reactions + Comments + Shares.">Tổng</div>
+                        </div>
+                      </template>
+                      <template x-if="col.key==='reactions'">
+                        <div class="text-right">
+                          <div class="text-xs font-bold tabular-nums text-gray-800" x-text="dgSummary?.reactionsSum!=null ? dgSummary.reactionsSum.toLocaleString('vi-VN') : '—'"></div>
+                          <div class="text-[9px] text-gray-400">Tổng</div>
+                        </div>
+                      </template>
+                      <template x-if="col.key==='comments'">
+                        <div class="text-right">
+                          <div class="text-xs font-bold tabular-nums text-gray-800" x-text="dgSummary?.commentsSum!=null ? dgSummary.commentsSum.toLocaleString('vi-VN') : '—'"></div>
+                          <div class="text-[9px] text-gray-400">Tổng</div>
+                        </div>
+                      </template>
+                      <template x-if="col.key==='shares'">
+                        <div class="text-right">
+                          <div class="text-xs font-bold tabular-nums text-gray-800" x-text="dgSummary?.sharesSum!=null ? dgSummary.sharesSum.toLocaleString('vi-VN') : '—'"></div>
+                          <div class="text-[9px] text-gray-400">Tổng</div>
+                        </div>
+                      </template>
+                      <template x-if="col.key==='clicks'">
+                        <div class="text-right">
+                          <div class="text-xs font-bold tabular-nums text-gray-800" x-text="dgSummary?.clicksSum!=null ? dgSummary.clicksSum.toLocaleString('vi-VN') : '—'"></div>
+                          <div class="text-[9px] text-gray-400">Tổng</div>
+                        </div>
+                      </template>
+                      <template x-if="col.key==='engPerViewer'">
+                        <div class="text-right">
+                          <div class="text-xs font-bold tabular-nums text-gray-800" x-text="dgSummary?.engViewer!=null ? dgSummary.engViewer.toFixed(2)+'%' : '—'"></div>
+                          <div class="text-[9px] text-gray-400" title="Engagement tổng chia cho Tổng người xem theo bài.">Tổng hợp</div>
+                        </div>
+                      </template>
+                      <template x-if="!['checkbox','thumbnail','topic','viewers','mediaViews','engagement','reactions','comments','shares','clicks','engPerViewer'].includes(col.key)">
+                        <span></span>
+                      </template>
+                    </div>
+                  </template>
+                </div>
+              </div>
+              <!-- Show summary toggle when hidden -->
+              <div x-show="!dgSummaryVisible && contentTotal > 0" class="border-t border-gray-100 px-3 py-1.5 bg-gray-50/50">
+                <button @click="dgSummaryVisible=true; try{localStorage.setItem('mkt_dg_summary','visible')}catch{}" class="text-[10px] text-gray-400 hover:text-brand-500">Hiện kết quả</button>
+              </div>
               <div x-show="contentItems.length===0" class="text-center py-12 text-gray-400">
                 <i class="ri-article-line text-4xl mb-2"></i>
                 <p>Chưa có content nào.</p>
@@ -1956,65 +2031,6 @@
       </div>
 
       <!-- View Result Modal -->
-      <div x-show="showResultModal" class="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" @click.self="showResultModal=false">
-        <div class="bg-white rounded-2xl shadow-xl w-full max-w-3xl p-6 fade-in max-h-[90vh] overflow-y-auto">
-          <div class="flex items-center justify-between mb-4">
-            <h3 class="text-lg font-bold">Kết quả Content</h3>
-            <button @click="showResultModal=false" class="text-gray-400 hover:text-gray-600"><i class="ri-close-line text-xl"></i></button>
-          </div>
-          <template x-if="resultItem">
-            <div class="space-y-4">
-              <div class="flex items-center gap-2 text-sm text-gray-500">
-                <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium" :class="statusClass(resultItem.status)" x-text="statusLabel(resultItem.status)"></span>
-                <span x-text="resultItem.page?.name"></span>
-                <span>•</span>
-                <span x-text="resultItem.contentType"></span>
-                <span x-show="resultItem.aiModel">• AI: <span x-text="resultItem.aiModel"></span></span>
-              </div>
-              <div>
-                <label class="block text-xs font-semibold text-gray-500 uppercase mb-1">Chủ đề</label>
-                <p class="text-sm" x-text="resultItem.topic"></p>
-              </div>
-              <div x-show="resultItem.generatedText">
-                <div class="flex items-center justify-between mb-1">
-                  <label class="text-xs font-semibold text-gray-500 uppercase">Bài viết</label>
-                  <button @click="copyText(cleanText(resultItem.generatedText))" class="text-xs text-brand-500 hover:text-brand-700 flex items-center gap-1">
-                    <i class="ri-file-copy-line"></i> Copy
-                  </button>
-                </div>
-                <div class="bg-gray-50 rounded-lg p-4 text-sm whitespace-pre-wrap max-h-64 overflow-y-auto" x-text="cleanText(resultItem.generatedText)"></div>
-              </div>
-              <div x-show="resultItem.generatedImageUrl || resultItem.generatedImages?.length">
-                <label class="block text-xs font-semibold text-gray-500 uppercase mb-1">Ảnh</label>
-                <div class="grid gap-2" :class="resultItem.generatedImages?.length > 1 ? 'grid-cols-2' : 'grid-cols-1'">
-                  <template x-if="resultItem.generatedImages?.length > 0">
-                    <template x-for="(img, idx) in resultItem.generatedImages" :key="idx">
-                      <div class="relative">
-                        <a :href="img.url || img.localPath" target="_blank">
-                          <img :src="img.url || img.localPath" class="rounded-lg w-full object-cover cursor-pointer hover:opacity-90 transition" style="max-height:300px" onerror="this.parentElement.innerHTML='<span class=\'text-xs text-gray-400\'>Ảnh không tải được</span>'">
-                        </a>
-                        <p x-show="img.description" class="text-xs text-gray-400 mt-1" x-text="img.description"></p>
-                      </div>
-                    </template>
-                  </template>
-                  <template x-if="!resultItem.generatedImages?.length && resultItem.generatedImageUrl">
-                    <a :href="resultItem.generatedImageUrl" target="_blank">
-                      <img :src="resultItem.generatedImageUrl" class="rounded-lg max-h-80 object-contain cursor-pointer hover:opacity-90 transition" onerror="this.parentElement.innerHTML='<span class=\'text-xs text-gray-400\'>Ảnh không tải được</span>'">
-                    </a>
-                  </template>
-                </div>
-              </div>
-              <div x-show="resultItem.generatedVideoUrl">
-                <label class="block text-xs font-semibold text-gray-500 uppercase mb-1">Video</label>
-                <video :src="resultItem.generatedVideoUrl" controls class="rounded-lg w-full max-h-80 bg-black"></video>
-              </div>
-              <div x-show="resultItem.publishedAt" class="text-xs text-gray-400">
-                Đã đăng lúc: <span x-text="new Date(resultItem.publishedAt).toLocaleString('vi-VN', {timeZone:'Asia/Ho_Chi_Minh'})"></span>
-              </div>
-            </div>
-          </template>
-        </div>
-      </div>
 
       <!-- View Error Modal -->
       <div x-show="showErrorModal" class="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" @click.self="showErrorModal=false">
@@ -2664,8 +2680,8 @@ function app() {
     contentFormError: '',
     contentFormSaving: false,
 
-    showResultModal: false,
-    resultItem: null,
+    dgSummary: null,
+    dgSummaryVisible: (() => { try { return localStorage.getItem('mkt_dg_summary') !== 'hidden'; } catch { return true; } })(),
     textPopup: { show: false, title: '', content: '' },
     showErrorModal: false,
     errorItem: null,
@@ -3087,6 +3103,7 @@ function app() {
         this.contentItems = data.items;
         this.contentTotal = data.total;
         if (data.statusCounts) this.dgStatusCounts = data.statusCounts;
+        if (data.summary) this.dgSummary = data.summary;
         this.dgBulkSelected = []; this.dgBulkAll = false;
       } catch {}
     },
@@ -3823,8 +3840,7 @@ function app() {
     },
 
     viewResult(item) {
-      this.resultItem = item;
-      this.showResultModal = true;
+      this.openDrawer(item);
     },
 
     viewError(item) {
