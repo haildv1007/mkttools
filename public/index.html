@@ -1018,14 +1018,15 @@
                 </thead>
                 <tbody class="divide-y divide-gray-50">
                   <template x-for="item in contentItems" :key="item.id">
-                    <tr class="hover:bg-blue-50/30 transition group" :class="dgBulkSelected.includes(item.id) && 'bg-brand-50/40'">
+                    <tr class="hover:bg-blue-50/30 transition group cursor-pointer" :class="[dgBulkSelected.includes(item.id) && 'bg-brand-50/40', drawerItem?.id===item.id && 'bg-brand-50/60 ring-1 ring-brand-200']"
+                      @click="openDrawer(item)">
                       <template x-for="(col, ci) in dgVisibleCols" :key="col.key">
                         <td class="border-r border-gray-50"
                           :class="[dgDensity==='compact' ? 'px-2 py-1' : 'px-3 py-2', col.pinned ? 'sticky z-[5] bg-white' : '']"
                           :style="dgColStyle(col, ci)">
                           <!-- Checkbox -->
                           <template x-if="col.key==='checkbox'">
-                            <input type="checkbox" :checked="dgBulkSelected.includes(item.id)" @click="dgToggleRow(item.id)" class="rounded border-gray-300 text-brand-600 focus:ring-brand-500">
+                            <input type="checkbox" :checked="dgBulkSelected.includes(item.id)" @click.stop="dgToggleRow(item.id)" class="rounded border-gray-300 text-brand-600 focus:ring-brand-500">
                           </template>
                           <!-- Thumbnail -->
                           <template x-if="col.key==='thumbnail'">
@@ -1141,7 +1142,7 @@
                         </td>
                       </template>
                       <!-- Actions -->
-                      <td class="text-center" :class="dgDensity==='compact' ? 'px-1 py-1' : 'px-2 py-2'">
+                      <td class="text-center" :class="dgDensity==='compact' ? 'px-1 py-1' : 'px-2 py-2'" @click.stop>
                         <div x-data="{open:false}">
                           <button @click="open=!open; $nextTick(()=>{ if(open){ const r=$el.getBoundingClientRect(); const dd=$el.nextElementSibling; dd.style.top=(r.bottom+4)+'px'; dd.style.left=Math.max(8,r.right-168)+'px'; } })" class="p-1 text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded transition">
                             <i class="ri-more-2-fill text-sm"></i>
@@ -1384,6 +1385,376 @@
               <div class="flex gap-2 mt-3">
                 <button @click="dgClearHeaderFilter(dgHeaderFilter.col.key); dgHeaderFilter=null" class="flex-1 px-2 py-1.5 border border-gray-200 rounded text-xs text-gray-500 hover:bg-gray-50">Xóa</button>
                 <button @click="dgApplyHeaderFilter(); dgHeaderFilter=null" class="flex-1 px-2 py-1.5 bg-brand-600 text-white rounded text-xs hover:bg-brand-700">Áp dụng</button>
+              </div>
+            </div>
+          </template>
+        </div>
+      </div>
+
+      <!-- Content Detail Drawer -->
+      <div x-show="drawerOpen" x-cloak class="fixed inset-0 z-40" @keydown.escape.window="drawerOpen && closeDrawer()">
+        <div class="absolute inset-0 bg-black/20" @click="closeDrawer()"></div>
+        <div class="absolute right-0 top-0 bottom-0 bg-white shadow-2xl border-l border-gray-200 flex flex-col"
+          style="width:min(620px, 45vw); min-width:380px"
+          x-show="drawerOpen" x-transition:enter="transition ease-out duration-200" x-transition:enter-start="translate-x-full" x-transition:enter-end="translate-x-0"
+          x-transition:leave="transition ease-in duration-150" x-transition:leave-start="translate-x-0" x-transition:leave-end="translate-x-full"
+          @click.stop>
+
+          <!-- Drawer Header -->
+          <div class="flex-shrink-0 border-b border-gray-100 px-5 py-4">
+            <div class="flex items-center justify-between mb-2">
+              <div class="flex items-center gap-2 text-xs text-gray-500">
+                <i class="ri-article-line"></i> Chi tiết Content
+              </div>
+              <div class="flex items-center gap-1">
+                <button @click="drawerEditContent()" class="p-1.5 rounded hover:bg-gray-100 text-gray-500 hover:text-gray-700 transition" title="Chỉnh sửa">
+                  <i class="ri-pencil-line text-sm"></i>
+                </button>
+                <button @click="closeDrawer()" class="p-1.5 rounded hover:bg-gray-100 text-gray-400 hover:text-gray-600 transition" title="Đóng">
+                  <i class="ri-close-line text-lg"></i>
+                </button>
+              </div>
+            </div>
+            <template x-if="drawerItem">
+              <div>
+                <h3 class="text-base font-bold text-gray-900 leading-snug mb-1.5" x-text="drawerItem.topic"></h3>
+                <div class="flex items-center gap-2 flex-wrap">
+                  <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium" :class="statusClass(drawerItem.status)" x-text="statusLabel(drawerItem.status)"></span>
+                  <span class="text-xs text-gray-400">·</span>
+                  <span class="text-xs text-gray-600 flex items-center gap-1">
+                    <img x-show="drawerItem.page?.platform==='FACEBOOK'" :src="'https://graph.facebook.com/'+drawerItem.page?.externalId+'/picture?type=small'" class="w-3.5 h-3.5 rounded-full" onerror="this.style.display='none'">
+                    <span x-text="drawerItem.page?.name"></span>
+                  </span>
+                  <span class="text-xs text-gray-400">·</span>
+                  <span class="text-xs text-gray-600" x-text="drawerItem.campaign?.name || '—'"></span>
+                  <span class="text-xs text-gray-400">·</span>
+                  <span class="text-xs px-1.5 py-0.5 rounded"
+                    :class="{'bg-blue-50 text-blue-600': drawerItem.contentType==='IMAGE', 'bg-purple-50 text-purple-600': drawerItem.contentType==='VIDEO', 'bg-gray-100 text-gray-600': drawerItem.contentType==='TEXT'}"
+                    x-text="drawerItem.contentType"></span>
+                </div>
+              </div>
+            </template>
+            <!-- Prev/Next -->
+            <div class="flex items-center justify-between mt-3 pt-2 border-t border-gray-50">
+              <button @click="drawerPrev()" :disabled="drawerPrevDisabled()" class="text-xs text-gray-500 hover:text-brand-600 disabled:opacity-30 disabled:cursor-not-allowed flex items-center gap-1">
+                <i class="ri-arrow-left-s-line"></i> Bài trước
+              </button>
+              <span class="text-[10px] text-gray-400" x-text="drawerNavLabel()"></span>
+              <button @click="drawerNext()" :disabled="drawerNextDisabled()" class="text-xs text-gray-500 hover:text-brand-600 disabled:opacity-30 disabled:cursor-not-allowed flex items-center gap-1">
+                Bài tiếp <i class="ri-arrow-right-s-line"></i>
+              </button>
+            </div>
+          </div>
+
+          <!-- Loading skeleton -->
+          <div x-show="drawerLoading" class="flex-1 p-5 space-y-4">
+            <div class="animate-pulse space-y-3">
+              <div class="h-40 bg-gray-100 rounded-lg"></div>
+              <div class="h-4 bg-gray-100 rounded w-3/4"></div>
+              <div class="h-4 bg-gray-100 rounded w-1/2"></div>
+              <div class="h-20 bg-gray-100 rounded"></div>
+            </div>
+          </div>
+
+          <!-- Tabs + Content -->
+          <template x-if="drawerItem && !drawerLoading">
+            <div class="flex-1 flex flex-col overflow-hidden">
+              <!-- Tabs -->
+              <div class="flex-shrink-0 border-b border-gray-100 px-5">
+                <div class="flex gap-0">
+                  <template x-for="t in [{k:'content',l:'Nội dung',i:'ri-file-text-line'},{k:'ops',l:'Vận hành',i:'ri-settings-3-line'},{k:'perf',l:'Hiệu suất',i:'ri-bar-chart-line'},{k:'history',l:'Lịch sử',i:'ri-time-line'}]" :key="t.k">
+                    <button @click="drawerTab=t.k" class="px-3 py-2.5 text-xs font-medium border-b-2 transition flex items-center gap-1"
+                      :class="drawerTab===t.k ? 'border-brand-500 text-brand-700' : 'border-transparent text-gray-500 hover:text-gray-700'">
+                      <i :class="t.i" class="text-sm"></i> <span x-text="t.l"></span>
+                    </button>
+                  </template>
+                </div>
+              </div>
+
+              <!-- Tab: Nội dung -->
+              <div x-show="drawerTab==='content'" class="flex-1 overflow-y-auto p-5 space-y-4">
+                <!-- Media -->
+                <div>
+                  <template x-if="drawerItem.generatedImages?.length > 0">
+                    <div class="grid gap-2" :class="drawerItem.generatedImages.length > 1 ? 'grid-cols-2' : 'grid-cols-1'">
+                      <template x-for="(img, ii) in drawerItem.generatedImages" :key="ii">
+                        <img :src="img.url || img.localPath" class="w-full rounded-lg object-cover bg-gray-50 cursor-pointer hover:opacity-90" style="max-height:280px"
+                          @click="window.open(img.url || img.localPath, '_blank')" onerror="this.style.display='none'">
+                      </template>
+                    </div>
+                  </template>
+                  <template x-if="!drawerItem.generatedImages?.length && drawerItem.generatedImageUrl">
+                    <img :src="drawerItem.generatedImageUrl" class="w-full rounded-lg object-cover bg-gray-50 cursor-pointer hover:opacity-90" style="max-height:320px"
+                      @click="window.open(drawerItem.generatedImageUrl, '_blank')" onerror="this.style.display='none'">
+                  </template>
+                  <template x-if="drawerItem.generatedVideoUrl">
+                    <video :src="drawerItem.generatedVideoUrl" controls class="w-full rounded-lg bg-black" style="max-height:320px"></video>
+                  </template>
+                  <template x-if="!drawerItem.generatedImages?.length && !drawerItem.generatedImageUrl && !drawerItem.generatedVideoUrl">
+                    <div class="flex items-center justify-center h-32 bg-gray-50 rounded-lg border border-dashed border-gray-200">
+                      <div class="text-center text-gray-300">
+                        <i class="ri-image-line text-3xl"></i>
+                        <p class="text-xs mt-1">Chưa có media</p>
+                      </div>
+                    </div>
+                  </template>
+                </div>
+                <!-- Caption -->
+                <div x-show="drawerItem.generatedText">
+                  <div class="flex items-center justify-between mb-1">
+                    <h4 class="text-xs font-semibold text-gray-500 uppercase">Caption</h4>
+                    <button @click="navigator.clipboard.writeText(cleanText(drawerItem.generatedText)).then(()=>showToast('Đã copy'))" class="text-xs text-gray-400 hover:text-brand-500" title="Copy">
+                      <i class="ri-file-copy-line"></i>
+                    </button>
+                  </div>
+                  <div x-data="{expanded:false}">
+                    <div class="text-sm text-gray-700 leading-relaxed whitespace-pre-wrap break-words" :class="!expanded && 'line-clamp-6'" x-text="cleanText(drawerItem.generatedText)"></div>
+                    <button x-show="(cleanText(drawerItem.generatedText)||'').length > 300" @click="expanded=!expanded" class="text-xs text-brand-500 hover:text-brand-700 mt-1" x-text="expanded ? 'Thu gọn' : 'Xem đầy đủ'"></button>
+                  </div>
+                </div>
+                <!-- Info fields -->
+                <div class="space-y-2 text-xs">
+                  <div class="flex justify-between py-1.5 border-b border-gray-50">
+                    <span class="text-gray-500">Chủ đề</span>
+                    <span class="text-gray-800 font-medium text-right max-w-[60%] truncate" x-text="drawerItem.topic"></span>
+                  </div>
+                  <div x-show="drawerItem.notes" class="flex justify-between py-1.5 border-b border-gray-50">
+                    <span class="text-gray-500">Ghi chú</span>
+                    <span class="text-gray-700 text-right max-w-[60%]" x-text="drawerItem.notes"></span>
+                  </div>
+                  <div class="flex justify-between py-1.5 border-b border-gray-50">
+                    <span class="text-gray-500">Nguồn</span>
+                    <span class="px-1.5 py-0.5 rounded"
+                      :class="{'bg-purple-50 text-purple-600': drawerItem.source==='AI', 'bg-teal-50 text-teal-600': drawerItem.source==='MANUAL', 'bg-orange-50 text-orange-600': drawerItem.source==='IMPORT'}"
+                      x-text="sourceLabel(drawerItem.source)"></span>
+                  </div>
+                  <div class="flex justify-between py-1.5 border-b border-gray-50">
+                    <span class="text-gray-500">Loại</span>
+                    <span x-text="drawerItem.contentType" class="text-gray-700"></span>
+                  </div>
+                  <div class="flex justify-between py-1.5">
+                    <span class="text-gray-500">Ngày tạo</span>
+                    <span class="text-gray-700" x-text="new Date(drawerItem.createdAt).toLocaleString('vi-VN',{timeZone:'Asia/Ho_Chi_Minh',day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'})"></span>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Tab: Vận hành -->
+              <div x-show="drawerTab==='ops'" class="flex-1 overflow-y-auto p-5 space-y-4">
+                <!-- Workflow progress -->
+                <div class="flex items-center gap-0 text-[10px] font-medium mb-4">
+                  <template x-for="(step, si) in drawerWorkflowSteps()" :key="si">
+                    <div class="flex items-center">
+                      <div class="flex items-center gap-1 px-2 py-1 rounded-full"
+                        :class="{'bg-green-100 text-green-700': step.state==='done', 'bg-blue-100 text-blue-700': step.state==='current', 'bg-red-100 text-red-600': step.state==='error', 'bg-gray-100 text-gray-400': step.state==='pending'}">
+                        <i :class="step.icon" class="text-xs"></i>
+                        <span x-text="step.label"></span>
+                      </div>
+                      <i x-show="si < drawerWorkflowSteps().length - 1" class="ri-arrow-right-s-line text-gray-300 mx-0.5"></i>
+                    </div>
+                  </template>
+                </div>
+                <!-- Sections -->
+                <div class="space-y-3 text-xs">
+                  <div class="bg-gray-50 rounded-lg p-3 space-y-2">
+                    <h4 class="font-semibold text-gray-600 flex items-center gap-1"><i class="ri-store-2-line text-sm"></i> Page & Campaign</h4>
+                    <div class="flex justify-between"><span class="text-gray-500">Page</span><span class="text-gray-800" x-text="drawerItem.page?.name"></span></div>
+                    <div class="flex justify-between"><span class="text-gray-500">Campaign</span><span class="text-gray-800" x-text="drawerItem.campaign?.name || '—'"></span></div>
+                  </div>
+                  <div class="bg-gray-50 rounded-lg p-3 space-y-2">
+                    <h4 class="font-semibold text-gray-600 flex items-center gap-1"><i class="ri-magic-line text-sm"></i> Generation</h4>
+                    <div class="flex justify-between"><span class="text-gray-500">Nguồn</span><span x-text="sourceLabel(drawerItem.source)"></span></div>
+                    <div class="flex justify-between"><span class="text-gray-500">Trạng thái</span><span x-text="drawerItem.status==='GENERATING' ? 'Đang tạo...' : (drawerItem.generatedText || drawerItem.generatedImageUrl ? 'Đã tạo' : 'Chưa tạo')"></span></div>
+                    <div x-show="drawerItem.aiModel" class="flex justify-between"><span class="text-gray-500">AI Model</span><span class="text-gray-700" x-text="drawerItem.aiModel"></span></div>
+                  </div>
+                  <div class="bg-gray-50 rounded-lg p-3 space-y-2">
+                    <h4 class="font-semibold text-gray-600 flex items-center gap-1"><i class="ri-checkbox-circle-line text-sm"></i> Approval</h4>
+                    <div class="flex justify-between"><span class="text-gray-500">Trạng thái</span>
+                      <span class="inline-flex items-center px-1.5 py-0.5 rounded-full font-medium" :class="statusClass(drawerItem.status)" x-text="statusLabel(drawerItem.status)"></span>
+                    </div>
+                    <template x-if="drawerItem.approvalLogs?.length > 0">
+                      <div class="space-y-1 mt-1">
+                        <template x-for="log in drawerItem.approvalLogs" :key="log.id">
+                          <div class="flex items-center gap-2 text-[11px] text-gray-500">
+                            <i :class="{'ri-check-line text-green-500': log.action==='APPROVE', 'ri-close-line text-red-500': log.action==='REJECT', 'ri-edit-line text-orange-500': log.action==='REQUEST_EDIT'}"></i>
+                            <span x-text="log.user?.name || 'System'"></span>
+                            <span class="text-gray-300">·</span>
+                            <span x-text="new Date(log.createdAt).toLocaleString('vi-VN',{timeZone:'Asia/Ho_Chi_Minh',day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'})"></span>
+                            <span x-show="log.feedback" class="text-gray-400 truncate max-w-[120px]" :title="log.feedback" x-text="log.feedback"></span>
+                          </div>
+                        </template>
+                      </div>
+                    </template>
+                  </div>
+                  <div class="bg-gray-50 rounded-lg p-3 space-y-2">
+                    <h4 class="font-semibold text-gray-600 flex items-center gap-1"><i class="ri-calendar-line text-sm"></i> Scheduling</h4>
+                    <div class="flex justify-between"><span class="text-gray-500">Lịch đăng</span>
+                      <span class="text-gray-800" x-text="new Date(drawerItem.scheduledAt).toLocaleString('vi-VN',{timeZone:'Asia/Ho_Chi_Minh',day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'})"></span>
+                    </div>
+                    <div class="flex justify-between"><span class="text-gray-500">Múi giờ</span><span class="text-gray-700">Asia/Ho_Chi_Minh</span></div>
+                  </div>
+                  <div class="bg-gray-50 rounded-lg p-3 space-y-2">
+                    <h4 class="font-semibold text-gray-600 flex items-center gap-1"><i class="ri-send-plane-line text-sm"></i> Publishing</h4>
+                    <div class="flex justify-between"><span class="text-gray-500">Trạng thái</span>
+                      <span x-text="drawerItem.status==='PUBLISHED' ? 'Đã đăng' : (drawerItem.status==='PUBLISHING' ? 'Đang đăng...' : (drawerItem.status==='FAILED' ? 'Lỗi' : 'Chưa đăng'))"></span>
+                    </div>
+                    <div x-show="drawerItem.publishedAt" class="flex justify-between"><span class="text-gray-500">Ngày đăng</span>
+                      <span class="text-gray-800" x-text="drawerItem.publishedAt ? new Date(drawerItem.publishedAt).toLocaleString('vi-VN',{timeZone:'Asia/Ho_Chi_Minh',day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'}) : '—'"></span>
+                    </div>
+                    <div x-show="drawerItem.socialPostId" class="flex justify-between"><span class="text-gray-500">Facebook Post ID</span>
+                      <span class="text-gray-600 font-mono text-[10px]" x-text="drawerItem.socialPostId"></span>
+                    </div>
+                    <div x-show="drawerItem.socialPostId && drawerItem.page?.externalId" class="mt-1">
+                      <a :href="'https://facebook.com/'+drawerItem.page.externalId+'/posts/'+drawerItem.socialPostId.split('_')[1]" target="_blank"
+                        class="text-xs text-brand-500 hover:text-brand-700 flex items-center gap-1"><i class="ri-external-link-line"></i> Xem trên Facebook</a>
+                    </div>
+                    <div x-show="drawerItem.errorMessage" class="mt-2 p-2 bg-red-50 rounded border border-red-100">
+                      <p class="text-red-600 text-[11px] font-medium mb-1"><i class="ri-error-warning-line"></i> Lỗi</p>
+                      <p class="text-red-500 text-[10px]" x-text="drawerItem.errorMessage"></p>
+                    </div>
+                  </div>
+                </div>
+                <!-- Quick Actions -->
+                <div class="border-t border-gray-100 pt-3 flex flex-wrap gap-2">
+                  <button x-show="drawerItem.status==='DRAFT' || drawerItem.status==='FAILED'" @click="regenerateContent(drawerItem.id); showToast('Đã thêm vào hàng đợi gen')"
+                    class="px-3 py-1.5 bg-purple-500 text-white rounded-lg text-xs font-medium hover:bg-purple-600 flex items-center gap-1"><i class="ri-magic-line"></i> Gen nội dung</button>
+                  <button x-show="drawerItem.status==='PENDING_REVIEW'" @click="approveContent(drawerItem.id).then(()=>refreshDrawer(drawerItem.id))"
+                    class="px-3 py-1.5 bg-green-500 text-white rounded-lg text-xs font-medium hover:bg-green-600 flex items-center gap-1"><i class="ri-check-line"></i> Duyệt</button>
+                  <button x-show="drawerItem.status==='PENDING_REVIEW'" @click="rejectContent(drawerItem.id).then(()=>refreshDrawer(drawerItem.id))"
+                    class="px-3 py-1.5 bg-red-500 text-white rounded-lg text-xs font-medium hover:bg-red-600 flex items-center gap-1"><i class="ri-close-line"></i> Từ chối</button>
+                  <button x-show="drawerItem.status==='APPROVED'" @click="publishNow(drawerItem.id)"
+                    class="px-3 py-1.5 bg-brand-600 text-white rounded-lg text-xs font-medium hover:bg-brand-700 flex items-center gap-1"><i class="ri-send-plane-line"></i> Đăng ngay</button>
+                  <button x-show="drawerItem.status==='PUBLISHED' && drawerItem.socialPostId" @click="drawerSyncMetrics()"
+                    class="px-3 py-1.5 border border-gray-200 rounded-lg text-xs font-medium hover:bg-gray-50 flex items-center gap-1" :disabled="drawerSyncing">
+                    <i class="ri-refresh-line" :class="drawerSyncing && 'animate-spin'"></i> Sync metrics
+                  </button>
+                </div>
+              </div>
+
+              <!-- Tab: Hiệu suất -->
+              <div x-show="drawerTab==='perf'" class="flex-1 overflow-y-auto p-5 space-y-4">
+                <template x-if="drawerItem.status!=='PUBLISHED' || !drawerItem.socialPostId">
+                  <div class="text-center py-12 text-gray-400">
+                    <i class="ri-bar-chart-line text-4xl mb-2"></i>
+                    <p class="text-sm">Chưa có dữ liệu hiệu suất</p>
+                    <p class="text-xs mt-1">Dữ liệu sẽ có sau khi content được đăng lên Facebook.</p>
+                  </div>
+                </template>
+                <template x-if="drawerItem.status==='PUBLISHED' && drawerItem.socialPostId">
+                  <div class="space-y-4">
+                    <!-- Top metrics -->
+                    <div class="grid grid-cols-2 gap-3">
+                      <template x-for="m in [{k:'fb_reach',l:'Người xem',tip:'Số người xem duy nhất của nội dung theo Facebook.'},{k:'fb_media_views',l:'Lượt xem',tip:'Tổng số lượt nội dung được xem/displayed/played; một người có thể tạo nhiều lượt xem.'},{k:'_engagement',l:'Engagement',tip:'MKT Tools = Reactions + Comments + Shares.'},{k:'_eng_per_viewer',l:'Eng/Viewer',tip:'Engagement chia cho số Người xem duy nhất.'}]" :key="m.k">
+                        <div class="bg-gray-50 rounded-lg p-3 relative group">
+                          <div class="text-[10px] text-gray-500 mb-1 flex items-center gap-1">
+                            <span x-text="m.l"></span>
+                            <i class="ri-question-line text-gray-300 cursor-help" :title="m.tip"></i>
+                          </div>
+                          <div class="text-lg font-bold tabular-nums" x-text="drawerPerfVal(m.k)"></div>
+                        </div>
+                      </template>
+                    </div>
+                    <!-- Detail metrics -->
+                    <div class="grid grid-cols-2 gap-3">
+                      <template x-for="m in [{k:'fb_reactions',l:'Reactions',tip:'Tổng reactions trên bài viết.'},{k:'fb_comments',l:'Comments',tip:'Tổng comments trên bài viết.'},{k:'fb_shares',l:'Shares',tip:'Tổng shares trên bài viết.'},{k:'fb_clicks',l:'Post Clicks',tip:'Tổng lượt click trên bài viết theo Facebook.'}]" :key="m.k">
+                        <div class="bg-gray-50 rounded-lg p-3">
+                          <div class="text-[10px] text-gray-500 mb-1 flex items-center gap-1">
+                            <span x-text="m.l"></span>
+                            <i class="ri-question-line text-gray-300 cursor-help" :title="m.tip"></i>
+                          </div>
+                          <div class="text-base font-bold tabular-nums" x-text="drawerPerfVal(m.k)"></div>
+                        </div>
+                      </template>
+                    </div>
+                    <!-- Reaction breakdown -->
+                    <template x-if="drawerItem.metrics?.fb_reactions_by_type">
+                      <div class="bg-gray-50 rounded-lg p-3">
+                        <h4 class="text-[10px] text-gray-500 font-semibold uppercase mb-2">Reactions chi tiết</h4>
+                        <div class="grid grid-cols-3 gap-2">
+                          <template x-for="r in [{k:'like',e:'👍'},{k:'love',e:'❤️'},{k:'haha',e:'😂'},{k:'wow',e:'😮'},{k:'sorry',e:'😢'},{k:'anger',e:'😡'}]" :key="r.k">
+                            <div x-show="drawerItem.metrics.fb_reactions_by_type[r.k] > 0" class="flex items-center gap-1 text-xs">
+                              <span x-text="r.e"></span>
+                              <span class="tabular-nums font-medium" x-text="(drawerItem.metrics.fb_reactions_by_type[r.k]||0).toLocaleString('vi-VN')"></span>
+                            </div>
+                          </template>
+                        </div>
+                      </div>
+                    </template>
+                    <!-- Click breakdown -->
+                    <template x-if="drawerItem.metrics?.fb_clicks_by_type">
+                      <div class="bg-gray-50 rounded-lg p-3">
+                        <h4 class="text-[10px] text-gray-500 font-semibold uppercase mb-2">Clicks chi tiết</h4>
+                        <div class="space-y-1">
+                          <template x-for="(val, key) in drawerItem.metrics.fb_clicks_by_type" :key="key">
+                            <div x-show="val > 0" class="flex justify-between text-xs">
+                              <span class="text-gray-600 capitalize" x-text="key.replace(/_/g, ' ')"></span>
+                              <span class="tabular-nums font-medium" x-text="Number(val).toLocaleString('vi-VN')"></span>
+                            </div>
+                          </template>
+                        </div>
+                      </div>
+                    </template>
+                    <!-- Facebook info -->
+                    <div class="bg-gray-50 rounded-lg p-3 space-y-2 text-xs">
+                      <h4 class="font-semibold text-gray-600 flex items-center gap-1"><i class="ri-facebook-circle-line text-blue-500 text-sm"></i> Facebook</h4>
+                      <div class="flex justify-between"><span class="text-gray-500">Post ID</span><span class="font-mono text-[10px] text-gray-600" x-text="drawerItem.socialPostId"></span></div>
+                      <div x-show="drawerItem.publishedAt" class="flex justify-between"><span class="text-gray-500">Published</span>
+                        <span x-text="new Date(drawerItem.publishedAt).toLocaleString('vi-VN',{timeZone:'Asia/Ho_Chi_Minh',day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'})"></span>
+                      </div>
+                      <div x-show="drawerItem.metrics?.fb_synced_at" class="flex justify-between"><span class="text-gray-500">Last Sync</span>
+                        <span x-text="new Date(drawerItem.metrics.fb_synced_at).toLocaleString('vi-VN',{timeZone:'Asia/Ho_Chi_Minh',day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'})"></span>
+                      </div>
+                      <div class="flex gap-2 mt-2">
+                        <button @click="drawerSyncMetrics()" :disabled="drawerSyncing"
+                          class="px-2.5 py-1.5 border border-gray-200 rounded text-xs hover:bg-gray-100 flex items-center gap-1 disabled:opacity-40">
+                          <i class="ri-refresh-line" :class="drawerSyncing && 'animate-spin'"></i> Sync metrics
+                        </button>
+                        <a :href="'https://facebook.com/'+drawerItem.page?.externalId+'/posts/'+drawerItem.socialPostId.split('_')[1]" target="_blank"
+                          class="px-2.5 py-1.5 border border-gray-200 rounded text-xs hover:bg-gray-100 flex items-center gap-1">
+                          <i class="ri-external-link-line"></i> Xem bài
+                        </a>
+                      </div>
+                      <div x-show="drawerSyncError" class="mt-2 p-2 bg-red-50 rounded border border-red-100 text-[11px] text-red-600">
+                        <i class="ri-error-warning-line"></i> <span x-text="drawerSyncError"></span>
+                      </div>
+                    </div>
+                  </div>
+                </template>
+              </div>
+
+              <!-- Tab: Lịch sử -->
+              <div x-show="drawerTab==='history'" class="flex-1 overflow-y-auto p-5">
+                <div class="space-y-0">
+                  <template x-for="(evt, ei) in drawerHistory()" :key="ei">
+                    <div class="flex gap-3 pb-4">
+                      <div class="flex flex-col items-center">
+                        <div class="w-2 h-2 rounded-full mt-1.5" :class="evt.color"></div>
+                        <div x-show="ei < drawerHistory().length - 1" class="flex-1 w-px bg-gray-200 mt-1"></div>
+                      </div>
+                      <div class="flex-1 pb-1">
+                        <div class="text-xs font-medium text-gray-800" x-text="evt.label"></div>
+                        <div class="text-[10px] text-gray-400 mt-0.5" x-text="evt.time"></div>
+                        <div x-show="evt.detail" class="text-[11px] text-gray-500 mt-0.5" x-text="evt.detail"></div>
+                      </div>
+                    </div>
+                  </template>
+                  <div x-show="drawerHistory().length === 0" class="text-center py-8 text-gray-400 text-sm">
+                    <i class="ri-time-line text-3xl mb-2"></i>
+                    <p>Không có lịch sử</p>
+                  </div>
+                </div>
+              </div>
+
+            </div>
+          </template>
+
+          <!-- Error state -->
+          <template x-if="!drawerItem && !drawerLoading">
+            <div class="flex-1 flex items-center justify-center text-gray-400 text-sm">
+              <div class="text-center">
+                <i class="ri-error-warning-line text-3xl mb-2"></i>
+                <p>Không thể tải chi tiết nội dung.</p>
+                <button @click="closeDrawer()" class="mt-2 text-xs text-brand-500 hover:text-brand-700">Đóng</button>
               </div>
             </div>
           </template>
@@ -2278,6 +2649,14 @@ function app() {
       { key: 'perf', label: 'Hiệu suất', cols: ['checkbox','thumbnail','topic','status','page','viewers','mediaViews','engagement','reactions','comments','shares','clicks','engPerViewer'] },
       { key: 'all', label: 'Tất cả', cols: null },
     ],
+
+    // Content Detail Drawer
+    drawerOpen: false,
+    drawerItem: null,
+    drawerLoading: false,
+    drawerTab: 'content',
+    drawerSyncing: false,
+    drawerSyncError: '',
 
     showContentForm: false,
     editingContent: null,
@@ -3509,6 +3888,149 @@ function app() {
         this.showToast('Đã gửi yêu cầu sửa');
         await this.loadContent();
       } catch (e) { this.showToast(e.message, 'error'); }
+    },
+
+    // --- Content Detail Drawer ---
+    async openDrawer(item) {
+      this.drawerOpen = true;
+      this.drawerLoading = true;
+      this.drawerTab = 'content';
+      this.drawerItem = null;
+      this.drawerSyncError = '';
+      try {
+        const data = await this.api(`/dashboard/content/${item.id}`);
+        this.drawerItem = data;
+      } catch (e) {
+        this.drawerItem = null;
+        this.showToast('Không tải được chi tiết content', 'error');
+      } finally {
+        this.drawerLoading = false;
+      }
+    },
+    closeDrawer() {
+      this.drawerOpen = false;
+      this.drawerItem = null;
+    },
+    async refreshDrawer(id) {
+      if (!this.drawerOpen) return;
+      try {
+        const data = await this.api(`/dashboard/content/${id}`);
+        this.drawerItem = data;
+      } catch (e) {}
+      await this.loadContent();
+    },
+    drawerPrevDisabled() {
+      if (!this.drawerItem || !this.contentItems?.length) return true;
+      const idx = this.contentItems.findIndex(i => i.id === this.drawerItem.id);
+      return idx <= 0;
+    },
+    drawerNextDisabled() {
+      if (!this.drawerItem || !this.contentItems?.length) return true;
+      const idx = this.contentItems.findIndex(i => i.id === this.drawerItem.id);
+      return idx < 0 || idx >= this.contentItems.length - 1;
+    },
+    async drawerPrev() {
+      if (this.drawerPrevDisabled()) return;
+      const idx = this.contentItems.findIndex(i => i.id === this.drawerItem.id);
+      await this.openDrawer(this.contentItems[idx - 1]);
+    },
+    async drawerNext() {
+      if (this.drawerNextDisabled()) return;
+      const idx = this.contentItems.findIndex(i => i.id === this.drawerItem.id);
+      await this.openDrawer(this.contentItems[idx + 1]);
+    },
+    drawerNavLabel() {
+      if (!this.drawerItem || !this.contentItems?.length) return '';
+      const idx = this.contentItems.findIndex(i => i.id === this.drawerItem.id);
+      return idx >= 0 ? `${idx + 1} / ${this.contentItems.length}` : '';
+    },
+    drawerWorkflowSteps() {
+      if (!this.drawerItem) return [];
+      const s = this.drawerItem.status;
+      const all = [
+        { label: 'Nháp', status: 'DRAFT' },
+        { label: 'Đang gen', status: 'GENERATING' },
+        { label: 'Chờ duyệt', status: 'PENDING_REVIEW' },
+        { label: 'Đã duyệt', status: 'APPROVED' },
+        { label: 'Đang đăng', status: 'PUBLISHING' },
+        { label: 'Đã đăng', status: 'PUBLISHED' },
+      ];
+      const order = ['DRAFT','GENERATING','PENDING_REVIEW','APPROVED','PUBLISHING','PUBLISHED'];
+      const curIdx = order.indexOf(s);
+      const special = { REVISION_REQUESTED: 2, FAILED: 5, CANCELLED: -1 };
+      if (s === 'CANCELLED') return [{ label: 'Đã hủy', done: true, active: true, color: 'gray' }];
+      return all.map((step, i) => {
+        const si = order.indexOf(step.status);
+        let done = false, active = false, color = '';
+        if (s in special) {
+          const pos = special[s];
+          done = si < pos;
+          active = si === pos;
+          color = s === 'FAILED' ? 'red' : s === 'REVISION_REQUESTED' ? 'orange' : '';
+          if (active) step = { ...step, label: s === 'FAILED' ? 'Lỗi' : s === 'REVISION_REQUESTED' ? 'Yêu cầu sửa' : step.label };
+        } else {
+          done = si < curIdx;
+          active = si === curIdx;
+        }
+        return { ...step, done, active, color };
+      });
+    },
+    drawerHistory() {
+      if (!this.drawerItem) return [];
+      const item = this.drawerItem;
+      const events = [];
+      if (item.createdAt) events.push({ time: item.createdAt, label: 'Tạo content', icon: 'ri-add-circle-line', color: 'text-gray-500' });
+      if (item.source === 'AI' && item.generatedText) events.push({ time: item.updatedAt, label: 'AI tạo nội dung', icon: 'ri-sparkling-line', color: 'text-blue-500' });
+      if (item.approvalLogs?.length) {
+        for (const log of [...item.approvalLogs].reverse()) {
+          const actionLabel = { APPROVE: 'Duyệt', REJECT: 'Từ chối', REQUEST_EDIT: 'Yêu cầu sửa' }[log.action] || log.action;
+          const color = log.action === 'APPROVE' ? 'text-green-500' : log.action === 'REJECT' ? 'text-red-500' : 'text-orange-500';
+          const icon = log.action === 'APPROVE' ? 'ri-check-line' : log.action === 'REJECT' ? 'ri-close-line' : 'ri-edit-line';
+          events.push({ time: log.createdAt, label: `${actionLabel} bởi ${log.user?.name || 'N/A'}${log.feedback ? ': ' + log.feedback : ''}`, icon, color });
+        }
+      }
+      if (item.publishedAt) events.push({ time: item.publishedAt, label: 'Đã đăng lên ' + (item.page?.platform || 'Facebook'), icon: 'ri-send-plane-fill', color: 'text-green-600' });
+      if (item.status === 'FAILED' && item.errorMessage) events.push({ time: item.updatedAt, label: 'Lỗi: ' + item.errorMessage, icon: 'ri-error-warning-line', color: 'text-red-500' });
+      events.sort((a, b) => new Date(a.time) - new Date(b.time));
+      return events;
+    },
+    drawerPerfVal(key) {
+      if (!this.drawerItem?.metrics) return '—';
+      const m = this.drawerItem.metrics;
+      if (key === '_engagement') {
+        const v = (m.fb_reactions || 0) + (m.fb_comments || 0) + (m.fb_shares || 0);
+        return v.toLocaleString('vi-VN');
+      }
+      if (key === '_eng_per_viewer') {
+        const eng = (m.fb_reactions || 0) + (m.fb_comments || 0) + (m.fb_shares || 0);
+        const viewers = m.fb_reach || 0;
+        if (!viewers) return '—';
+        return (eng / viewers * 100).toFixed(2) + '%';
+      }
+      const v = m[key];
+      if (v == null) return '—';
+      return Number(v).toLocaleString('vi-VN');
+    },
+    async drawerSyncMetrics() {
+      if (!this.drawerItem?.id) return;
+      this.drawerSyncing = true;
+      this.drawerSyncError = '';
+      try {
+        const data = await this.api(`/dashboard/content/${this.drawerItem.id}/sync-metrics`, { method: 'POST' });
+        this.drawerItem = data;
+        this.showToast('Đã đồng bộ metrics');
+        await this.loadContent();
+      } catch (e) {
+        this.drawerSyncError = e.message || 'Lỗi đồng bộ';
+        this.showToast('Lỗi đồng bộ metrics', 'error');
+      } finally {
+        this.drawerSyncing = false;
+      }
+    },
+    drawerEditContent() {
+      if (!this.drawerItem) return;
+      this.closeDrawer();
+      this.editContent(this.drawerItem);
     },
 
     sourceLabel(source) {

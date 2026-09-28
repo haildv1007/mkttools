@@ -1164,6 +1164,91 @@ router.post('/content/:id/publish-now', async (req: Request, res: Response) => {
   res.json({ success: true, message: 'Queued for publishing' });
 });
 
+// Single content item detail — used by the drawer
+router.get('/content/:id', async (req: Request, res: Response) => {
+  try {
+    const id = req.params.id as string;
+    const item = await prisma.contentItem.findUnique({
+      where: { id },
+      include: {
+        page: { select: { id: true, name: true, platform: true, externalId: true } },
+        campaign: { select: { id: true, name: true } },
+        approvalLogs: {
+          include: { user: { select: { id: true, name: true } } },
+          orderBy: { createdAt: 'desc' },
+        },
+      },
+    });
+    if (!item) return res.status(404).json({ error: 'Content not found' });
+    res.json(item);
+  } catch (err) {
+    res.status(500).json({ error: err instanceof Error ? err.message : 'Failed to load content' });
+  }
+});
+
+// Sync metrics for a single published content item
+router.post('/content/:id/sync-metrics', async (req: Request, res: Response) => {
+  try {
+    const id = req.params.id as string;
+    const item = await prisma.contentItem.findUnique({
+      where: { id },
+      include: { page: { select: { accessToken: true, platform: true, externalId: true } } },
+    });
+    if (!item) return res.status(404).json({ error: 'Content not found' });
+    if (!item.socialPostId) return res.status(400).json({ error: 'No social post ID' });
+    if (item.page.platform !== 'FACEBOOK') return res.status(400).json({ error: 'Only Facebook supported' });
+
+    const token = item.page.accessToken;
+    const url = `https://graph.facebook.com/v21.0/${item.socialPostId}?fields=reactions.summary(true),comments.summary(true),shares&access_token=${encodeURIComponent(token)}`;
+    const r = await fetch(url);
+    const json = await r.json() as { reactions?: { summary?: { total_count?: number } }; comments?: { summary?: { total_count?: number } }; shares?: { count?: number }; error?: { message?: string } };
+    if (!r.ok || json.error) return res.status(400).json({ error: json.error?.message || 'Facebook API error' });
+
+    const reactions = json.reactions?.summary?.total_count ?? 0;
+    const comments = json.comments?.summary?.total_count ?? 0;
+    const shares = json.shares?.count ?? 0;
+
+    let clicks: number | null = null;
+    let reach: number | null = null;
+    let mediaViews: number | null = null;
+    try {
+      const insUrl = `https://graph.facebook.com/v21.0/${item.socialPostId}/insights?metric=post_clicks,post_total_media_view_unique,post_media_view&access_token=${encodeURIComponent(token)}`;
+      const insRes = await fetch(insUrl);
+      if (insRes.ok) {
+        const insJson = await insRes.json() as { data?: Array<{ name: string; period?: string; values?: Array<{ value: number }> }> };
+        for (const m of insJson.data ?? []) {
+          if (m.period && m.period !== 'lifetime') continue;
+          const val = m.values?.[0]?.value;
+          if (m.name === 'post_clicks' && val !== undefined) clicks = val;
+          if (m.name === 'post_total_media_view_unique' && val !== undefined) reach = val;
+          if (m.name === 'post_media_view' && val !== undefined) mediaViews = val;
+        }
+      }
+    } catch {}
+
+    const existing = item.metrics as Record<string, number | string> | null;
+    const metricsData: Prisma.InputJsonObject = {
+      fb_reactions: reactions, fb_comments: comments, fb_shares: shares,
+      fb_clicks: clicks !== null ? clicks : (existing?.fb_clicks ?? 0),
+      fb_reach: reach !== null ? reach : (existing?.fb_reach ?? 0),
+      fb_media_views: mediaViews !== null ? mediaViews : (existing?.fb_media_views ?? 0),
+      fb_synced_at: new Date().toISOString(),
+    };
+
+    const updated = await prisma.contentItem.update({
+      where: { id },
+      data: { metrics: metricsData },
+      include: {
+        page: { select: { id: true, name: true, platform: true, externalId: true } },
+        campaign: { select: { id: true, name: true } },
+      },
+    });
+    res.json(updated);
+  } catch (err) {
+    res.status(500).json({ error: err instanceof Error ? err.message : 'Sync failed' });
+  }
+});
+
 router.delete('/content/:id', async (req: Request, res: Response) => {
   try {
     const id = req.params.id as string;
