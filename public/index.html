@@ -946,11 +946,16 @@
         <div class="flex items-center gap-2 mb-3">
           <div class="flex border border-gray-200 rounded-lg overflow-hidden bg-white">
             <template x-for="preset in dgPresets" :key="preset.key">
-              <button @click="dgSetPreset(preset.key)" class="px-3 py-1.5 text-xs font-medium transition border-r border-gray-200 last:border-r-0"
-                :class="dgActivePreset===preset.key ? 'bg-brand-50 text-brand-700' : 'text-gray-500 hover:bg-gray-50'"
+              <button @click="dgSetPreset(preset.key); dgActiveView=null" class="px-3 py-1.5 text-xs font-medium transition border-r border-gray-200 last:border-r-0"
+                :class="dgActivePreset===preset.key && dgActiveView===null ? 'bg-brand-50 text-brand-700' : 'text-gray-500 hover:bg-gray-50'"
                 x-text="preset.label"></button>
             </template>
           </div>
+          <template x-for="(sv, svi) in dgSavedViews" :key="svi">
+            <button @click="dgApplyView(svi)" class="px-2.5 py-1.5 text-xs font-medium rounded-lg border transition"
+              :class="dgActiveView===svi ? 'bg-brand-50 border-brand-300 text-brand-700' : 'border-gray-200 text-gray-500 hover:bg-gray-50'"
+              x-text="sv.name"></button>
+          </template>
           <div class="w-px h-5 bg-gray-200"></div>
           <!-- Status tabs -->
           <div class="flex gap-1">
@@ -958,7 +963,7 @@
               :class="!contentFilter.status ? 'bg-gray-800 text-white' : 'text-gray-500 hover:bg-gray-100'">
               Tất cả <span class="ml-1 opacity-70" x-text="dgStatusCounts.ALL || 0"></span>
             </button>
-            <template x-for="st in [{k:'DRAFT',l:'Nháp'},{k:'GENERATING',l:'Đang gen'},{k:'PENDING_REVIEW',l:'Chờ duyệt'},{k:'APPROVED',l:'Đã duyệt'},{k:'PUBLISHED',l:'Đã đăng'},{k:'FAILED',l:'Lỗi'}]" :key="st.k">
+            <template x-for="st in [{k:'DRAFT',l:'Nháp'},{k:'GENERATING',l:'Đang gen'},{k:'PENDING_REVIEW',l:'Chờ duyệt'},{k:'REVISION_REQUESTED',l:'Yêu cầu sửa'},{k:'APPROVED',l:'Đã duyệt'},{k:'PUBLISHING',l:'Đang đăng'},{k:'PUBLISHED',l:'Đã đăng'},{k:'FAILED',l:'Lỗi'},{k:'CANCELLED',l:'Đã hủy'}]" :key="st.k">
               <button @click="contentFilter.status=st.k; dgPage=1; loadContent()" class="px-2.5 py-1 rounded-full text-xs font-medium transition"
                 :class="contentFilter.status===st.k ? 'bg-gray-800 text-white' : 'text-gray-500 hover:bg-gray-100'"
                 x-show="dgStatusCounts[st.k]">
@@ -971,19 +976,38 @@
         <div class="flex gap-0">
           <!-- Data Grid -->
           <div class="flex-1 bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden" :class="dgColPanel && 'rounded-r-none border-r-0'">
-            <div class="overflow-x-auto" style="scrollbar-width:thin">
+            <!-- Bulk Selection Bar -->
+            <div x-show="dgBulkSelected.length > 0" class="flex items-center gap-3 px-4 py-2 bg-brand-50 border-b border-brand-200 text-sm">
+              <span class="font-medium text-brand-700" x-text="dgBulkSelected.length + ' mục đã chọn'"></span>
+              <button @click="dgBulkSelected=[]; dgBulkAll=false" class="text-xs text-gray-500 hover:text-gray-700 underline">Bỏ chọn</button>
+            </div>
+            <div class="overflow-x-auto" style="scrollbar-width:thin" x-ref="dgScroll">
               <table class="w-full border-collapse" :class="dgDensity==='compact' ? 'text-xs' : 'text-sm'">
                 <thead class="bg-gray-50 border-b border-gray-200 sticky top-0 z-10">
                   <tr>
-                    <template x-for="col in dgVisibleCols" :key="col.key">
+                    <template x-for="(col, ci) in dgVisibleCols" :key="col.key">
                       <th class="text-left font-semibold text-gray-500 uppercase border-r border-gray-100 select-none whitespace-nowrap"
-                        :class="dgDensity==='compact' ? 'px-2 py-2 text-[10px]' : 'px-3 py-2.5 text-xs'"
-                        :style="'min-width:'+col.minW+'px; width:'+col.w+'px; max-width:'+(col.maxW||600)+'px; position:relative'"
-                        @click="dgSort(col.key)">
-                        <span x-text="col.label"></span>
-                        <i x-show="dgSortBy===col.key" class="ml-0.5" :class="dgSortDir==='asc' ? 'ri-arrow-up-s-line' : 'ri-arrow-down-s-line'"></i>
-                        <div class="absolute right-0 top-0 bottom-0 w-1 cursor-col-resize hover:bg-brand-400"
-                          @mousedown.prevent="dgStartResize($event, col)"></div>
+                        :class="[dgDensity==='compact' ? 'px-2 py-2 text-[10px]' : 'px-3 py-2.5 text-xs', col.pinned ? 'sticky z-20 bg-gray-50' : '', dgDragCol===col.key ? 'opacity-50' : '']"
+                        :style="dgColStyle(col, ci)"
+                        :draggable="col.key!=='checkbox'"
+                        @dragstart="dgDragCol=col.key"
+                        @dragover.prevent
+                        @drop.prevent="dgDropCol(col.key)"
+                        @dragend="dgDragCol=null"
+                        @click="col.sortable !== false && dgSort(col.key)"
+                        @contextmenu.prevent="dgOpenCtxMenu($event, col)">
+                        <template x-if="col.key==='checkbox'">
+                          <input type="checkbox" :checked="dgBulkAll" @click.stop="dgToggleAll()" class="rounded border-gray-300 text-brand-600 focus:ring-brand-500">
+                        </template>
+                        <template x-if="col.key!=='checkbox'">
+                          <span>
+                            <span x-text="col.label"></span>
+                            <i x-show="dgSortBy===col.key" class="ml-0.5" :class="dgSortDir==='asc' ? 'ri-arrow-up-s-line' : 'ri-arrow-down-s-line'"></i>
+                            <i x-show="dgHasHeaderFilter(col.key)" class="ml-0.5 ri-filter-3-fill text-brand-500 text-[10px]"></i>
+                          </span>
+                        </template>
+                        <div x-show="col.key!=='checkbox'" class="absolute right-0 top-0 bottom-0 w-1 cursor-col-resize hover:bg-brand-400"
+                          @mousedown.prevent.stop="dgStartResize($event, col)"></div>
                       </th>
                     </template>
                     <th class="text-center font-semibold text-gray-500 uppercase w-12"
@@ -994,11 +1018,15 @@
                 </thead>
                 <tbody class="divide-y divide-gray-50">
                   <template x-for="item in contentItems" :key="item.id">
-                    <tr class="hover:bg-blue-50/30 transition group">
-                      <template x-for="col in dgVisibleCols" :key="col.key">
+                    <tr class="hover:bg-blue-50/30 transition group" :class="dgBulkSelected.includes(item.id) && 'bg-brand-50/40'">
+                      <template x-for="(col, ci) in dgVisibleCols" :key="col.key">
                         <td class="border-r border-gray-50"
-                          :class="dgDensity==='compact' ? 'px-2 py-1' : 'px-3 py-2'"
-                          :style="'min-width:'+col.minW+'px; width:'+col.w+'px; max-width:'+(col.maxW||600)+'px'">
+                          :class="[dgDensity==='compact' ? 'px-2 py-1' : 'px-3 py-2', col.pinned ? 'sticky z-[5] bg-white' : '']"
+                          :style="dgColStyle(col, ci)">
+                          <!-- Checkbox -->
+                          <template x-if="col.key==='checkbox'">
+                            <input type="checkbox" :checked="dgBulkSelected.includes(item.id)" @click="dgToggleRow(item.id)" class="rounded border-gray-300 text-brand-600 focus:ring-brand-500">
+                          </template>
                           <!-- Thumbnail -->
                           <template x-if="col.key==='thumbnail'">
                             <div class="flex items-center justify-center">
@@ -1173,25 +1201,33 @@
             </div>
           </div>
 
-          <!-- Column Manager Panel -->
-          <div x-show="dgColPanel" x-cloak class="w-64 bg-white border border-gray-200 rounded-r-xl shadow-sm flex-shrink-0 overflow-y-auto" style="max-height:calc(100vh - 200px)">
+          <!-- Column Manager Panel (Enhanced) -->
+          <div x-show="dgColPanel" x-cloak class="w-72 bg-white border border-gray-200 rounded-r-xl shadow-sm flex-shrink-0 overflow-y-auto" style="max-height:calc(100vh - 200px)">
             <div class="p-3 border-b border-gray-100">
-              <div class="flex items-center justify-between">
+              <div class="flex items-center justify-between mb-2">
                 <h3 class="text-sm font-semibold">Tùy chỉnh cột</h3>
                 <button @click="dgColPanel=false" class="text-gray-400 hover:text-gray-600"><i class="ri-close-line"></i></button>
               </div>
+              <input x-model="dgColSearch" type="text" placeholder="Tìm cột..." class="w-full px-2.5 py-1.5 border border-gray-200 rounded-lg text-xs outline-none focus:ring-1 focus:ring-brand-500 bg-gray-50">
             </div>
             <div class="p-2 space-y-0.5">
-              <template x-for="col in dgAllCols" :key="col.key">
-                <label class="flex items-center gap-2 px-2 py-1.5 rounded hover:bg-gray-50 cursor-pointer text-xs">
-                  <input type="checkbox" :checked="col.visible" @change="col.visible=!col.visible; dgSaveCols()" class="rounded border-gray-300 text-brand-600 focus:ring-brand-500">
-                  <span x-text="col.label" class="text-gray-700"></span>
-                  <span x-show="col.group==='metrics'" class="ml-auto text-[9px] text-gray-400">📊</span>
-                </label>
+              <template x-for="col in dgAllCols.filter(c => c.key !== 'checkbox' && (!dgColSearch || c.label.toLowerCase().includes(dgColSearch.toLowerCase())))" :key="col.key">
+                <div class="flex items-center gap-1 px-2 py-1.5 rounded hover:bg-gray-50 text-xs group"
+                  draggable="true" @dragstart="dgDragCol=col.key" @dragover.prevent @drop.prevent="dgDropCol(col.key)" @dragend="dgDragCol=null"
+                  :class="dgDragCol===col.key && 'opacity-50'">
+                  <i class="ri-draggable text-gray-300 cursor-grab text-sm mr-0.5"></i>
+                  <input type="checkbox" :checked="col.visible" @change="col.visible=!col.visible; dgSaveCols()" class="rounded border-gray-300 text-brand-600 focus:ring-brand-500 shrink-0">
+                  <span x-text="col.label" class="text-gray-700 flex-1 truncate"></span>
+                  <button @click="col.pinned=!col.pinned; dgSaveCols()" class="p-0.5 rounded hover:bg-gray-200 transition"
+                    :class="col.pinned ? 'text-brand-500' : 'text-gray-300 opacity-0 group-hover:opacity-100'" :title="col.pinned ? 'Bỏ ghim' : 'Ghim'">
+                    <i class="ri-pushpin-line text-xs"></i>
+                  </button>
+                  <span x-show="col.group==='metrics'" class="text-[9px] text-gray-400">📊</span>
+                </div>
               </template>
             </div>
-            <div class="p-3 border-t border-gray-100">
-              <p class="text-[10px] text-gray-400 mb-2">Presets</p>
+            <div class="p-3 border-t border-gray-100 space-y-2">
+              <p class="text-[10px] text-gray-400">Presets</p>
               <div class="flex flex-wrap gap-1">
                 <template x-for="preset in dgPresets" :key="preset.key">
                   <button @click="dgSetPreset(preset.key)" class="px-2 py-1 rounded text-[10px] border transition"
@@ -1199,8 +1235,158 @@
                     x-text="preset.label"></button>
                 </template>
               </div>
+              <template x-if="dgSavedViews.length">
+                <div>
+                  <p class="text-[10px] text-gray-400 mt-2">Views đã lưu</p>
+                  <div class="flex flex-wrap gap-1 mt-1">
+                    <template x-for="(v,vi) in dgSavedViews" :key="vi">
+                      <div class="flex items-center gap-0.5">
+                        <button @click="dgApplyView(vi)" class="px-2 py-1 rounded text-[10px] border transition"
+                          :class="dgActiveView===vi ? 'bg-brand-50 border-brand-300 text-brand-700' : 'border-gray-200 text-gray-500 hover:bg-gray-50'"
+                          x-text="v.name"></button>
+                        <button @click="dgDeleteView(vi)" class="text-gray-300 hover:text-red-400 text-[10px]"><i class="ri-close-line"></i></button>
+                      </div>
+                    </template>
+                  </div>
+                </div>
+              </template>
+              <div class="flex gap-1 mt-2">
+                <button @click="dgShowSaveView=!dgShowSaveView" class="flex-1 px-2 py-1.5 border border-gray-200 rounded text-[10px] text-gray-500 hover:bg-gray-50 flex items-center justify-center gap-1">
+                  <i class="ri-save-line"></i> Lưu View
+                </button>
+                <button @click="dgResetCols()" class="px-2 py-1.5 border border-gray-200 rounded text-[10px] text-gray-500 hover:bg-gray-50" title="Mặc định">
+                  <i class="ri-refresh-line"></i>
+                </button>
+              </div>
+              <div x-show="dgShowSaveView" class="flex gap-1">
+                <input x-model="dgNewViewName" type="text" placeholder="Tên view..." class="flex-1 px-2 py-1 border border-gray-200 rounded text-xs outline-none focus:ring-1 focus:ring-brand-500">
+                <button @click="dgSaveView()" :disabled="!dgNewViewName.trim()" class="px-2 py-1 bg-brand-600 text-white rounded text-xs disabled:opacity-40">Lưu</button>
+              </div>
             </div>
           </div>
+        </div>
+
+        <!-- Column Context Menu -->
+        <div x-show="dgCtxMenu" x-cloak @click.away="dgCtxMenu=null" x-transition
+          class="fixed bg-white rounded-lg shadow-lg border border-gray-100 py-1 z-[200] min-w-[170px]"
+          :style="dgCtxMenu ? 'left:'+dgCtxMenu.x+'px;top:'+dgCtxMenu.y+'px' : ''">
+          <template x-if="dgCtxMenu">
+            <div>
+              <button x-show="dgCtxMenu.col.sortable !== false" @click="dgSortBy=dgCtxMenu.col.key; dgSortDir='asc'; dgPage=1; loadContent(); dgCtxMenu=null"
+                class="w-full text-left px-3 py-1.5 text-xs hover:bg-gray-50 flex items-center gap-2"><i class="ri-sort-asc text-gray-400"></i> Sắp xếp tăng dần</button>
+              <button x-show="dgCtxMenu.col.sortable !== false" @click="dgSortBy=dgCtxMenu.col.key; dgSortDir='desc'; dgPage=1; loadContent(); dgCtxMenu=null"
+                class="w-full text-left px-3 py-1.5 text-xs hover:bg-gray-50 flex items-center gap-2"><i class="ri-sort-desc text-gray-400"></i> Sắp xếp giảm dần</button>
+              <button x-show="dgCtxMenu.col.filterable" @click="dgOpenHeaderFilter(dgCtxMenu.col); dgCtxMenu=null"
+                class="w-full text-left px-3 py-1.5 text-xs hover:bg-gray-50 flex items-center gap-2"><i class="ri-filter-3-line text-gray-400"></i> Lọc cột này</button>
+              <div class="border-t border-gray-100 my-1"></div>
+              <button @click="dgCtxMenu.col.pinned=!dgCtxMenu.col.pinned; dgSaveCols(); dgCtxMenu=null"
+                class="w-full text-left px-3 py-1.5 text-xs hover:bg-gray-50 flex items-center gap-2">
+                <i :class="dgCtxMenu.col.pinned ? 'ri-unpin-line text-gray-400' : 'ri-pushpin-line text-gray-400'"></i>
+                <span x-text="dgCtxMenu.col.pinned ? 'Bỏ ghim' : 'Ghim trái'"></span>
+              </button>
+              <button @click="dgCtxMenu.col.visible=false; dgSaveCols(); dgCtxMenu=null"
+                class="w-full text-left px-3 py-1.5 text-xs hover:bg-gray-50 flex items-center gap-2"><i class="ri-eye-off-line text-gray-400"></i> Ẩn cột</button>
+              <button @click="dgAutoSize(dgCtxMenu.col); dgCtxMenu=null"
+                class="w-full text-left px-3 py-1.5 text-xs hover:bg-gray-50 flex items-center gap-2"><i class="ri-arrows-left-right-line text-gray-400"></i> Auto-size</button>
+            </div>
+          </template>
+        </div>
+
+        <!-- Header Filter Popover -->
+        <div x-show="dgHeaderFilter" x-cloak @click.away="dgHeaderFilter=null" x-transition
+          class="fixed bg-white rounded-lg shadow-lg border border-gray-200 z-[200] p-3 min-w-[220px] max-w-[280px]"
+          :style="dgHeaderFilter ? 'left:'+dgHeaderFilter.x+'px;top:'+dgHeaderFilter.y+'px' : ''">
+          <template x-if="dgHeaderFilter">
+            <div>
+              <div class="text-xs font-semibold text-gray-700 mb-2" x-text="'Lọc: ' + dgHeaderFilter.col.label"></div>
+
+              <!-- Multi-select filter (status, source, contentType) -->
+              <template x-if="dgHeaderFilter.col.filterable==='multi-select'">
+                <div class="space-y-1 max-h-[200px] overflow-y-auto">
+                  <template x-for="opt in dgHeaderFilter.col.filterOptions" :key="opt">
+                    <label class="flex items-center gap-2 px-2 py-1 rounded hover:bg-gray-50 cursor-pointer text-xs">
+                      <input type="checkbox" :checked="(dgHeaderFilterData[dgHeaderFilter.col.key]||[]).includes(opt)"
+                        @change="dgToggleHeaderFilterOpt(dgHeaderFilter.col.key, opt)"
+                        class="rounded border-gray-300 text-brand-600 focus:ring-brand-500">
+                      <span x-text="dgHeaderFilter.col.key==='status' ? statusLabel(opt) : (dgHeaderFilter.col.key==='source' ? sourceLabel(opt) : opt)"></span>
+                    </label>
+                  </template>
+                </div>
+              </template>
+
+              <!-- Page multi-select -->
+              <template x-if="dgHeaderFilter.col.filterable==='page-select'">
+                <div class="space-y-1 max-h-[200px] overflow-y-auto">
+                  <template x-for="p in scopePages" :key="p.id">
+                    <label class="flex items-center gap-2 px-2 py-1 rounded hover:bg-gray-50 cursor-pointer text-xs">
+                      <input type="checkbox" :checked="(dgHeaderFilterData.pageIds||[]).includes(p.id)"
+                        @change="dgToggleHeaderFilterOpt('pageIds', p.id)"
+                        class="rounded border-gray-300 text-brand-600 focus:ring-brand-500">
+                      <span class="truncate" x-text="p.name"></span>
+                    </label>
+                  </template>
+                </div>
+              </template>
+
+              <!-- Campaign cascade select -->
+              <template x-if="dgHeaderFilter.col.filterable==='campaign-select'">
+                <div class="space-y-1 max-h-[200px] overflow-y-auto">
+                  <template x-if="dgCascadeCampaigns.length===0">
+                    <p class="text-xs text-gray-400 py-2">Chọn Page trước để lọc Campaign</p>
+                  </template>
+                  <template x-for="c in dgCascadeCampaigns" :key="c.id">
+                    <label class="flex items-center gap-2 px-2 py-1 rounded hover:bg-gray-50 cursor-pointer text-xs">
+                      <input type="checkbox" :checked="(dgHeaderFilterData.campaignIds||[]).includes(c.id)"
+                        @change="dgToggleHeaderFilterOpt('campaignIds', c.id)"
+                        class="rounded border-gray-300 text-brand-600 focus:ring-brand-500">
+                      <span class="truncate" x-text="c.name"></span>
+                    </label>
+                  </template>
+                </div>
+              </template>
+
+              <!-- Numeric filter (metrics) -->
+              <template x-if="dgHeaderFilter.col.filterable==='numeric'">
+                <div class="space-y-2">
+                  <select x-model="(dgHeaderFilterData[dgHeaderFilter.col.key]||{}).op"
+                    @change="if(!dgHeaderFilterData[dgHeaderFilter.col.key]) dgHeaderFilterData[dgHeaderFilter.col.key]={op:'gt',val:''}; dgHeaderFilterData[dgHeaderFilter.col.key].op=$event.target.value"
+                    class="w-full px-2 py-1.5 border border-gray-200 rounded text-xs outline-none">
+                    <option value="gt">Lớn hơn (&gt;)</option>
+                    <option value="gte">Lớn hơn hoặc bằng (&gt;=)</option>
+                    <option value="lt">Nhỏ hơn (&lt;)</option>
+                    <option value="lte">Nhỏ hơn hoặc bằng (&lt;=)</option>
+                    <option value="equals">Bằng (=)</option>
+                  </select>
+                  <input type="number" :value="(dgHeaderFilterData[dgHeaderFilter.col.key]||{}).val||''"
+                    @input="if(!dgHeaderFilterData[dgHeaderFilter.col.key]) dgHeaderFilterData[dgHeaderFilter.col.key]={op:'gt',val:''}; dgHeaderFilterData[dgHeaderFilter.col.key].val=$event.target.value"
+                    placeholder="Giá trị..." class="w-full px-2 py-1.5 border border-gray-200 rounded text-xs outline-none focus:ring-1 focus:ring-brand-500">
+                </div>
+              </template>
+
+              <!-- Date range filter -->
+              <template x-if="dgHeaderFilter.col.filterable==='date-range'">
+                <div class="space-y-2">
+                  <div>
+                    <label class="text-[10px] text-gray-500">Từ</label>
+                    <input type="date" :value="(dgHeaderFilterData[dgHeaderFilter.col.key+'_from'])||''"
+                      @input="dgHeaderFilterData[dgHeaderFilter.col.key+'_from']=$event.target.value"
+                      class="w-full px-2 py-1.5 border border-gray-200 rounded text-xs outline-none">
+                  </div>
+                  <div>
+                    <label class="text-[10px] text-gray-500">Đến</label>
+                    <input type="date" :value="(dgHeaderFilterData[dgHeaderFilter.col.key+'_to'])||''"
+                      @input="dgHeaderFilterData[dgHeaderFilter.col.key+'_to']=$event.target.value"
+                      class="w-full px-2 py-1.5 border border-gray-200 rounded text-xs outline-none">
+                  </div>
+                </div>
+              </template>
+
+              <div class="flex gap-2 mt-3">
+                <button @click="dgClearHeaderFilter(dgHeaderFilter.col.key); dgHeaderFilter=null" class="flex-1 px-2 py-1.5 border border-gray-200 rounded text-xs text-gray-500 hover:bg-gray-50">Xóa</button>
+                <button @click="dgApplyHeaderFilter(); dgHeaderFilter=null" class="flex-1 px-2 py-1.5 bg-brand-600 text-white rounded text-xs hover:bg-brand-700">Áp dụng</button>
+              </div>
+            </div>
+          </template>
         </div>
       </div>
 
@@ -2050,32 +2236,46 @@ function app() {
     dgActivePreset: 'basic',
     dgStatusCounts: {},
     dgResizing: null,
+    dgColSearch: '',
+    dgCtxMenu: null,
+    dgHeaderFilter: null,
+    dgHeaderFilterData: {},
+    dgBulkSelected: [],
+    dgBulkAll: false,
+    dgSavedViews: [],
+    dgActiveView: null,
+    dgShowSaveView: false,
+    dgNewViewName: '',
+    dgDragCol: null,
+    dgCascadeCampaigns: [],
+    _dgDefaultOrder: null,
     dgAllCols: [
-      { key: 'thumbnail', label: 'Ảnh', w: 50, minW: 40, maxW: 80, visible: true, group: 'core' },
-      { key: 'topic', label: 'Chủ đề', w: 220, minW: 120, maxW: 500, visible: true, group: 'core' },
-      { key: 'status', label: 'Trạng thái', w: 100, minW: 80, maxW: 150, visible: true, group: 'core' },
-      { key: 'page', label: 'Page', w: 140, minW: 80, maxW: 250, visible: true, group: 'core' },
-      { key: 'campaign', label: 'Campaign', w: 130, minW: 80, maxW: 250, visible: true, group: 'core' },
-      { key: 'contentType', label: 'Loại', w: 70, minW: 60, maxW: 120, visible: true, group: 'core' },
-      { key: 'source', label: 'Nguồn', w: 70, minW: 60, maxW: 120, visible: true, group: 'ops' },
-      { key: 'scheduledAt', label: 'Lịch đăng', w: 100, minW: 80, maxW: 150, visible: true, group: 'ops' },
-      { key: 'createdAt', label: 'Ngày tạo', w: 80, minW: 60, maxW: 120, visible: false, group: 'ops' },
-      { key: 'publishedAt', label: 'Ngày đăng', w: 100, minW: 70, maxW: 150, visible: false, group: 'ops' },
-      { key: 'notes', label: 'Ghi chú', w: 150, minW: 80, maxW: 400, visible: false, group: 'ops' },
-      { key: 'result', label: 'Kết quả', w: 140, minW: 80, maxW: 300, visible: false, group: 'ops' },
-      { key: 'viewers', label: 'Người xem', w: 85, minW: 65, maxW: 120, visible: false, group: 'metrics' },
-      { key: 'mediaViews', label: 'Lượt xem', w: 85, minW: 65, maxW: 120, visible: false, group: 'metrics' },
-      { key: 'engagement', label: 'Engagement', w: 90, minW: 70, maxW: 130, visible: false, group: 'metrics' },
-      { key: 'reactions', label: 'Reactions', w: 80, minW: 60, maxW: 120, visible: false, group: 'metrics' },
-      { key: 'comments', label: 'Comments', w: 80, minW: 60, maxW: 120, visible: false, group: 'metrics' },
-      { key: 'shares', label: 'Shares', w: 70, minW: 55, maxW: 100, visible: false, group: 'metrics' },
-      { key: 'clicks', label: 'Post Clicks', w: 85, minW: 65, maxW: 120, visible: false, group: 'metrics' },
-      { key: 'engPerViewer', label: 'Eng/Viewer', w: 85, minW: 65, maxW: 120, visible: false, group: 'metrics' },
+      { key: 'checkbox', label: '', w: 36, minW: 36, maxW: 36, visible: true, group: 'system', pinned: true, sortable: false, filterable: false },
+      { key: 'thumbnail', label: 'Ảnh', w: 50, minW: 40, maxW: 80, visible: true, group: 'core', pinned: true, sortable: false, filterable: false },
+      { key: 'topic', label: 'Chủ đề', w: 220, minW: 120, maxW: 500, visible: true, group: 'core', pinned: true, sortable: true, filterable: false },
+      { key: 'status', label: 'Trạng thái', w: 100, minW: 80, maxW: 150, visible: true, group: 'core', pinned: false, sortable: true, filterable: 'multi-select', filterOptions: ['DRAFT','GENERATING','PENDING_REVIEW','REVISION_REQUESTED','APPROVED','PUBLISHING','PUBLISHED','FAILED','CANCELLED'] },
+      { key: 'page', label: 'Page', w: 140, minW: 80, maxW: 250, visible: true, group: 'core', pinned: false, sortable: false, filterable: 'page-select' },
+      { key: 'campaign', label: 'Campaign', w: 130, minW: 80, maxW: 250, visible: true, group: 'core', pinned: false, sortable: false, filterable: 'campaign-select' },
+      { key: 'contentType', label: 'Loại', w: 70, minW: 60, maxW: 120, visible: true, group: 'core', pinned: false, sortable: true, filterable: 'multi-select', filterOptions: ['IMAGE','VIDEO','TEXT'] },
+      { key: 'source', label: 'Nguồn', w: 70, minW: 60, maxW: 120, visible: true, group: 'ops', pinned: false, sortable: true, filterable: 'multi-select', filterOptions: ['AI','MANUAL','IMPORT'] },
+      { key: 'scheduledAt', label: 'Lịch đăng', w: 100, minW: 80, maxW: 150, visible: true, group: 'ops', pinned: false, sortable: true, filterable: 'date-range' },
+      { key: 'createdAt', label: 'Ngày tạo', w: 80, minW: 60, maxW: 120, visible: false, group: 'ops', pinned: false, sortable: true, filterable: 'date-range' },
+      { key: 'publishedAt', label: 'Ngày đăng', w: 100, minW: 70, maxW: 150, visible: false, group: 'ops', pinned: false, sortable: true, filterable: 'date-range' },
+      { key: 'notes', label: 'Ghi chú', w: 150, minW: 80, maxW: 400, visible: false, group: 'ops', pinned: false, sortable: false, filterable: false },
+      { key: 'result', label: 'Kết quả', w: 140, minW: 80, maxW: 300, visible: false, group: 'ops', pinned: false, sortable: false, filterable: false },
+      { key: 'viewers', label: 'Người xem', w: 85, minW: 65, maxW: 120, visible: false, group: 'metrics', pinned: false, sortable: false, filterable: 'numeric' },
+      { key: 'mediaViews', label: 'Lượt xem', w: 85, minW: 65, maxW: 120, visible: false, group: 'metrics', pinned: false, sortable: false, filterable: 'numeric' },
+      { key: 'engagement', label: 'Engagement', w: 90, minW: 70, maxW: 130, visible: false, group: 'metrics', pinned: false, sortable: false, filterable: false },
+      { key: 'reactions', label: 'Reactions', w: 80, minW: 60, maxW: 120, visible: false, group: 'metrics', pinned: false, sortable: false, filterable: 'numeric' },
+      { key: 'comments', label: 'Comments', w: 80, minW: 60, maxW: 120, visible: false, group: 'metrics', pinned: false, sortable: false, filterable: 'numeric' },
+      { key: 'shares', label: 'Shares', w: 70, minW: 55, maxW: 100, visible: false, group: 'metrics', pinned: false, sortable: false, filterable: 'numeric' },
+      { key: 'clicks', label: 'Post Clicks', w: 85, minW: 65, maxW: 120, visible: false, group: 'metrics', pinned: false, sortable: false, filterable: 'numeric' },
+      { key: 'engPerViewer', label: 'Eng/Viewer', w: 85, minW: 65, maxW: 120, visible: false, group: 'metrics', pinned: false, sortable: false, filterable: false },
     ],
     dgPresets: [
-      { key: 'basic', label: 'Cơ bản', cols: ['thumbnail','topic','status','page','campaign','contentType','scheduledAt'] },
-      { key: 'ops', label: 'Vận hành', cols: ['thumbnail','topic','status','source','page','scheduledAt','createdAt','publishedAt','notes','result'] },
-      { key: 'perf', label: 'Hiệu suất', cols: ['thumbnail','topic','status','page','viewers','mediaViews','engagement','reactions','comments','shares','clicks','engPerViewer'] },
+      { key: 'basic', label: 'Cơ bản', cols: ['checkbox','thumbnail','topic','status','page','campaign','contentType','scheduledAt'] },
+      { key: 'ops', label: 'Vận hành', cols: ['checkbox','thumbnail','topic','status','source','page','scheduledAt','createdAt','publishedAt','notes','result'] },
+      { key: 'perf', label: 'Hiệu suất', cols: ['checkbox','thumbnail','topic','status','page','viewers','mediaViews','engagement','reactions','comments','shares','clicks','engPerViewer'] },
       { key: 'all', label: 'Tất cả', cols: null },
     ],
 
@@ -2471,14 +2671,27 @@ function app() {
     async loadContent() {
       try {
         const params = new URLSearchParams();
+        const hf = this.dgHeaderFilterData || {};
         if (this.contentFilter.status) params.set('status', this.contentFilter.status);
+        else if (hf.status?.length) params.set('statuses', hf.status.join(','));
         if (this.contentFilter.pageId) params.set('pageId', this.contentFilter.pageId);
+        else if (hf.pageIds?.length) params.set('pageIds', hf.pageIds.join(','));
         if (this.contentFilter.search) params.set('search', this.contentFilter.search);
-        if (this.contentFilter.dateFrom) params.set('dateFrom', this.contentFilter.dateFrom);
-        if (this.contentFilter.dateTo) params.set('dateTo', this.contentFilter.dateTo);
+        if (hf.scheduledAt_from || this.contentFilter.dateFrom) params.set('dateFrom', hf.scheduledAt_from || this.contentFilter.dateFrom);
+        if (hf.scheduledAt_to || this.contentFilter.dateTo) params.set('dateTo', hf.scheduledAt_to || this.contentFilter.dateTo);
         if (this.contentFilter.source) params.set('source', this.contentFilter.source);
+        else if (hf.source?.length) params.set('sources', hf.source.join(','));
         if (this.contentFilter.campaignId) params.set('campaignId', this.contentFilter.campaignId);
+        else if (hf.campaignIds?.length) params.set('campaignIds', hf.campaignIds.join(','));
         if (this.contentFilter.contentType) params.set('contentType', this.contentFilter.contentType);
+        else if (hf.contentType?.length) params.set('contentTypes', hf.contentType.join(','));
+        const metricFilter = {};
+        const metricKeys = { viewers: 'fb_reach', mediaViews: 'fb_media_views', reactions: 'fb_reactions', comments: 'fb_comments', shares: 'fb_shares', clicks: 'fb_clicks' };
+        for (const [colKey, metricKey] of Object.entries(metricKeys)) {
+          const mf = hf[colKey];
+          if (mf && mf.op && mf.val !== '' && mf.val !== undefined) metricFilter[metricKey] = { op: mf.op, val: Number(mf.val) };
+        }
+        if (Object.keys(metricFilter).length) params.set('metricFilter', JSON.stringify(metricFilter));
         params.set('page', String(this.dgPage));
         params.set('pageSize', String(this.dgPageSize));
         params.set('sortBy', this.dgSortBy);
@@ -2491,10 +2704,28 @@ function app() {
         this.contentItems = data.items;
         this.contentTotal = data.total;
         if (data.statusCounts) this.dgStatusCounts = data.statusCounts;
+        this.dgBulkSelected = []; this.dgBulkAll = false;
       } catch {}
     },
 
-    get dgVisibleCols() { return this.dgAllCols.filter(c => c.visible); },
+    get dgVisibleCols() {
+      const cols = this.dgAllCols.filter(c => c.visible);
+      if (this.currentScope.type === 'page') return cols.filter(c => c.key !== 'page');
+      return cols;
+    },
+
+    dgColStyle(col, ci) {
+      let s = 'min-width:'+col.minW+'px; width:'+col.w+'px; max-width:'+(col.maxW||600)+'px; position:relative;';
+      if (col.pinned) {
+        let left = 0;
+        const vis = this.dgVisibleCols;
+        for (let i = 0; i < ci; i++) { if (vis[i].pinned) left += vis[i].w; }
+        s += ' left:'+left+'px;';
+        const nextCol = vis[ci+1];
+        if (!nextCol || !nextCol.pinned) s += ' box-shadow: 2px 0 4px -2px rgba(0,0,0,0.1);';
+      }
+      return s;
+    },
 
     dgSort(key) {
       if (this.dgSortBy === key) {
@@ -2519,21 +2750,180 @@ function app() {
 
     dgSaveCols() {
       try {
-        const state = this.dgAllCols.map(c => ({ key: c.key, visible: c.visible, w: c.w }));
-        localStorage.setItem('mkt_dg_cols', JSON.stringify(state));
+        const state = this.dgAllCols.map(c => ({ key: c.key, visible: c.visible, w: c.w, pinned: c.pinned }));
+        const order = this.dgAllCols.map(c => c.key);
+        localStorage.setItem('mkt_dg_cols', JSON.stringify({ state, order, preset: this.dgActivePreset, density: this.dgDensity, view: this.dgActiveView }));
       } catch {}
     },
 
     dgLoadCols() {
+      this._dgDefaultOrder = this.dgAllCols.map(c => c.key);
       try {
-        const saved = JSON.parse(localStorage.getItem('mkt_dg_cols') || '[]');
-        if (saved.length) {
-          for (const s of saved) {
+        const raw = localStorage.getItem('mkt_dg_cols');
+        if (!raw) return;
+        const saved = JSON.parse(raw);
+        let colStates, order;
+        if (Array.isArray(saved)) { colStates = saved; order = null; }
+        else { colStates = saved.state || []; order = saved.order; if (saved.preset) this.dgActivePreset = saved.preset; if (saved.density) this.dgDensity = saved.density; if (saved.view !== undefined) this.dgActiveView = saved.view; }
+        if (colStates.length) {
+          for (const s of colStates) {
             const col = this.dgAllCols.find(c => c.key === s.key);
-            if (col) { col.visible = s.visible; col.w = s.w; }
+            if (col) { col.visible = s.visible; col.w = s.w; if (s.pinned !== undefined) col.pinned = s.pinned; }
           }
         }
+        if (order && order.length) {
+          const sorted = [];
+          for (const k of order) { const c = this.dgAllCols.find(x => x.key === k); if (c) sorted.push(c); }
+          for (const c of this.dgAllCols) { if (!sorted.includes(c)) sorted.push(c); }
+          this.dgAllCols.splice(0, this.dgAllCols.length, ...sorted);
+        }
+        const views = JSON.parse(localStorage.getItem('mkt_dg_views') || '[]');
+        if (views.length) this.dgSavedViews = views;
+        const hf = JSON.parse(localStorage.getItem('mkt_dg_hfilters') || '{}');
+        if (Object.keys(hf).length) this.dgHeaderFilterData = hf;
       } catch {}
+    },
+
+    dgResetCols() {
+      const defaults = this._dgDefaultOrder || this.dgAllCols.map(c => c.key);
+      const defPreset = this.dgPresets.find(p => p.key === 'basic');
+      const sorted = [];
+      for (const k of defaults) { const c = this.dgAllCols.find(x => x.key === k); if (c) sorted.push(c); }
+      this.dgAllCols.splice(0, this.dgAllCols.length, ...sorted);
+      for (const col of this.dgAllCols) {
+        col.visible = defPreset.cols === null ? true : defPreset.cols.includes(col.key);
+        col.pinned = ['checkbox','thumbnail','topic'].includes(col.key);
+      }
+      this.dgActivePreset = 'basic';
+      this.dgActiveView = null;
+      this.dgHeaderFilterData = {};
+      localStorage.removeItem('mkt_dg_hfilters');
+      this.dgSaveCols();
+      this.dgPage = 1;
+      this.loadContent();
+    },
+
+    dgDropCol(targetKey) {
+      if (!this.dgDragCol || this.dgDragCol === targetKey) return;
+      const arr = this.dgAllCols;
+      const fromIdx = arr.findIndex(c => c.key === this.dgDragCol);
+      const toIdx = arr.findIndex(c => c.key === targetKey);
+      if (fromIdx < 0 || toIdx < 0) return;
+      const [moved] = arr.splice(fromIdx, 1);
+      arr.splice(toIdx, 0, moved);
+      this.dgSaveCols();
+    },
+
+    dgOpenCtxMenu(e, col) {
+      if (col.key === 'checkbox') return;
+      this.dgCtxMenu = { x: Math.min(e.clientX, window.innerWidth - 200), y: Math.min(e.clientY, window.innerHeight - 250), col };
+    },
+
+    dgAutoSize(col) {
+      const sizes = { thumbnail: 50, topic: 280, status: 110, page: 160, campaign: 150, contentType: 80, source: 75, scheduledAt: 110, createdAt: 90, publishedAt: 110, notes: 180, result: 160 };
+      col.w = sizes[col.key] || col.minW + 30;
+      this.dgSaveCols();
+    },
+
+    dgToggleAll() {
+      if (this.dgBulkAll) { this.dgBulkSelected = []; this.dgBulkAll = false; }
+      else { this.dgBulkSelected = this.contentItems.map(i => i.id); this.dgBulkAll = true; }
+    },
+    dgToggleRow(id) {
+      const idx = this.dgBulkSelected.indexOf(id);
+      if (idx >= 0) this.dgBulkSelected.splice(idx, 1); else this.dgBulkSelected.push(id);
+      this.dgBulkAll = this.dgBulkSelected.length === this.contentItems.length && this.contentItems.length > 0;
+    },
+
+    dgOpenHeaderFilter(col) {
+      const th = this.$refs.dgScroll?.querySelector(`th`);
+      this.dgHeaderFilter = { x: 200, y: 200, col };
+      if (col.filterable === 'campaign-select') this.dgLoadCascadeCampaigns();
+    },
+
+    dgHasHeaderFilter(key) {
+      const d = this.dgHeaderFilterData;
+      if (d[key] && ((Array.isArray(d[key]) && d[key].length) || (typeof d[key] === 'object' && d[key].val))) return true;
+      if (key === 'page' && d.pageIds?.length) return true;
+      if (key === 'campaign' && d.campaignIds?.length) return true;
+      if (d[key+'_from'] || d[key+'_to']) return true;
+      return false;
+    },
+
+    dgToggleHeaderFilterOpt(key, val) {
+      if (!this.dgHeaderFilterData[key]) this.dgHeaderFilterData[key] = [];
+      const arr = this.dgHeaderFilterData[key];
+      const idx = arr.indexOf(val);
+      if (idx >= 0) arr.splice(idx, 1); else arr.push(val);
+    },
+
+    dgClearHeaderFilter(key) {
+      const col = this.dgAllCols.find(c => c.key === key);
+      if (!col) return;
+      if (col.filterable === 'page-select') delete this.dgHeaderFilterData.pageIds;
+      else if (col.filterable === 'campaign-select') delete this.dgHeaderFilterData.campaignIds;
+      else if (col.filterable === 'date-range') { delete this.dgHeaderFilterData[key+'_from']; delete this.dgHeaderFilterData[key+'_to']; }
+      else delete this.dgHeaderFilterData[key];
+      try { localStorage.setItem('mkt_dg_hfilters', JSON.stringify(this.dgHeaderFilterData)); } catch {}
+      this.dgPage = 1;
+      this.loadContent();
+    },
+
+    dgApplyHeaderFilter() {
+      try { localStorage.setItem('mkt_dg_hfilters', JSON.stringify(this.dgHeaderFilterData)); } catch {}
+      this.dgPage = 1;
+      this.loadContent();
+    },
+
+    async dgLoadCascadeCampaigns() {
+      try {
+        const pageIds = this.dgHeaderFilterData.pageIds || [];
+        const pids = pageIds.length ? pageIds.join(',') : this.scopePages.map(p => p.id).join(',');
+        if (!pids) { this.dgCascadeCampaigns = this.campaigns; return; }
+        const data = await this.api(`/dashboard/content/campaigns-for-pages?pageIds=${pids}`);
+        this.dgCascadeCampaigns = data || [];
+      } catch { this.dgCascadeCampaigns = this.campaigns; }
+    },
+
+    dgSaveView() {
+      if (!this.dgNewViewName.trim()) return;
+      const view = {
+        name: this.dgNewViewName.trim(),
+        cols: this.dgAllCols.map(c => ({ key: c.key, visible: c.visible, w: c.w, pinned: c.pinned })),
+        order: this.dgAllCols.map(c => c.key),
+        sortBy: this.dgSortBy, sortDir: this.dgSortDir, density: this.dgDensity,
+        headerFilters: JSON.parse(JSON.stringify(this.dgHeaderFilterData)),
+      };
+      this.dgSavedViews.push(view);
+      this.dgActiveView = this.dgSavedViews.length - 1;
+      this.dgActivePreset = '';
+      try { localStorage.setItem('mkt_dg_views', JSON.stringify(this.dgSavedViews)); } catch {}
+      this.dgNewViewName = '';
+      this.dgShowSaveView = false;
+      this.dgSaveCols();
+    },
+
+    dgApplyView(idx) {
+      const v = this.dgSavedViews[idx];
+      if (!v) return;
+      this.dgActiveView = idx;
+      this.dgActivePreset = '';
+      if (v.sortBy) { this.dgSortBy = v.sortBy; this.dgSortDir = v.sortDir || 'desc'; }
+      if (v.density) this.dgDensity = v.density;
+      if (v.headerFilters) { this.dgHeaderFilterData = JSON.parse(JSON.stringify(v.headerFilters)); try { localStorage.setItem('mkt_dg_hfilters', JSON.stringify(this.dgHeaderFilterData)); } catch {} }
+      if (v.cols) { for (const s of v.cols) { const col = this.dgAllCols.find(c => c.key === s.key); if (col) { col.visible = s.visible; col.w = s.w; if (s.pinned !== undefined) col.pinned = s.pinned; } } }
+      if (v.order) { const sorted = []; for (const k of v.order) { const c = this.dgAllCols.find(x => x.key === k); if (c) sorted.push(c); } for (const c of this.dgAllCols) { if (!sorted.includes(c)) sorted.push(c); } this.dgAllCols.splice(0, this.dgAllCols.length, ...sorted); }
+      this.dgSaveCols();
+      this.dgPage = 1;
+      this.loadContent();
+    },
+
+    dgDeleteView(idx) {
+      this.dgSavedViews.splice(idx, 1);
+      if (this.dgActiveView === idx) this.dgActiveView = null;
+      else if (this.dgActiveView > idx) this.dgActiveView--;
+      try { localStorage.setItem('mkt_dg_views', JSON.stringify(this.dgSavedViews)); } catch {}
+      this.dgSaveCols();
     },
 
     dgStartResize(e, col) {
@@ -3116,7 +3506,7 @@ function app() {
     },
 
     sourceLabel(source) {
-      return { AI: 'AI', MANUAL: 'Có sẵn', IMPORT: 'AI' }[source] || 'AI';
+      return { AI: 'AI', MANUAL: 'Có sẵn', IMPORT: 'Import' }[source] || 'AI';
     },
 
     showToast(message, type = 'success') {

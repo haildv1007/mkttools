@@ -958,9 +958,56 @@ router.post('/pages/fb-token-exchange', async (req: Request, res: Response) => {
   }
 });
 
+// All possible content statuses, kept in sync with the ContentStatus enum in prisma/schema.prisma
+const ALL_CONTENT_STATUSES = [
+  'DRAFT', 'GENERATING', 'PENDING_REVIEW', 'REVISION_REQUESTED',
+  'APPROVED', 'PUBLISHING', 'PUBLISHED', 'FAILED', 'CANCELLED',
+];
+
+// Parses a comma-separated query param into a string[] (or undefined if absent/empty).
+function parseCsvParam(value: unknown): string[] | undefined {
+  if (!value) return undefined;
+  const parts = String(value).split(',').map((v) => v.trim()).filter(Boolean);
+  return parts.length ? parts : undefined;
+}
+
+// Builds a Prisma filter value for a field given optional multi/single-value query params.
+// Multi-value takes precedence; falls back to single-value for backward compat.
+function buildInFilter(multiValue: unknown, singleValue: unknown): string | { in: string[] } | undefined {
+  const multi = parseCsvParam(multiValue);
+  if (multi) return multi.length === 1 ? multi[0] : { in: multi };
+  if (singleValue) return String(singleValue);
+  return undefined;
+}
+
+const METRIC_OPS = new Set(['gt', 'gte', 'lt', 'lte', 'equals']);
+
+// Parses metricFilter JSON string, e.g. {"fb_reach":{"op":"gt","val":100}}, into Prisma JSON path filters.
+function parseMetricFilters(raw: unknown): Record<string, unknown>[] {
+  if (!raw) return [];
+  let parsed: Record<string, { op: string; val: number | string }>;
+  try {
+    parsed = JSON.parse(String(raw));
+  } catch {
+    return [];
+  }
+  const filters: Record<string, unknown>[] = [];
+  for (const [key, cond] of Object.entries(parsed || {})) {
+    if (!cond || typeof cond !== 'object') continue;
+    const op = cond.op;
+    if (!METRIC_OPS.has(op)) continue;
+    filters.push({ metrics: { path: [key], [op]: cond.val } });
+  }
+  return filters;
+}
+
 // Content items — data grid API with DB-side sort/page/filter + status counts
 router.get('/content', async (req: Request, res: Response) => {
-  const { status, pageId, pageSize = '50', page: pageNum = '1', search, dateFrom, dateTo, source, campaignId, contentType, scopeType, scopeId, sortBy = 'scheduledAt', sortDir = 'desc' } = req.query;
+  const {
+    status, pageId, pageSize = '50', page: pageNum = '1', search, dateFrom, dateTo, source, campaignId, contentType,
+    statuses, pageIds, sources, contentTypes, campaignIds, metricFilter,
+    scopeType, scopeId, sortBy = 'scheduledAt', sortDir = 'desc',
+  } = req.query;
 
   // Build base where (without status, so we can count per-status)
   const baseWhere: Record<string, unknown> = {};
@@ -969,18 +1016,31 @@ router.get('/content', async (req: Request, res: Response) => {
   const sId = scopeId ? String(scopeId) : undefined;
   const scopePageIds = sType !== 'all' ? await resolvePageIds(sType, sId) : null;
 
-  if (pageId) {
-    const pid = String(pageId);
-    if (scopePageIds && !scopePageIds.includes(pid)) {
-      return res.json({ items: [], total: 0, statusCounts: {} });
+  const pageIdFilter = buildInFilter(pageIds, pageId);
+  if (pageIdFilter !== undefined) {
+    if (scopePageIds) {
+      const requested = typeof pageIdFilter === 'string' ? [pageIdFilter] : pageIdFilter.in;
+      const allowed = requested.filter((pid) => scopePageIds.includes(pid));
+      if (!allowed.length) {
+        return res.json({ items: [], total: 0, statusCounts: {} });
+      }
+      baseWhere.pageId = allowed.length === 1 ? allowed[0] : { in: allowed };
+    } else {
+      baseWhere.pageId = pageIdFilter;
     }
-    baseWhere.pageId = pid;
   } else if (scopePageIds) {
     baseWhere.pageId = { in: scopePageIds };
   }
-  if (source) baseWhere.source = String(source);
-  if (campaignId) baseWhere.campaignId = String(campaignId);
-  if (contentType) baseWhere.contentType = String(contentType);
+
+  const sourceFilter = buildInFilter(sources, source);
+  if (sourceFilter !== undefined) baseWhere.source = sourceFilter;
+
+  const campaignIdFilter = buildInFilter(campaignIds, campaignId);
+  if (campaignIdFilter !== undefined) baseWhere.campaignId = campaignIdFilter;
+
+  const contentTypeFilter = buildInFilter(contentTypes, contentType);
+  if (contentTypeFilter !== undefined) baseWhere.contentType = contentTypeFilter;
+
   if (search) baseWhere.topic = { contains: String(search), mode: 'insensitive' };
   if (dateFrom || dateTo) {
     const dateFilter: Record<string, Date> = {};
@@ -993,9 +1053,16 @@ router.get('/content', async (req: Request, res: Response) => {
     baseWhere.scheduledAt = dateFilter;
   }
 
+  const metricFilters = parseMetricFilters(metricFilter);
+  if (metricFilters.length) {
+    const existingAnd = Array.isArray(baseWhere.AND) ? baseWhere.AND : [];
+    baseWhere.AND = [...existingAnd, ...metricFilters];
+  }
+
   // Status filter applied only to items query
   const where = { ...baseWhere };
-  if (status) where.status = String(status);
+  const statusFilter = buildInFilter(statuses, status);
+  if (statusFilter !== undefined) where.status = statusFilter;
 
   // Sorting
   const allowedSorts: Record<string, string> = {
@@ -1025,6 +1092,7 @@ router.get('/content', async (req: Request, res: Response) => {
 
   const statusCounts: Record<string, number> = {};
   let allCount = 0;
+  for (const s of ALL_CONTENT_STATUSES) statusCounts[s] = 0;
   for (const g of statusGroups) {
     statusCounts[g.status] = g._count;
     allCount += g._count;
@@ -1032,6 +1100,20 @@ router.get('/content', async (req: Request, res: Response) => {
   statusCounts.ALL = allCount;
 
   res.json({ items, total, statusCounts, page: Math.floor(skip / take) + 1, pageSize: take });
+});
+
+// Campaigns filtered by a set of page IDs — used for the cascading Page → Campaign filter
+router.get('/content/campaigns-for-pages', async (req: Request, res: Response) => {
+  const pageIds = parseCsvParam(req.query.pageIds);
+  if (!pageIds || !pageIds.length) {
+    return res.json([]);
+  }
+  const campaigns = await prisma.campaign.findMany({
+    where: { pageId: { in: pageIds } },
+    select: { id: true, name: true },
+    orderBy: { name: 'asc' },
+  });
+  res.json(campaigns);
 });
 
 router.post('/content/generate-all-drafts', async (_req: Request, res: Response) => {
