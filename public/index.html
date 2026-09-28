@@ -1174,79 +1174,80 @@
                     </tr>
                   </template>
                 </tbody>
+                <!-- Summary tfoot: same table layout = perfect column alignment -->
+                <tfoot x-show="dgSummaryVisible && dgSummary && contentItems.length > 0" class="sticky bottom-0 z-[8] border-t-2 border-gray-200 bg-gray-50/95 backdrop-blur-sm">
+                  <tr>
+                    <template x-for="(col, ci) in dgVisibleCols" :key="col.key">
+                      <td class="border-r border-gray-100"
+                        :class="[dgDensity==='compact' ? 'px-2 py-2' : 'px-3 py-2.5', col.pinned ? 'sticky z-[9] bg-gray-50' : '']"
+                        :style="dgColStyle(col, ci)">
+                        <template x-if="col.key==='topic'">
+                          <div>
+                            <div class="text-xs font-semibold text-gray-700" x-text="'Kết quả từ ' + (dgSummary?.resultCount||0).toLocaleString('vi-VN') + ' nội dung'"></div>
+                            <button @click="dgSummaryVisible=false; try{localStorage.setItem('mkt_dg_summary','hidden')}catch{}" class="text-[10px] text-gray-400 hover:text-brand-500">Ẩn kết quả</button>
+                          </div>
+                        </template>
+                        <template x-if="col.key==='checkbox' || col.key==='thumbnail'"><span></span></template>
+                        <template x-if="col.key==='viewers'">
+                          <div class="text-right">
+                            <div class="text-xs font-bold tabular-nums text-gray-800" x-text="dgSummary?.viewersSum!=null ? dgSummary.viewersSum.toLocaleString('vi-VN') : '—'"></div>
+                            <div class="text-[9px] text-gray-400" title="Tổng số người xem duy nhất của từng bài. Một người xem nhiều bài có thể được tính nhiều lần.">Tổng theo bài</div>
+                          </div>
+                        </template>
+                        <template x-if="col.key==='mediaViews'">
+                          <div class="text-right">
+                            <div class="text-xs font-bold tabular-nums text-gray-800" x-text="dgSummary?.viewsSum!=null ? dgSummary.viewsSum.toLocaleString('vi-VN') : '—'"></div>
+                            <div class="text-[9px] text-gray-400" title="Tổng lượt xem của các bài trong kết quả hiện tại.">Tổng</div>
+                          </div>
+                        </template>
+                        <template x-if="col.key==='engagement'">
+                          <div class="text-right">
+                            <div class="text-xs font-bold tabular-nums text-gray-800" x-text="dgSummary?.engagementSum!=null ? dgSummary.engagementSum.toLocaleString('vi-VN') : '—'"></div>
+                            <div class="text-[9px] text-gray-400" title="Tổng Reactions + Comments + Shares.">Tổng</div>
+                          </div>
+                        </template>
+                        <template x-if="col.key==='reactions'">
+                          <div class="text-right">
+                            <div class="text-xs font-bold tabular-nums text-gray-800" x-text="dgSummary?.reactionsSum!=null ? dgSummary.reactionsSum.toLocaleString('vi-VN') : '—'"></div>
+                            <div class="text-[9px] text-gray-400">Tổng</div>
+                          </div>
+                        </template>
+                        <template x-if="col.key==='comments'">
+                          <div class="text-right">
+                            <div class="text-xs font-bold tabular-nums text-gray-800" x-text="dgSummary?.commentsSum!=null ? dgSummary.commentsSum.toLocaleString('vi-VN') : '—'"></div>
+                            <div class="text-[9px] text-gray-400">Tổng</div>
+                          </div>
+                        </template>
+                        <template x-if="col.key==='shares'">
+                          <div class="text-right">
+                            <div class="text-xs font-bold tabular-nums text-gray-800" x-text="dgSummary?.sharesSum!=null ? dgSummary.sharesSum.toLocaleString('vi-VN') : '—'"></div>
+                            <div class="text-[9px] text-gray-400">Tổng</div>
+                          </div>
+                        </template>
+                        <template x-if="col.key==='clicks'">
+                          <div class="text-right">
+                            <div class="text-xs font-bold tabular-nums text-gray-800" x-text="dgSummary?.clicksSum!=null ? dgSummary.clicksSum.toLocaleString('vi-VN') : '—'"></div>
+                            <div class="text-[9px] text-gray-400">Tổng</div>
+                          </div>
+                        </template>
+                        <template x-if="col.key==='engPerViewer'">
+                          <div class="text-right">
+                            <div class="text-xs font-bold tabular-nums text-gray-800" x-text="dgSummary?.engViewer!=null ? dgSummary.engViewer.toFixed(2)+'%' : '—'"></div>
+                            <div class="text-[9px] text-gray-400" title="Engagement tổng chia cho Tổng người xem theo bài.">Tổng hợp</div>
+                          </div>
+                        </template>
+                        <template x-if="!['checkbox','thumbnail','topic','viewers','mediaViews','engagement','reactions','comments','shares','clicks','engPerViewer'].includes(col.key)">
+                          <span></span>
+                        </template>
+                      </td>
+                    </template>
+                    <td class="w-12"></td>
+                  </tr>
+                </tfoot>
               </table>
               <div x-show="contentItems.length===0" class="text-center py-12 text-gray-400">
                 <i class="ri-article-line text-4xl mb-2"></i>
                 <p>Chưa có content nào.</p>
-              </div>
-              <!-- Summary row: sticky bottom inside scroll viewport -->
-              <div x-show="dgSummaryVisible && dgSummary && contentItems.length > 0" class="sticky bottom-0 z-[8] border-t-2 border-gray-200 bg-gray-50/95 backdrop-blur-sm" style="min-width:100%;width:max-content">
-                <div class="flex">
-                  <template x-for="(col, ci) in dgVisibleCols" :key="col.key">
-                    <div class="border-r border-gray-100 flex-shrink-0"
-                      :class="[dgDensity==='compact' ? 'px-2 py-2' : 'px-3 py-2.5', col.pinned ? 'sticky z-[9] bg-gray-50' : '']"
-                      :style="dgColStyle(col, ci)">
-                      <template x-if="col.key==='topic'">
-                        <div>
-                          <div class="text-xs font-semibold text-gray-700" x-text="'Kết quả từ ' + (dgSummary?.resultCount||0).toLocaleString('vi-VN') + ' nội dung'"></div>
-                          <button @click="dgSummaryVisible=false; try{localStorage.setItem('mkt_dg_summary','hidden')}catch{}" class="text-[10px] text-gray-400 hover:text-brand-500">Ẩn kết quả</button>
-                        </div>
-                      </template>
-                      <template x-if="col.key==='checkbox' || col.key==='thumbnail'"><span></span></template>
-                      <template x-if="col.key==='viewers'">
-                        <div class="text-right">
-                          <div class="text-xs font-bold tabular-nums text-gray-800" x-text="dgSummary?.viewersSum!=null ? dgSummary.viewersSum.toLocaleString('vi-VN') : '—'"></div>
-                          <div class="text-[9px] text-gray-400" title="Tổng số người xem duy nhất của từng bài. Một người xem nhiều bài có thể được tính nhiều lần.">Tổng theo bài</div>
-                        </div>
-                      </template>
-                      <template x-if="col.key==='mediaViews'">
-                        <div class="text-right">
-                          <div class="text-xs font-bold tabular-nums text-gray-800" x-text="dgSummary?.viewsSum!=null ? dgSummary.viewsSum.toLocaleString('vi-VN') : '—'"></div>
-                          <div class="text-[9px] text-gray-400" title="Tổng lượt xem của các bài trong kết quả hiện tại.">Tổng</div>
-                        </div>
-                      </template>
-                      <template x-if="col.key==='engagement'">
-                        <div class="text-right">
-                          <div class="text-xs font-bold tabular-nums text-gray-800" x-text="dgSummary?.engagementSum!=null ? dgSummary.engagementSum.toLocaleString('vi-VN') : '—'"></div>
-                          <div class="text-[9px] text-gray-400" title="Tổng Reactions + Comments + Shares.">Tổng</div>
-                        </div>
-                      </template>
-                      <template x-if="col.key==='reactions'">
-                        <div class="text-right">
-                          <div class="text-xs font-bold tabular-nums text-gray-800" x-text="dgSummary?.reactionsSum!=null ? dgSummary.reactionsSum.toLocaleString('vi-VN') : '—'"></div>
-                          <div class="text-[9px] text-gray-400">Tổng</div>
-                        </div>
-                      </template>
-                      <template x-if="col.key==='comments'">
-                        <div class="text-right">
-                          <div class="text-xs font-bold tabular-nums text-gray-800" x-text="dgSummary?.commentsSum!=null ? dgSummary.commentsSum.toLocaleString('vi-VN') : '—'"></div>
-                          <div class="text-[9px] text-gray-400">Tổng</div>
-                        </div>
-                      </template>
-                      <template x-if="col.key==='shares'">
-                        <div class="text-right">
-                          <div class="text-xs font-bold tabular-nums text-gray-800" x-text="dgSummary?.sharesSum!=null ? dgSummary.sharesSum.toLocaleString('vi-VN') : '—'"></div>
-                          <div class="text-[9px] text-gray-400">Tổng</div>
-                        </div>
-                      </template>
-                      <template x-if="col.key==='clicks'">
-                        <div class="text-right">
-                          <div class="text-xs font-bold tabular-nums text-gray-800" x-text="dgSummary?.clicksSum!=null ? dgSummary.clicksSum.toLocaleString('vi-VN') : '—'"></div>
-                          <div class="text-[9px] text-gray-400">Tổng</div>
-                        </div>
-                      </template>
-                      <template x-if="col.key==='engPerViewer'">
-                        <div class="text-right">
-                          <div class="text-xs font-bold tabular-nums text-gray-800" x-text="dgSummary?.engViewer!=null ? dgSummary.engViewer.toFixed(2)+'%' : '—'"></div>
-                          <div class="text-[9px] text-gray-400" title="Engagement tổng chia cho Tổng người xem theo bài.">Tổng hợp</div>
-                        </div>
-                      </template>
-                      <template x-if="!['checkbox','thumbnail','topic','viewers','mediaViews','engagement','reactions','comments','shares','clicks','engPerViewer'].includes(col.key)">
-                        <span></span>
-                      </template>
-                    </div>
-                  </template>
-                </div>
               </div>
             </div>
             <!-- Show summary toggle -->
