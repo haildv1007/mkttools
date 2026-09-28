@@ -2357,12 +2357,12 @@
                 </div>
                 <div x-show="revModal.selectedVersion === 0" class="text-xs bg-purple-500 text-white px-2 py-0.5 rounded-full">Đang chọn</div>
               </div>
-              <template x-if="revModal.currentText">
-                <div class="text-sm text-gray-700 whitespace-pre-wrap leading-relaxed max-h-40 overflow-y-auto" x-text="revModal.currentText"></div>
+              <template x-if="revModal.originalText">
+                <div class="text-sm text-gray-700 whitespace-pre-wrap leading-relaxed max-h-40 overflow-y-auto" x-text="revModal.originalText"></div>
               </template>
-              <template x-if="revModal.images.length > 0">
+              <template x-if="revModal.originalImages && revModal.originalImages.length > 0">
                 <div class="flex gap-2 overflow-x-auto pb-1">
-                  <template x-for="(img, idx) in revModal.images" :key="idx">
+                  <template x-for="(img, idx) in revModal.originalImages" :key="idx">
                     <img :src="img.url || img.localPath" class="h-20 w-20 rounded-lg object-cover flex-shrink-0 border border-gray-200">
                   </template>
                 </div>
@@ -3100,7 +3100,7 @@ function app() {
     textPopup: { show: false, title: '', content: '' },
     showErrorModal: false,
     errorItem: null,
-    revModal: { open: false, item: null, type: 'TEXT', feedback: '', images: [], selImgs: [], loading: false, chatHistory: [], currentText: '', selectedVersion: 0 },
+    revModal: { open: false, item: null, type: 'TEXT', feedback: '', images: [], selImgs: [], loading: false, chatHistory: [], currentText: '', originalText: '', originalImages: [], selectedVersion: 0 },
 
     showPageModal: false,
     editingPage: null,
@@ -4476,9 +4476,12 @@ function app() {
 
     openRevisionModal(item) {
       const images = item.generatedImages || [];
+      const imgArr = Array.isArray(images) ? images : [];
       this.revModal = {
         open: true, item, type: 'TEXT', feedback: '',
-        images: Array.isArray(images) ? images : [],
+        images: [...imgArr],
+        originalText: item.generatedText || '',
+        originalImages: [...imgArr],
         selImgs: [], loading: false, chatHistory: [],
         currentText: item.generatedText || '',
         selectedVersion: 0,
@@ -4525,28 +4528,22 @@ function app() {
     async confirmRevisionVersion() {
       const m = this.revModal;
       const ver = m.selectedVersion;
-      if (ver === 0) {
-        // Revert to original — update content with original text/images
-        try {
+      try {
+        if (ver === 0) {
           await this.api(`/dashboard/content/${m.item.id}`, {
-            method: 'PATCH', body: JSON.stringify({ generatedText: m.currentText }),
+            method: 'PATCH', body: JSON.stringify({ generatedText: m.originalText }),
           });
-        } catch (e) { /* original is already saved if no changes */ }
-      }
-      // If ver > 0, the content is already updated by the last submitRevision call to the selected version's API response
-      // However if user picks an older version (not the latest), we need to apply it
-      if (ver > 0 && ver < m.chatHistory.length) {
-        const chosen = m.chatHistory[ver - 1];
-        if (chosen.newText || chosen.newImages?.length) {
-          try {
+        } else {
+          const chosen = m.chatHistory[ver - 1];
+          if (chosen && ver < m.chatHistory.length) {
             await this.api(`/dashboard/content/${m.item.id}`, {
               method: 'PATCH', body: JSON.stringify({
                 ...(chosen.newText ? { generatedText: chosen.newText } : {}),
               }),
             });
-          } catch (e) { this.showToast('Lỗi áp dụng phiên bản', 'error'); }
+          }
         }
-      }
+      } catch (e) { this.showToast('Lỗi áp dụng phiên bản', 'error'); }
       m.open = false;
       this.loadContent();
       if (this.drawerItem?.id === m.item?.id) this.refreshDrawer(m.item.id);
