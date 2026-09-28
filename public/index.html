@@ -975,7 +975,7 @@
 
         <div class="relative min-w-0 max-w-full">
           <!-- Data Grid -->
-          <div class="bg-white rounded-xl border border-gray-100 shadow-sm min-w-0 max-w-full flex flex-col" style="max-height:calc(100dvh - 260px)">
+          <div class="bg-white rounded-xl border border-gray-100 shadow-sm min-w-0 max-w-full flex flex-col" style="max-height:calc(100dvh - 220px)">
             <!-- Bulk Selection Bar -->
             <div x-show="dgBulkSelected.length > 0" class="flex-shrink-0 flex items-center gap-3 px-4 py-2 bg-brand-50 border-b border-brand-200 text-sm">
               <span class="font-medium text-brand-700" x-text="dgBulkSelected.length + ' mục đã chọn'"></span>
@@ -983,12 +983,12 @@
             </div>
             <div class="overflow-auto min-h-0 max-w-full" style="scrollbar-width:thin" x-ref="dgScroll">
 
-              <table class="border-collapse" style="min-width:100%;width:max-content" :class="dgDensity==='compact' ? 'text-xs' : 'text-sm'">
+              <table class="border-collapse" style="min-width:100%;width:max-content" :class="dgDensity==='compact' ? 'text-xs' : 'text-[13px]'">
                 <thead class="bg-gray-50 border-b border-gray-200 sticky top-0 z-10">
                   <tr>
                     <template x-for="(col, ci) in dgVisibleCols" :key="col.key">
                       <th class="text-left font-semibold text-gray-500 uppercase border-r border-gray-100 select-none whitespace-nowrap"
-                        :class="[dgDensity==='compact' ? 'px-2 py-2 text-[10px]' : 'px-3 py-2.5 text-xs', col.pinned ? 'sticky z-20 bg-gray-50' : '', dgDragCol===col.key ? 'opacity-50' : '']"
+                        :class="[dgDensity==='compact' ? 'px-2 py-1.5 text-[10px]' : 'px-3 py-2 text-xs', col.pinned ? 'sticky z-20 bg-gray-50' : '', dgDragCol===col.key ? 'opacity-50' : '']"
                         :style="dgColStyle(col, ci)"
                         :draggable="col.key!=='checkbox'"
                         @dragstart="dgDragCol=col.key"
@@ -1012,7 +1012,7 @@
                       </th>
                     </template>
                     <th class="text-center font-semibold text-gray-500 uppercase w-12"
-                      :class="dgDensity==='compact' ? 'px-1 py-2 text-[10px]' : 'px-2 py-2.5 text-xs'">
+                      :class="dgDensity==='compact' ? 'px-1 py-1.5 text-[10px]' : 'px-2 py-2 text-xs'">
                       <i class="ri-more-fill"></i>
                     </th>
                   </tr>
@@ -1023,7 +1023,7 @@
                       @click="openDrawer(item)">
                       <template x-for="(col, ci) in dgVisibleCols" :key="col.key">
                         <td class="border-r border-gray-50"
-                          :class="[dgDensity==='compact' ? 'px-2 py-1' : 'px-3 py-2', col.pinned ? 'sticky z-[5] bg-white' : '']"
+                          :class="[dgDensity==='compact' ? 'px-2 py-1' : 'px-3 py-1.5', col.pinned ? 'sticky z-[5] bg-white' : '']"
                           :style="dgColStyle(col, ci)">
                           <!-- Checkbox -->
                           <template x-if="col.key==='checkbox'">
@@ -1033,9 +1033,9 @@
                           <template x-if="col.key==='thumbnail'">
                             <div class="flex items-center justify-center">
                               <img x-show="item.generatedImageUrl" :src="item.generatedImageUrl" class="rounded object-cover bg-gray-100 cursor-pointer hover:opacity-80"
-                                :class="dgDensity==='compact' ? 'w-8 h-8' : 'w-10 h-10'" @click="viewResult(item)" onerror="this.style.display='none'">
-                              <i x-show="!item.generatedImageUrl && item.contentType==='VIDEO'" class="ri-video-line text-purple-300" :class="dgDensity==='compact' ? 'text-sm' : 'text-lg'"></i>
-                              <i x-show="!item.generatedImageUrl && item.contentType!=='VIDEO'" class="ri-image-line text-gray-200" :class="dgDensity==='compact' ? 'text-sm' : 'text-lg'"></i>
+                                :class="dgDensity==='compact' ? 'w-7 h-7' : 'w-8 h-8'" @click="viewResult(item)" onerror="this.style.display='none'">
+                              <i x-show="!item.generatedImageUrl && item.contentType==='VIDEO'" class="ri-video-line text-purple-300" :class="dgDensity==='compact' ? 'text-xs' : 'text-sm'"></i>
+                              <i x-show="!item.generatedImageUrl && item.contentType!=='VIDEO'" class="ri-image-line text-gray-200" :class="dgDensity==='compact' ? 'text-xs' : 'text-sm'"></i>
                             </div>
                           </template>
                           <!-- Topic -->
@@ -1143,7 +1143,7 @@
                         </td>
                       </template>
                       <!-- Actions -->
-                      <td class="text-center" :class="dgDensity==='compact' ? 'px-1 py-1' : 'px-2 py-2'" @click.stop>
+                      <td class="text-center" :class="dgDensity==='compact' ? 'px-1 py-1' : 'px-2 py-1.5'" @click.stop>
                         <div x-data="{open:false}">
                           <button @click="open=!open; $nextTick(()=>{ if(open){ const r=$el.getBoundingClientRect(); const dd=$el.nextElementSibling; dd.style.top=(r.bottom+4)+'px'; dd.style.left=Math.max(8,r.right-168)+'px'; } })" class="p-1 text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded transition">
                             <i class="ri-more-2-fill text-sm"></i>
@@ -1179,7 +1179,7 @@
                   <tr>
                     <template x-for="(col, ci) in dgVisibleCols" :key="col.key">
                       <td class="border-r border-gray-100"
-                        :class="[dgDensity==='compact' ? 'px-2 py-2' : 'px-3 py-2.5', col.pinned ? 'sticky z-[9] bg-gray-50' : '']"
+                        :class="[dgDensity==='compact' ? 'px-2 py-1.5' : 'px-3 py-2', col.pinned ? 'sticky z-[9] bg-gray-50' : '']"
                         :style="dgColStyle(col, ci)">
                         <template x-if="col.key==='topic'">
                           <div>
@@ -1255,7 +1255,7 @@
               <button @click="dgSummaryVisible=true; try{localStorage.setItem('mkt_dg_summary','visible')}catch{}" class="text-[10px] text-gray-400 hover:text-brand-500">Hiện kết quả</button>
             </div>
             <!-- Pagination -->
-            <div x-show="contentTotal > 0" class="flex-shrink-0 flex items-center justify-between px-4 py-2 border-t border-gray-100 bg-white rounded-b-xl">
+            <div x-show="contentTotal > 0" class="flex-shrink-0 flex items-center justify-between px-4 py-1.5 border-t border-gray-100 bg-white rounded-b-xl">
               <div class="text-xs text-gray-500">
                 <span x-text="((dgPage-1)*dgPageSize+1)"></span>–<span x-text="Math.min(dgPage*dgPageSize, contentTotal)"></span> / <span x-text="contentTotal"></span>
               </div>
