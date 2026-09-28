@@ -975,13 +975,13 @@
 
         <div class="relative min-w-0 max-w-full">
           <!-- Data Grid -->
-          <div class="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden min-w-0 max-w-full flex flex-col" style="max-height:calc(100vh - 220px)">
+          <div class="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden min-w-0 max-w-full">
             <!-- Bulk Selection Bar -->
-            <div x-show="dgBulkSelected.length > 0" class="flex-shrink-0 flex items-center gap-3 px-4 py-2 bg-brand-50 border-b border-brand-200 text-sm">
+            <div x-show="dgBulkSelected.length > 0" class="flex items-center gap-3 px-4 py-2 bg-brand-50 border-b border-brand-200 text-sm">
               <span class="font-medium text-brand-700" x-text="dgBulkSelected.length + ' mục đã chọn'"></span>
               <button @click="dgBulkSelected=[]; dgBulkAll=false" class="text-xs text-gray-500 hover:text-gray-700 underline">Bỏ chọn</button>
             </div>
-            <div class="flex-1 overflow-y-auto overflow-x-auto max-w-full" style="scrollbar-width:thin" x-ref="dgScroll"
+            <div class="overflow-x-auto max-w-full" style="scrollbar-width:thin" x-ref="dgScroll"
               @scroll="if($refs.dgSummaryScroll) $refs.dgSummaryScroll.scrollLeft=$event.target.scrollLeft">
               <table class="border-collapse" style="min-width:100%;width:max-content" :class="dgDensity==='compact' ? 'text-xs' : 'text-sm'">
                 <thead class="bg-gray-50 border-b border-gray-200 sticky top-0 z-10">
@@ -1180,8 +1180,11 @@
                 <p>Chưa có content nào.</p>
               </div>
             </div>
-            <!-- Summary Footer (outside scroll, synced horizontally) -->
-            <div x-show="dgSummaryVisible && dgSummary && contentTotal > 0" class="flex-shrink-0 border-t-2 border-gray-200 bg-gray-50/80 overflow-x-auto max-w-full" style="scrollbar-width:none" x-ref="dgSummaryScroll"
+          </div>
+          <!-- Sticky Footer: Summary + Pagination -->
+          <div x-show="contentTotal > 0" class="sticky bottom-0 z-10 bg-white border border-gray-100 rounded-b-xl shadow-sm min-w-0 max-w-full" style="margin-top:-1px">
+            <!-- Summary -->
+            <div x-show="dgSummaryVisible && dgSummary" class="border-t-2 border-gray-200 bg-gray-50/80 overflow-x-auto max-w-full" style="scrollbar-width:none" x-ref="dgSummaryScroll"
               @scroll="if($refs.dgScroll) $refs.dgScroll.scrollLeft=$event.target.scrollLeft">
               <div class="flex" style="min-width:100%;width:max-content">
                 <template x-for="(col, ci) in dgVisibleCols" :key="col.key">
@@ -1250,12 +1253,12 @@
                 </template>
               </div>
             </div>
-            <!-- Show summary toggle when hidden -->
-            <div x-show="!dgSummaryVisible && contentTotal > 0" class="flex-shrink-0 border-t border-gray-100 px-3 py-1.5 bg-gray-50/50">
+            <!-- Show summary toggle -->
+            <div x-show="!dgSummaryVisible" class="border-t border-gray-100 px-3 py-1.5 bg-gray-50/50">
               <button @click="dgSummaryVisible=true; try{localStorage.setItem('mkt_dg_summary','visible')}catch{}" class="text-[10px] text-gray-400 hover:text-brand-500">Hiện kết quả</button>
             </div>
             <!-- Pagination -->
-            <div x-show="contentTotal > 0" class="flex-shrink-0 flex items-center justify-between px-4 py-2 border-t border-gray-100 bg-gray-50/50">
+            <div class="flex items-center justify-between px-4 py-2 border-t border-gray-100 bg-white">
               <div class="text-xs text-gray-500">
                 <span x-text="((dgPage-1)*dgPageSize+1)"></span>–<span x-text="Math.min(dgPage*dgPageSize, contentTotal)"></span> / <span x-text="contentTotal"></span>
               </div>
