@@ -973,7 +973,7 @@
       <div x-show="page==='content'" class="fade-in min-w-0 max-w-full">
         <!-- Toolbar -->
         <div class="flex items-center justify-between mb-3 min-w-0 max-w-full">
-          <div class="flex items-center gap-3 min-w-0 flex-1 overflow-x-auto" style="scrollbar-width:none">
+          <div class="flex items-center gap-3 min-w-0 flex-1 flex-wrap">
             <h2 class="text-xl font-bold">Content</h2>
             <div class="relative flex-shrink-0" style="min-width:220px">
               <i class="ri-search-line absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm"></i>
@@ -3028,6 +3028,7 @@ function app() {
         await this.validateScope();
         await this.loadScopePages();
         if (this.currentScope.type === 'page') this.importForm.pageId = this.currentScope.id;
+        { const t = new Date().toISOString().slice(0,10); this.contentFilter.dateFrom = t; this.contentFilter.dateTo = t; this.contentFilter._datePreset = 'today'; this.contentFilter._dateLabel = 'Hôm nay'; }
         await this.loadDashboard();
         this.fetchActiveItems();
         this.initSocket();
