@@ -1501,8 +1501,10 @@
                   <button x-show="dgRowMenu.item.status==='FAILED'" @click="publishNow(dgRowMenu.item.id); dgRowMenu.open=false"
                     class="w-full text-left px-3 py-1.5 text-xs hover:bg-gray-50 flex items-center gap-2"><i class="ri-restart-line text-orange-500"></i> Đăng lại</button>
                   <div x-show="dgRowMenu.item.status!=='PUBLISHED'&&dgRowMenu.item.status!=='GENERATING'" class="border-t border-gray-100 my-1"></div>
-                  <button x-show="dgRowMenu.item.status!=='PUBLISHED'&&dgRowMenu.item.status!=='GENERATING'" @click="editContent(dgRowMenu.item); dgRowMenu.open=false"
-                    class="w-full text-left px-3 py-1.5 text-xs hover:bg-gray-50 flex items-center gap-2"><i class="ri-pencil-line text-gray-500"></i> Sửa thủ công</button>
+                  <button x-show="dgRowMenu.item.status!=='PUBLISHED'&&dgRowMenu.item.status!=='GENERATING'" @click="editContent(dgRowMenu.item, 'manual'); dgRowMenu.open=false"
+                    class="w-full text-left px-3 py-1.5 text-xs hover:bg-gray-50 flex items-center gap-2"><i class="ri-pencil-line text-gray-500"></i> Sửa bài</button>
+                  <button x-show="dgRowMenu.item.status!=='PUBLISHED'&&dgRowMenu.item.status!=='GENERATING'" @click="editContent(dgRowMenu.item, 'ai'); dgRowMenu.open=false"
+                    class="w-full text-left px-3 py-1.5 text-xs hover:bg-gray-50 flex items-center gap-2"><i class="ri-settings-3-line text-gray-500"></i> Sửa prompt</button>
                   <button x-show="dgRowMenu.item.status!=='PUBLISHED'&&dgRowMenu.item.status!=='GENERATING'" @click="deleteContent(dgRowMenu.item.id, dgRowMenu.item.topic); dgRowMenu.open=false"
                     class="w-full text-left px-3 py-1.5 text-xs hover:bg-red-50 flex items-center gap-2 text-red-500"><i class="ri-delete-bin-line"></i> Xóa</button>
                   <button x-show="dgRowMenu.item.status==='FAILED'&&dgRowMenu.item.errorMessage" @click="viewError(dgRowMenu.item); dgRowMenu.open=false"
@@ -1959,8 +1961,10 @@
                     class="px-3 py-1.5 bg-orange-500 text-white rounded-lg text-xs font-medium hover:bg-orange-600 flex items-center gap-1"><i class="ri-refresh-line"></i> Gen lại</button>
                   <button x-show="drawerItem.status==='PENDING_REVIEW'" @click="rejectContent(drawerItem.id).then(()=>refreshDrawer(drawerItem.id))"
                     class="px-3 py-1.5 bg-red-500 text-white rounded-lg text-xs font-medium hover:bg-red-600 flex items-center gap-1"><i class="ri-close-line"></i> Từ chối</button>
-                  <button x-show="drawerItem.status==='PENDING_REVIEW'" @click="closeDrawer(); editContent(drawerItem)"
-                    class="px-3 py-1.5 border border-gray-300 text-gray-600 rounded-lg text-xs font-medium hover:bg-gray-50 flex items-center gap-1"><i class="ri-pencil-line"></i> Sửa thủ công</button>
+                  <button x-show="drawerItem.status==='PENDING_REVIEW'" @click="closeDrawer(); editContent(drawerItem, 'manual')"
+                    class="px-3 py-1.5 border border-gray-300 text-gray-600 rounded-lg text-xs font-medium hover:bg-gray-50 flex items-center gap-1"><i class="ri-pencil-line"></i> Sửa bài</button>
+                  <button x-show="drawerItem.status==='PENDING_REVIEW'" @click="closeDrawer(); editContent(drawerItem, 'ai')"
+                    class="px-3 py-1.5 border border-gray-300 text-gray-600 rounded-lg text-xs font-medium hover:bg-gray-50 flex items-center gap-1"><i class="ri-settings-3-line"></i> Sửa prompt</button>
                   <button x-show="drawerItem.status==='APPROVED'" @click="publishNow(drawerItem.id)"
                     class="px-3 py-1.5 bg-brand-600 text-white rounded-lg text-xs font-medium hover:bg-brand-700 flex items-center gap-1"><i class="ri-send-plane-line"></i> Đăng ngay</button>
                   <button x-show="drawerItem.status==='PUBLISHED' && drawerItem.socialPostId" @click="drawerSyncMetrics()"
@@ -4215,7 +4219,7 @@ function app() {
       this.showContentForm = true;
     },
 
-    editContent(item) {
+    editContent(item, forceMode) {
       this.editingContent = item;
       const d = new Date(item.scheduledAt);
       const isManual = item.source === 'MANUAL' || item.source === 'IMPORT';
@@ -4235,7 +4239,7 @@ function app() {
         imageDescriptions: item.imageDescriptions || '',
         videoFile: null,
         videoUrl: item.generatedVideoUrl || '',
-        mode: isManual ? 'manual' : 'ai',
+        mode: forceMode || (isManual ? 'manual' : 'ai'),
         generatedText: item.generatedText || '',
         manualVideoUrl: item.generatedVideoUrl || '',
         images: existingImages,
