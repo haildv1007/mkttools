@@ -2103,10 +2103,10 @@
       <!-- Content Form Modal (Add/Edit) -->
       <div x-show="showContentForm" class="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" @click.self="showContentForm=false">
         <div class="bg-white rounded-2xl shadow-xl w-full max-w-2xl p-6 fade-in max-h-[90vh] overflow-y-auto">
-          <h3 class="text-lg font-bold mb-4" x-text="editingContent ? 'Sửa Content' : 'Thêm Content mới'"></h3>
+          <h3 class="text-lg font-bold mb-4" x-text="editingContent ? (contentForm._locked ? (contentForm.mode==='ai' ? 'Gen lại nội dung' : 'Sửa bài viết') : 'Sửa Content') : 'Thêm Content mới'"></h3>
           <div class="space-y-4">
-            <!-- Mode toggle -->
-            <div class="flex rounded-lg border border-gray-200 overflow-hidden">
+            <!-- Mode toggle (hidden when locked to a specific mode) -->
+            <div x-show="!contentForm._locked" class="flex rounded-lg border border-gray-200 overflow-hidden">
               <button @click="contentForm.mode='ai'" :class="contentForm.mode==='ai' ? 'bg-purple-500 text-white' : 'bg-white text-gray-600 hover:bg-gray-50'"
                 class="flex-1 py-2 text-sm font-medium transition flex items-center justify-center gap-1">
                 <i class="ri-magic-line"></i> AI tạo nội dung
@@ -4305,6 +4305,7 @@ function app() {
         imageInputMode: 'upload',
         videoInputMode: item.generatedVideoUrl ? 'url' : 'upload',
         _dragIdx: -1,
+        _locked: !!forceMode,
       };
       this.contentFormError = '';
       this.showContentForm = true;
