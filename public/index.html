@@ -1951,6 +1951,8 @@
                     class="px-3 py-1.5 bg-brand-600 text-white rounded-lg text-xs font-medium hover:bg-brand-700 flex items-center gap-1"><i class="ri-restart-line"></i> Đăng lại</button>
                   <button x-show="drawerItem.status==='PENDING_REVIEW'" @click="approveContent(drawerItem.id).then(()=>refreshDrawer(drawerItem.id))"
                     class="px-3 py-1.5 bg-green-500 text-white rounded-lg text-xs font-medium hover:bg-green-600 flex items-center gap-1"><i class="ri-check-line"></i> Duyệt</button>
+                  <button x-show="drawerItem.status==='PENDING_REVIEW'" @click="openRevisionModal(drawerItem)"
+                    class="px-3 py-1.5 bg-amber-500 text-white rounded-lg text-xs font-medium hover:bg-amber-600 flex items-center gap-1"><i class="ri-edit-2-line"></i> Sửa AI</button>
                   <button x-show="drawerItem.status==='PENDING_REVIEW'" @click="rejectContent(drawerItem.id).then(()=>refreshDrawer(drawerItem.id))"
                     class="px-3 py-1.5 bg-red-500 text-white rounded-lg text-xs font-medium hover:bg-red-600 flex items-center gap-1"><i class="ri-close-line"></i> Từ chối</button>
                   <button x-show="drawerItem.status==='APPROVED'" @click="publishNow(drawerItem.id)"
@@ -2318,6 +2320,82 @@
               </div>
             </div>
           </template>
+        </div>
+      </div>
+
+      <!-- Revision V2 Modal -->
+      <div x-show="revModal.open" class="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" @click.self="revModal.open=false">
+        <div class="bg-white rounded-2xl shadow-xl w-full max-w-lg p-6 fade-in">
+          <div class="flex items-center gap-3 mb-4">
+            <div class="w-10 h-10 bg-amber-50 rounded-xl flex items-center justify-center">
+              <i class="ri-edit-2-line text-amber-500 text-xl"></i>
+            </div>
+            <div>
+              <h3 class="font-bold">Sửa nội dung AI</h3>
+              <p class="text-xs text-gray-400 truncate max-w-[300px]" x-text="revModal.item?.topic"></p>
+            </div>
+          </div>
+
+          <div class="space-y-4">
+            <!-- Revision type -->
+            <div>
+              <label class="text-xs font-medium text-gray-600 mb-2 block">Sửa gì?</label>
+              <div class="flex flex-wrap gap-2">
+                <button @click="revModal.type='TEXT'" :class="revModal.type==='TEXT' ? 'bg-blue-500 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'"
+                  class="px-3 py-1.5 rounded-lg text-xs font-medium transition">📝 Nội dung</button>
+                <template x-if="revModal.item?.contentType==='IMAGE' || revModal.item?.contentType==='VIDEO'">
+                  <button @click="revModal.type='IMAGE'" :class="revModal.type==='IMAGE' ? 'bg-blue-500 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'"
+                    class="px-3 py-1.5 rounded-lg text-xs font-medium transition">🖼️ Ảnh</button>
+                </template>
+                <template x-if="revModal.item?.contentType==='VIDEO'">
+                  <button @click="revModal.type='VIDEO'" :class="revModal.type==='VIDEO' ? 'bg-blue-500 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'"
+                    class="px-3 py-1.5 rounded-lg text-xs font-medium transition">🎬 Video</button>
+                </template>
+                <template x-if="revModal.item?.contentType==='IMAGE' || revModal.item?.contentType==='VIDEO'">
+                  <button @click="revModal.type='TEXT_AND_MEDIA'" :class="revModal.type==='TEXT_AND_MEDIA' ? 'bg-blue-500 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'"
+                    class="px-3 py-1.5 rounded-lg text-xs font-medium transition">🔄 Tất cả</button>
+                </template>
+              </div>
+            </div>
+
+            <!-- Image selection (multi-image) -->
+            <template x-if="(revModal.type==='IMAGE' || revModal.type==='TEXT_AND_MEDIA') && revModal.images.length > 1">
+              <div>
+                <label class="text-xs font-medium text-gray-600 mb-2 block">Chọn ảnh cần sửa</label>
+                <div class="grid grid-cols-4 gap-2">
+                  <template x-for="(img, idx) in revModal.images" :key="idx">
+                    <div @click="revModal.selImgs.includes(idx) ? revModal.selImgs=revModal.selImgs.filter(i=>i!==idx) : revModal.selImgs.push(idx)"
+                      class="relative cursor-pointer rounded-lg overflow-hidden border-2 transition"
+                      :class="revModal.selImgs.includes(idx) ? 'border-blue-500' : 'border-gray-200 hover:border-gray-300'">
+                      <img :src="img.url || img.localPath" class="w-full aspect-square object-cover">
+                      <div x-show="revModal.selImgs.includes(idx)" class="absolute inset-0 bg-blue-500/20 flex items-center justify-center">
+                        <i class="ri-check-line text-white text-lg bg-blue-500 rounded-full w-5 h-5 flex items-center justify-center"></i>
+                      </div>
+                    </div>
+                  </template>
+                </div>
+                <p class="text-xs text-gray-400 mt-1">Không chọn = sửa tất cả ảnh</p>
+              </div>
+            </template>
+
+            <!-- Feedback -->
+            <div>
+              <label class="text-xs font-medium text-gray-600 mb-1 block">Yêu cầu chỉnh sửa</label>
+              <textarea x-model="revModal.feedback" rows="3" placeholder="Mô tả cần sửa gì..."
+                class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none resize-none"></textarea>
+            </div>
+
+            <!-- Actions -->
+            <div class="flex gap-3 pt-1">
+              <button @click="revModal.open=false" class="flex-1 py-2 border border-gray-300 rounded-lg text-gray-600 hover:bg-gray-50 transition text-sm">Hủy</button>
+              <button @click="submitRevision()" :disabled="revModal.loading || !revModal.feedback.trim()"
+                class="flex-1 py-2 bg-amber-500 text-white rounded-lg font-medium hover:bg-amber-600 transition text-sm flex items-center justify-center gap-1 disabled:opacity-50">
+                <i class="ri-loader-4-line animate-spin" x-show="revModal.loading"></i>
+                <i class="ri-edit-2-line" x-show="!revModal.loading"></i>
+                <span x-text="revModal.loading ? 'Đang xử lý...' : 'Sửa'"></span>
+              </button>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -2944,6 +3022,7 @@ function app() {
     textPopup: { show: false, title: '', content: '' },
     showErrorModal: false,
     errorItem: null,
+    revModal: { open: false, item: null, type: 'TEXT', feedback: '', images: [], selImgs: [], loading: false },
 
     showPageModal: false,
     editingPage: null,
@@ -4314,6 +4393,42 @@ function app() {
         this.showToast('Đã gửi yêu cầu sửa');
         await this.loadContent();
       } catch (e) { this.showToast(e.message, 'error'); }
+    },
+
+    openRevisionModal(item) {
+      const images = item.generatedImages || [];
+      this.revModal = {
+        open: true, item, type: 'TEXT', feedback: '',
+        images: Array.isArray(images) ? images : [],
+        selImgs: [], loading: false,
+      };
+    },
+
+    async submitRevision() {
+      const m = this.revModal;
+      if (!m.feedback.trim() || !m.item) return;
+      m.loading = true;
+      try {
+        const body = {
+          revisionType: m.type,
+          feedbackText: m.feedback.trim(),
+          userId: this.user?.id || 'system',
+        };
+        if ((m.type === 'IMAGE' || m.type === 'TEXT_AND_MEDIA') && m.selImgs.length > 0) {
+          body.selectedMediaIds = m.selImgs;
+        }
+        await this.api(`/dashboard/content/${m.item.id}/revision`, {
+          method: 'POST', body: JSON.stringify(body),
+        });
+        m.open = false;
+        this.showToast('Đang sửa nội dung...');
+        await this.loadContent();
+        if (this.drawerItem?.id === m.item.id) this.refreshDrawer(m.item.id);
+      } catch (e) {
+        this.showToast(e.message || 'Lỗi sửa nội dung', 'error');
+      } finally {
+        m.loading = false;
+      }
     },
 
     // --- Content Detail Drawer ---

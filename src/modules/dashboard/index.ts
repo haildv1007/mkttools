@@ -10,6 +10,7 @@ import { getSetting, getSettings, setSettings } from '../settings';
 import { resolvePageIds } from '../workspace';
 import { logActivity, updateActivity, sanitizeError } from '../../utils/activity';
 import { emitActivity, emitContentUpdate } from '../../realtime';
+import { createRevisionSession, submitFeedbackAndExecute, cancelRevision, getActiveRevisionSession } from '../revision';
 
 const UPLOAD_DIR = path.join(process.cwd(), 'public', 'uploads');
 const VIDEO_DIR = path.join(UPLOAD_DIR, 'videos');
@@ -2139,6 +2140,63 @@ router.get('/content/active', async (req: Request, res: Response) => {
     })));
   } catch {
     res.json([]);
+  }
+});
+
+// ── Revision V2 endpoints ──
+
+router.post('/content/:id/revision', async (req: Request, res: Response) => {
+  try {
+    const id = req.params.id as string;
+    const { revisionType, selectedMediaIds, feedbackText, userId } = req.body;
+    if (!revisionType) return res.status(400).json({ error: 'revisionType required' });
+
+    const session = await createRevisionSession({
+      contentItemId: id,
+      revisionType,
+      selectedMediaIds,
+      source: 'WEB',
+      userId: userId || 'system',
+    });
+
+    if (feedbackText) {
+      await submitFeedbackAndExecute({
+        sessionId: session.id,
+        feedbackText,
+        userId: userId || 'system',
+      });
+    }
+
+    res.json({ sessionId: session.id, status: session.status });
+  } catch (err) {
+    res.status(400).json({ error: err instanceof Error ? err.message : 'Revision failed' });
+  }
+});
+
+router.post('/revision/:id/feedback', async (req: Request, res: Response) => {
+  try {
+    const sessionId = req.params.id as string;
+    const { feedbackText, userId } = req.body;
+    if (!feedbackText) return res.status(400).json({ error: 'feedbackText required' });
+
+    await submitFeedbackAndExecute({
+      sessionId,
+      feedbackText,
+      userId: userId || 'system',
+    });
+
+    res.json({ success: true });
+  } catch (err) {
+    res.status(400).json({ error: err instanceof Error ? err.message : 'Feedback failed' });
+  }
+});
+
+router.post('/revision/:id/cancel', async (req: Request, res: Response) => {
+  try {
+    const result = await cancelRevision(req.params.id as string);
+    res.json({ success: !!result });
+  } catch (err) {
+    res.status(400).json({ error: err instanceof Error ? err.message : 'Cancel failed' });
   }
 });
 
