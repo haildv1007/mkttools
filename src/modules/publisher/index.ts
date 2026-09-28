@@ -11,7 +11,7 @@ export async function publishContent(contentItemId: string): Promise<PublishResu
   });
 
   if (!item) return { success: false, error: 'Content item not found' };
-  if (item.status !== 'APPROVED') return { success: false, error: `Invalid status: ${item.status}` };
+  if (item.status !== 'APPROVED' && item.status !== 'FAILED') return { success: false, error: `Invalid status: ${item.status}` };
   if (!item.generatedText) return { success: false, error: 'No generated text' };
 
   const message = extractCleanText(item.generatedText);
