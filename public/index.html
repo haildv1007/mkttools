@@ -3100,7 +3100,7 @@ function app() {
     textPopup: { show: false, title: '', content: '' },
     showErrorModal: false,
     errorItem: null,
-    revModal: { open: false, item: null, type: 'TEXT', feedback: '', images: [], selImgs: [], loading: false, chatHistory: [], currentText: '', originalText: '', originalImages: [], selectedVersion: 0 },
+    revModal: { open: false, item: null, type: 'TEXT', feedback: '', images: [], selImgs: [], loading: false, chatHistory: [], currentText: '', originalText: '', originalImages: [], selectedVersion: 0, versions: [], loadingVersions: false },
 
     showPageModal: false,
     editingPage: null,
@@ -4474,7 +4474,7 @@ function app() {
       } catch (e) { this.showToast(e.message, 'error'); }
     },
 
-    openRevisionModal(item) {
+    async openRevisionModal(item) {
       const images = item.generatedImages || [];
       const imgArr = Array.isArray(images) ? images : [];
       this.revModal = {
@@ -4484,8 +4484,39 @@ function app() {
         originalImages: [...imgArr],
         selImgs: [], loading: false, chatHistory: [],
         currentText: item.generatedText || '',
-        selectedVersion: 0,
+        selectedVersion: -1,
+        versions: [],
+        loadingVersions: true,
       };
+      // Load saved revision history
+      try {
+        const revisions = await this.api(`/dashboard/content/${item.id}/revisions`);
+        if (revisions && revisions.length > 0) {
+          this.revModal.versions = revisions;
+          this.revModal.originalText = revisions[0].generatedText || item.generatedText || '';
+          this.revModal.originalImages = revisions[0].generatedImages || imgArr;
+          // Pre-fill chat history from saved versions (skip version 0 = original)
+          revisions.filter(r => r.version > 0).forEach(r => {
+            this.revModal.chatHistory.push({
+              feedback: r.feedback || '',
+              type: 'TEXT',
+              selImgs: [],
+              status: 'done',
+              newText: r.generatedText || '',
+              newImages: r.generatedImages || [],
+              error: '',
+              savedVersion: r.version,
+            });
+          });
+          // Select the latest version
+          this.revModal.selectedVersion = this.revModal.chatHistory.length;
+        } else {
+          this.revModal.selectedVersion = 0;
+        }
+      } catch (e) {
+        this.revModal.selectedVersion = 0;
+      }
+      this.revModal.loadingVersions = false;
     },
 
     async submitRevision() {

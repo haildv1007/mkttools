@@ -2173,6 +2173,18 @@ router.post('/content/:id/revision', async (req: Request, res: Response) => {
   }
 });
 
+router.get('/content/:id/revisions', async (req: Request, res: Response) => {
+  try {
+    const revisions = await prisma.contentRevision.findMany({
+      where: { contentItemId: req.params.id as string },
+      orderBy: { version: 'asc' },
+    });
+    res.json(revisions);
+  } catch (err) {
+    res.status(400).json({ error: err instanceof Error ? err.message : 'Failed to load revisions' });
+  }
+});
+
 router.post('/revision/:id/feedback', async (req: Request, res: Response) => {
   try {
     const sessionId = req.params.id as string;

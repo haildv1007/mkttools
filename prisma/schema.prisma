@@ -140,6 +140,7 @@ model ContentItem {
   page             Page              @relation(fields: [pageId], references: [id])
   approvalLogs     ApprovalLog[]
   revisionSessions RevisionSession[]
+  revisions        ContentRevision[]
 
   @@index([status])
   @@index([scheduledAt])
@@ -258,4 +259,21 @@ model ActivityLog {
   @@index([category])
   @@index([status])
   @@map("activity_logs")
+}
+
+model ContentRevision {
+  id              String      @id @default(cuid())
+  contentItemId   String      @map("content_item_id")
+  version         Int
+  generatedText   String?     @map("generated_text")
+  generatedImages Json?       @map("generated_images")
+  feedback        String?
+  source          String      @default("WEB")
+  createdAt       DateTime    @default(now()) @map("created_at")
+
+  contentItem ContentItem @relation(fields: [contentItemId], references: [id])
+
+  @@unique([contentItemId, version])
+  @@index([contentItemId])
+  @@map("content_revisions")
 }

@@ -402,6 +402,36 @@ async function executeRevision(
       }
     }
 
+    // Save revision history
+    const lastRevision = await prisma.contentRevision.findFirst({
+      where: { contentItemId: cid },
+      orderBy: { version: 'desc' },
+    });
+    if (!lastRevision) {
+      // Save original as version 0
+      await prisma.contentRevision.create({
+        data: {
+          contentItemId: cid,
+          version: 0,
+          generatedText: item.generatedText,
+          generatedImages: item.generatedImages ? JSON.parse(JSON.stringify(item.generatedImages)) : undefined,
+          feedback: null,
+          source: 'ORIGINAL',
+        },
+      });
+    }
+    const nextVersion = (lastRevision?.version ?? 0) + 1;
+    await prisma.contentRevision.create({
+      data: {
+        contentItemId: cid,
+        version: nextVersion,
+        generatedText: newText,
+        generatedImages: newImages ? JSON.parse(JSON.stringify(newImages)) : undefined,
+        feedback,
+        source: item.source === 'TELEGRAM' ? 'TELEGRAM' : 'WEB',
+      },
+    });
+
     // Update content
     await prisma.contentItem.update({
       where: { id: cid },
