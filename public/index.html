@@ -3218,7 +3218,7 @@ function app() {
         await this.validateScope();
         await this.loadScopePages();
         if (this.currentScope.type === 'page') this.importForm.pageId = this.currentScope.id;
-        { const t = new Date().toISOString().slice(0,10); this.contentFilter.dateFrom = t; this.contentFilter.dateTo = t; this.contentFilter._datePreset = 'today'; this.contentFilter._dateLabel = 'Hôm nay'; }
+        /* No default date filter — show all content on load */
         await this.loadDashboard();
         this.fetchActiveItems();
         this.initSocket();
