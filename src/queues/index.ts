@@ -106,7 +106,7 @@ export function startWorkers() {
     await updateActivity(actId, { status: 'success', summary: `Gen xong: ${item.topic.slice(0, 80)}` + (shouldAutoApprove ? ' (tự duyệt)' : '') });
 
     return { contentItemId, status: shouldAutoApprove ? 'auto_approved' : 'pending_review' };
-  }, { connection, concurrency: 3 });
+  }, { connection, concurrency: 10 });
 
   const publishWorker = new Worker('content-publishing', async (job) => {
     const { contentItemId } = job.data;
@@ -122,49 +122,70 @@ export function startWorkers() {
     }
     await updateActivity(actId, { status: 'success', summary: `Đã đăng: ${label}` });
     return result;
-  }, { connection, concurrency: 5 });
+  }, { connection, concurrency: 15 });
 
   const schedulerWorker = new Worker('content-scheduler', async () => {
     const now = new Date();
-
-    const draftItems = await prisma.contentItem.findMany({
-      where: { status: 'DRAFT' },
-      include: { campaign: { select: { genLeadTime: true } } },
-      orderBy: { scheduledAt: 'asc' },
-      take: 200,
-    });
+    const actId = await logActivity({ action: 'scheduler', category: 'system', summary: 'Scheduler đang quét nội dung...' });
 
     let generatedCount = 0;
-    for (const item of draftItems) {
-      const leadMinutes = item.campaign?.genLeadTime ?? 30;
-      const ahead = new Date(now.getTime() + leadMinutes * 60 * 1000);
-      if (item.scheduledAt > ahead) continue;
-
-      await contentQueue.add('generate', { contentItemId: item.id }, {
-        jobId: `gen-${item.id}-${Date.now()}`,
-        attempts: 3,
-        backoff: { type: 'exponential', delay: 5000 },
+    let cursor: string | undefined;
+    while (true) {
+      const draftItems = await prisma.contentItem.findMany({
+        where: { status: 'DRAFT' },
+        include: { campaign: { select: { genLeadTime: true } } },
+        orderBy: { scheduledAt: 'asc' },
+        take: 500,
+        ...(cursor ? { skip: 1, cursor: { id: cursor } } : {}),
       });
-      generatedCount++;
+      if (draftItems.length === 0) break;
+      cursor = draftItems[draftItems.length - 1].id;
+
+      let allFuture = true;
+      for (const item of draftItems) {
+        const leadMinutes = item.campaign?.genLeadTime ?? 30;
+        const ahead = new Date(now.getTime() + leadMinutes * 60 * 1000);
+        if (item.scheduledAt > ahead) continue;
+        allFuture = false;
+
+        await contentQueue.add('generate', { contentItemId: item.id }, {
+          jobId: `gen-${item.id}-${Date.now()}`,
+          attempts: 3,
+          backoff: { type: 'exponential', delay: 5000 },
+        });
+        generatedCount++;
+      }
+      if (allFuture) break;
     }
 
-    const approvedItems = await prisma.contentItem.findMany({
-      where: {
-        status: 'APPROVED',
-        scheduledAt: { lte: now },
-      },
-      take: 20,
-    });
-
-    for (const item of approvedItems) {
-      await publishQueue.add('publish', { contentItemId: item.id }, {
-        jobId: `pub-${item.id}-${Date.now()}`,
-        attempts: 3,
-        backoff: { type: 'exponential', delay: 10000 },
+    let publishedCount = 0;
+    let pubCursor: string | undefined;
+    while (true) {
+      const approvedItems = await prisma.contentItem.findMany({
+        where: {
+          status: 'APPROVED',
+          scheduledAt: { lte: now },
+        },
+        take: 200,
+        ...(pubCursor ? { skip: 1, cursor: { id: pubCursor } } : {}),
       });
+      if (approvedItems.length === 0) break;
+      pubCursor = approvedItems[approvedItems.length - 1].id;
+
+      for (const item of approvedItems) {
+        await publishQueue.add('publish', { contentItemId: item.id }, {
+          jobId: `pub-${item.id}-${Date.now()}`,
+          attempts: 3,
+          backoff: { type: 'exponential', delay: 10000 },
+        });
+        publishedCount++;
+      }
     }
 
-    return { generated: generatedCount, published: approvedItems.length };
+    const summary = `Scheduler xong: ${generatedCount} gen, ${publishedCount} publish`;
+    await updateActivity(actId, { status: 'success', summary });
+    logger.info({ generated: generatedCount, published: publishedCount }, 'Scheduler cycle done');
+    return { generated: generatedCount, published: publishedCount };
   }, { connection });
 
   contentWorker.on('failed', async (job, err) => {
