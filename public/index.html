@@ -1812,13 +1812,13 @@
                     <div class="grid gap-2" :class="drawerItem.generatedImages.length > 1 ? 'grid-cols-2' : 'grid-cols-1'">
                       <template x-for="(img, ii) in drawerItem.generatedImages" :key="ii">
                         <img :src="img.url || img.localPath" class="w-full rounded-lg object-cover bg-gray-50 cursor-pointer hover:opacity-90" style="max-height:280px"
-                          @click="window.open(img.url || img.localPath, '_blank')" onerror="this.style.display='none'">
+                          @click="openLightbox(drawerItem.generatedImages, ii)" onerror="this.style.display='none'">
                       </template>
                     </div>
                   </template>
                   <template x-if="!drawerItem.generatedImages?.length && drawerItem.generatedImageUrl">
                     <img :src="drawerItem.generatedImageUrl" class="w-full rounded-lg object-cover bg-gray-50 cursor-pointer hover:opacity-90" style="max-height:320px"
-                      @click="window.open(drawerItem.generatedImageUrl, '_blank')" onerror="this.style.display='none'">
+                      @click="openLightbox([drawerItem.generatedImageUrl], 0)" onerror="this.style.display='none'">
                   </template>
                   <template x-if="drawerItem.generatedVideoUrl">
                     <video :src="drawerItem.generatedVideoUrl" controls class="w-full rounded-lg bg-black" style="max-height:320px"></video>
@@ -2340,6 +2340,19 @@
         </div>
       </div>
 
+      <!-- Image Lightbox -->
+      <div x-show="lightbox.open" x-cloak class="fixed inset-0 bg-black/90 z-[100] flex items-center justify-center" @click.self="lightbox.open=false" @keydown.escape.window="lightbox.open=false" @keydown.left.window="lightbox.open && (lightbox.index = (lightbox.index - 1 + lightbox.images.length) % lightbox.images.length)" @keydown.right.window="lightbox.open && (lightbox.index = (lightbox.index + 1) % lightbox.images.length)">
+        <button @click="lightbox.open=false" class="absolute top-4 right-4 text-white/80 hover:text-white text-2xl z-10"><i class="ri-close-line"></i></button>
+        <button x-show="lightbox.images.length > 1" @click="lightbox.index = (lightbox.index - 1 + lightbox.images.length) % lightbox.images.length"
+          class="absolute left-4 text-white/80 hover:text-white text-3xl z-10"><i class="ri-arrow-left-s-line"></i></button>
+        <button x-show="lightbox.images.length > 1" @click="lightbox.index = (lightbox.index + 1) % lightbox.images.length"
+          class="absolute right-14 text-white/80 hover:text-white text-3xl z-10"><i class="ri-arrow-right-s-line"></i></button>
+        <img :src="lightbox.images[lightbox.index]" class="max-h-[90vh] max-w-[90vw] object-contain rounded-lg shadow-2xl">
+        <div x-show="lightbox.images.length > 1" class="absolute bottom-4 text-white/70 text-sm">
+          <span x-text="lightbox.index + 1"></span> / <span x-text="lightbox.images.length"></span>
+        </div>
+      </div>
+
       <!-- Tinh chỉnh AI Modal (Chat-style) -->
       <div x-show="revModal.open" class="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" @click.self="!revModal.loading && (revModal.open=false)">
         <div class="bg-white rounded-2xl shadow-xl w-full max-w-2xl fade-in flex flex-col" style="max-height:85vh">
@@ -2374,7 +2387,7 @@
               <template x-if="revModal.originalImages && revModal.originalImages.length > 0">
                 <div class="flex gap-2 overflow-x-auto pb-1">
                   <template x-for="(img, idx) in revModal.originalImages" :key="idx">
-                    <img :src="img.url || img.localPath" class="h-20 w-20 rounded-lg object-cover flex-shrink-0 border border-gray-200">
+                    <img :src="img.url || img.localPath" @click.stop="openLightbox(revModal.originalImages, idx)" class="h-20 w-20 rounded-lg object-cover flex-shrink-0 border border-gray-200 cursor-pointer hover:opacity-80 transition">
                   </template>
                 </div>
               </template>
@@ -2417,7 +2430,7 @@
                         <template x-if="msg.newImages && msg.newImages.length > 0">
                           <div class="flex gap-2 overflow-x-auto">
                             <template x-for="(img, i) in msg.newImages" :key="i">
-                              <img :src="img.url || img.localPath" class="h-16 w-16 rounded-lg object-cover flex-shrink-0">
+                              <img :src="img.url || img.localPath" @click.stop="openLightbox(msg.newImages, i)" class="h-16 w-16 rounded-lg object-cover flex-shrink-0 cursor-pointer hover:opacity-80 transition">
                             </template>
                           </div>
                         </template>
@@ -3112,6 +3125,7 @@ function app() {
     showErrorModal: false,
     errorItem: null,
     revModal: { open: false, item: null, type: 'TEXT', feedback: '', images: [], selImgs: [], loading: false, chatHistory: [], currentText: '', originalText: '', originalImages: [], selectedVersion: 0, versions: [], loadingVersions: false },
+    lightbox: { open: false, images: [], index: 0 },
 
     showPageModal: false,
     editingPage: null,
@@ -4395,6 +4409,11 @@ function app() {
       } finally {
         this.contentFormSaving = false;
       }
+    },
+
+    openLightbox(images, index = 0) {
+      const urls = images.map(img => typeof img === 'string' ? img : (img.url || img.localPath || ''));
+      this.lightbox = { open: true, images: urls.filter(Boolean), index };
     },
 
     async saveAndRegenerate() {
