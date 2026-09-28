@@ -865,238 +865,341 @@
 
       <!-- Content List (Sheet View) -->
       <div x-show="page==='content'" class="fade-in">
-        <!-- Header -->
-        <div class="flex items-center justify-between mb-4">
-          <div>
+        <!-- Toolbar -->
+        <div class="flex items-center justify-between mb-3">
+          <div class="flex items-center gap-3">
             <h2 class="text-xl font-bold">Content</h2>
-            <p class="text-sm text-gray-400 mt-0.5">Tổng: <strong x-text="contentTotal"></strong> items</p>
-          </div>
-          <div class="flex gap-2">
-            <button @click="bulkGenerate()" x-show="contentItems.some(i => i.status==='DRAFT')"
-              class="px-3 py-2 bg-purple-500 text-white rounded-lg text-sm font-medium hover:bg-purple-600 transition flex items-center gap-1">
-              <i class="ri-magic-line"></i> Gen tất cả Draft
-            </button>
-            <button @click="openContentForm()"
-              class="px-3 py-2 bg-brand-600 text-white rounded-lg text-sm font-medium hover:bg-brand-700 transition flex items-center gap-1">
-              <i class="ri-add-line"></i> Thêm content
-            </button>
-          </div>
-        </div>
-
-        <!-- Filters -->
-        <div class="bg-white rounded-xl border border-gray-100 shadow-sm p-3 mb-4">
-          <div class="flex flex-wrap gap-2 items-center">
-            <div class="relative flex-1 min-w-[180px]">
-              <i class="ri-search-line absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"></i>
-              <input x-model="contentFilter.search" @input.debounce.400ms="loadContent()" type="text" placeholder="Tìm theo chủ đề..."
-                class="w-full pl-9 pr-3 py-2 border border-gray-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-brand-500">
+            <div class="relative flex-shrink-0" style="min-width:220px">
+              <i class="ri-search-line absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm"></i>
+              <input x-model="contentFilter.search" @input.debounce.400ms="dgPage=1; loadContent()" type="text" placeholder="Tìm theo chủ đề..."
+                class="w-full pl-9 pr-3 py-1.5 border border-gray-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-brand-500 bg-gray-50">
             </div>
-            <select x-model="contentFilter.status" @change="loadContent()"
-              class="px-3 py-2 border border-gray-200 rounded-lg text-sm outline-none">
-              <option value="">Trạng thái</option>
-              <option value="DRAFT">Nháp</option>
-              <option value="GENERATING">Đang gen</option>
-              <option value="PENDING_REVIEW">Chờ duyệt</option>
-              <option value="APPROVED">Đã duyệt</option>
-              <option value="PUBLISHED">Đã đăng</option>
-              <option value="FAILED">Lỗi</option>
-            </select>
-            <select x-model="contentFilter.source" @change="loadContent()"
-              class="px-3 py-2 border border-gray-200 rounded-lg text-sm outline-none">
-              <option value="">Nguồn</option>
-              <option value="AI">AI</option>
-              <option value="MANUAL">Có sẵn</option>
-            </select>
+            <!-- Filter dropdowns -->
             <div x-show="currentScope.type!=='page'" class="relative" @click.outside="contentPageDrop=false">
-              <button @click="contentPageDrop=!contentPageDrop" class="flex items-center gap-1.5 px-3 py-2 border border-gray-200 rounded-lg text-sm hover:border-brand-300 transition min-w-[160px] text-left bg-white">
-                <template x-if="contentFilter.pageId && scopePages.find(p=>p.id===contentFilter.pageId)">
-                  <img :src="'https://graph.facebook.com/'+scopePages.find(p=>p.id===contentFilter.pageId)?.externalId+'/picture?type=small'" class="w-4 h-4 rounded-full shrink-0" onerror="this.style.display='none'">
-                </template>
-                <span class="truncate" x-text="contentFilter.pageId ? (scopePages.find(p=>p.id===contentFilter.pageId)?.name||'Page') : (currentScope.type==='workspace' ? 'Tất cả pages trong WS' : 'Tất cả pages')"></span>
-                <i class="ri-arrow-down-s-line text-gray-400 ml-auto shrink-0"></i>
+              <button @click="contentPageDrop=!contentPageDrop" class="flex items-center gap-1 px-2.5 py-1.5 border border-gray-200 rounded-lg text-xs hover:border-brand-300 bg-white"
+                :class="contentFilter.pageId && 'border-brand-300 bg-brand-50'">
+                <i class="ri-store-2-line"></i>
+                <span class="truncate max-w-[100px]" x-text="contentFilter.pageId ? (scopePages.find(p=>p.id===contentFilter.pageId)?.name||'Page') : 'Page'"></span>
+                <i class="ri-arrow-down-s-line text-gray-400"></i>
               </button>
               <div x-show="contentPageDrop" x-cloak class="absolute top-full mt-1 left-0 bg-white border border-gray-200 rounded-lg shadow-lg z-50 min-w-[200px] max-h-[250px] overflow-y-auto">
-                <button @click="contentFilter.pageId=''; contentPageDrop=false; loadContent()" class="w-full flex items-center gap-2 px-3 py-2 text-sm hover:bg-gray-50 text-left" :class="!contentFilter.pageId && 'bg-brand-50 text-brand-700'">
-                  <i class="ri-global-line text-sm text-gray-400"></i>
-                  <span x-text="currentScope.type==='workspace' ? 'Tất cả pages trong WS' : 'Tất cả pages'"></span>
+                <button @click="contentFilter.pageId=''; contentPageDrop=false; dgPage=1; loadContent()" class="w-full flex items-center gap-2 px-3 py-2 text-sm hover:bg-gray-50 text-left" :class="!contentFilter.pageId && 'bg-brand-50 text-brand-700'">
+                  <i class="ri-global-line text-sm text-gray-400"></i> Tất cả
                 </button>
                 <template x-for="p in scopePages" :key="p.id">
-                  <button @click="contentFilter.pageId=p.id; contentPageDrop=false; loadContent()" class="w-full flex items-center gap-2 px-3 py-2 text-sm hover:bg-gray-50 text-left" :class="contentFilter.pageId===p.id && 'bg-brand-50 text-brand-700'">
+                  <button @click="contentFilter.pageId=p.id; contentPageDrop=false; dgPage=1; loadContent()" class="w-full flex items-center gap-2 px-3 py-2 text-sm hover:bg-gray-50 text-left" :class="contentFilter.pageId===p.id && 'bg-brand-50 text-brand-700'">
                     <img x-show="p.platform==='FACEBOOK'" :src="'https://graph.facebook.com/'+p.externalId+'/picture?type=small'" class="w-4 h-4 rounded-full shrink-0" onerror="this.style.display='none'">
-                    <i x-show="p.platform!=='FACEBOOK'" class="ri-tiktok-fill text-sm"></i>
                     <span class="truncate" x-text="p.name"></span>
                   </button>
                 </template>
               </div>
             </div>
-            <select x-model="contentFilter.campaignId" @change="loadContent()"
-              class="px-3 py-2 border border-gray-200 rounded-lg text-sm outline-none">
-              <option value="">Tất cả campaigns</option>
+            <select x-model="contentFilter.source" @change="dgPage=1; loadContent()" class="px-2 py-1.5 border border-gray-200 rounded-lg text-xs outline-none bg-white"
+              :class="contentFilter.source && 'border-brand-300 bg-brand-50'">
+              <option value="">Nguồn</option>
+              <option value="AI">AI</option>
+              <option value="MANUAL">Có sẵn</option>
+              <option value="IMPORT">Import</option>
+            </select>
+            <select x-model="contentFilter.campaignId" @change="dgPage=1; loadContent()" class="px-2 py-1.5 border border-gray-200 rounded-lg text-xs outline-none bg-white max-w-[140px]"
+              :class="contentFilter.campaignId && 'border-brand-300 bg-brand-50'">
+              <option value="">Campaign</option>
               <template x-for="c in campaigns" :key="c.id">
                 <option :value="c.id" x-text="c.name"></option>
               </template>
             </select>
-            <select x-model="contentFilter.contentType" @change="loadContent()"
-              class="px-3 py-2 border border-gray-200 rounded-lg text-sm outline-none">
+            <select x-model="contentFilter.contentType" @change="dgPage=1; loadContent()" class="px-2 py-1.5 border border-gray-200 rounded-lg text-xs outline-none bg-white"
+              :class="contentFilter.contentType && 'border-brand-300 bg-brand-50'">
               <option value="">Loại</option>
               <option value="IMAGE">Image</option>
               <option value="VIDEO">Video</option>
               <option value="TEXT">Text</option>
             </select>
-            <input x-model="contentFilter.dateFrom" @change="loadContent()" type="date"
-              class="px-3 py-2 border border-gray-200 rounded-lg text-sm outline-none">
-            <span class="text-gray-400 text-sm">→</span>
-            <input x-model="contentFilter.dateTo" @change="loadContent()" type="date"
-              class="px-3 py-2 border border-gray-200 rounded-lg text-sm outline-none">
+            <input x-model="contentFilter.dateFrom" @change="dgPage=1; loadContent()" type="date" class="px-2 py-1.5 border border-gray-200 rounded-lg text-xs outline-none bg-white">
+            <span class="text-gray-300 text-xs">→</span>
+            <input x-model="contentFilter.dateTo" @change="dgPage=1; loadContent()" type="date" class="px-2 py-1.5 border border-gray-200 rounded-lg text-xs outline-none bg-white">
             <button x-show="contentFilter.search || contentFilter.status || contentFilter.pageId || contentFilter.dateFrom || contentFilter.dateTo || contentFilter.source || contentFilter.campaignId || contentFilter.contentType"
-              @click="contentFilter={status:'',pageId:'',search:'',dateFrom:'',dateTo:'',source:'',campaignId:'',contentType:''}; loadContent()"
-              class="px-3 py-2 text-gray-400 hover:text-red-500 text-sm" title="Xóa bộ lọc">
-              <i class="ri-filter-off-line"></i> Xóa lọc
+              @click="contentFilter={status:'',pageId:'',search:'',dateFrom:'',dateTo:'',source:'',campaignId:'',contentType:''}; dgPage=1; loadContent()"
+              class="p-1.5 text-gray-400 hover:text-red-500 text-xs" title="Xóa bộ lọc"><i class="ri-filter-off-line"></i></button>
+          </div>
+          <div class="flex items-center gap-2">
+            <!-- Density toggle -->
+            <div class="flex border border-gray-200 rounded-lg overflow-hidden">
+              <button @click="dgDensity='compact'" :class="dgDensity==='compact' ? 'bg-gray-100 text-gray-700' : 'text-gray-400'" class="px-2 py-1" title="Thu gọn"><i class="ri-list-check text-sm"></i></button>
+              <button @click="dgDensity='normal'" :class="dgDensity==='normal' ? 'bg-gray-100 text-gray-700' : 'text-gray-400'" class="px-2 py-1" title="Bình thường"><i class="ri-list-unordered text-sm"></i></button>
+            </div>
+            <button @click="dgColPanel=!dgColPanel" class="px-2.5 py-1.5 border border-gray-200 rounded-lg text-xs hover:bg-gray-50 flex items-center gap-1" :class="dgColPanel && 'bg-brand-50 border-brand-300'">
+              <i class="ri-layout-column-line"></i> Cột
+            </button>
+            <button @click="bulkGenerate()" x-show="contentItems.some(i => i.status==='DRAFT')"
+              class="px-2.5 py-1.5 bg-purple-500 text-white rounded-lg text-xs font-medium hover:bg-purple-600 transition flex items-center gap-1">
+              <i class="ri-magic-line"></i> Gen Draft
+            </button>
+            <button @click="openContentForm()"
+              class="px-2.5 py-1.5 bg-brand-600 text-white rounded-lg text-xs font-medium hover:bg-brand-700 transition flex items-center gap-1">
+              <i class="ri-add-line"></i> Thêm
             </button>
           </div>
         </div>
 
-        <!-- Spreadsheet Table -->
-        <div class="bg-white rounded-xl border border-gray-100 shadow-sm overflow-x-auto">
-          <table class="w-full text-sm border-collapse min-w-[1100px]">
-            <thead class="bg-gray-50 border-b border-gray-200 sticky top-0 z-10">
-              <tr>
-                <th class="text-left px-3 py-2.5 text-xs font-semibold text-gray-500 uppercase border-r border-gray-100 w-24">Ngày tạo</th>
-                <th class="text-left px-3 py-2.5 text-xs font-semibold text-gray-500 uppercase border-r border-gray-100 w-20">Nguồn</th>
-                <th class="text-left px-3 py-2.5 text-xs font-semibold text-gray-500 uppercase border-r border-gray-100 w-32">Campaign</th>
-                <th class="text-left px-3 py-2.5 text-xs font-semibold text-gray-500 uppercase border-r border-gray-100 w-36">Page</th>
-                <th class="text-left px-3 py-2.5 text-xs font-semibold text-gray-500 uppercase border-r border-gray-100 min-w-[200px]">Chủ đề</th>
-                <th class="text-left px-3 py-2.5 text-xs font-semibold text-gray-500 uppercase border-r border-gray-100 min-w-[180px]">Ghi chú</th>
-                <th class="text-left px-3 py-2.5 text-xs font-semibold text-gray-500 uppercase border-r border-gray-100 w-24">Định dạng</th>
-                <th class="text-left px-3 py-2.5 text-xs font-semibold text-gray-500 uppercase border-r border-gray-100 w-28">Lịch đăng</th>
-                <th class="text-left px-3 py-2.5 text-xs font-semibold text-gray-500 uppercase border-r border-gray-100 w-24">Trạng thái</th>
-                <th class="text-left px-3 py-2.5 text-xs font-semibold text-gray-500 uppercase border-r border-gray-100 w-[180px]">Kết quả</th>
-                <th class="text-center px-3 py-2.5 text-xs font-semibold text-gray-500 uppercase w-20">Thao tác</th>
-              </tr>
-            </thead>
-            <tbody class="divide-y divide-gray-100">
-              <template x-for="item in contentItems" :key="item.id">
-                <tr class="hover:bg-blue-50/40 transition group">
-                  <!-- Ngày tạo -->
-                  <td class="px-3 py-2 border-r border-gray-50">
-                    <div class="text-xs text-gray-700" x-text="new Date(item.createdAt).toLocaleDateString('vi-VN', {timeZone:'Asia/Ho_Chi_Minh', day:'2-digit', month:'2-digit', year:'numeric'})"></div>
-                    <div class="text-[11px] text-gray-400" x-text="new Date(item.createdAt).toLocaleTimeString('vi-VN', {timeZone:'Asia/Ho_Chi_Minh', hour:'2-digit', minute:'2-digit'})"></div>
-                  </td>
-                  <!-- Nguồn -->
-                  <td class="px-3 py-2 border-r border-gray-50">
-                    <span class="text-xs px-1.5 py-0.5 rounded whitespace-nowrap"
-                      :class="{'bg-purple-50 text-purple-600': item.source==='AI' || item.source==='IMPORT', 'bg-teal-50 text-teal-600': item.source==='MANUAL'}"
-                      x-text="sourceLabel(item.source)"></span>
-                  </td>
-                  <!-- Campaign -->
-                  <td class="px-3 py-2 border-r border-gray-50">
-                    <span class="text-xs text-gray-600 truncate block max-w-[120px]" x-text="item.campaign?.name || '—'" :title="item.campaign?.name"></span>
-                  </td>
-                  <!-- Page -->
-                  <td class="px-3 py-2 border-r border-gray-50">
-                    <div class="flex items-center gap-1.5">
-                      <img x-show="item.page?.platform==='FACEBOOK'" :src="'https://graph.facebook.com/' + item.page?.externalId + '/picture?type=small'"
-                        class="w-5 h-5 rounded-full object-cover flex-shrink-0 bg-gray-100" onerror="this.style.display='none'">
-                      <i x-show="item.page?.platform!=='FACEBOOK'" class="ri-tiktok-fill text-sm flex-shrink-0"></i>
-                      <span x-text="item.page?.name" class="text-xs truncate max-w-[100px]" :title="item.page?.name"></span>
-                    </div>
-                  </td>
-                  <!-- Chủ đề -->
-                  <td class="px-3 py-2 border-r border-gray-50">
-                    <div class="font-medium text-gray-800 text-xs leading-snug cursor-pointer hover:text-brand-600 transition"
-                      style="display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden"
-                      x-text="item.topic" @click="viewResult(item)"></div>
-                  </td>
-                  <!-- Ghi chú -->
-                  <td class="px-3 py-2 border-r border-gray-50">
-                    <div x-show="item.notes" class="text-[11px] text-gray-500 leading-snug cursor-pointer hover:text-gray-800 transition"
-                      style="display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden"
-                      x-text="item.notes" @click="viewResult(item)"></div>
-                    <span x-show="!item.notes" class="text-[11px] text-gray-300">—</span>
-                  </td>
-                  <!-- Định dạng -->
-                  <td class="px-3 py-2 border-r border-gray-50">
-                    <span class="inline-flex items-center gap-1 text-xs px-1.5 py-0.5 rounded"
-                      :class="{'bg-blue-50 text-blue-600': item.contentType==='IMAGE', 'bg-purple-50 text-purple-600': item.contentType==='VIDEO', 'bg-gray-100 text-gray-600': item.contentType==='TEXT'}">
-                      <i :class="{'ri-image-line': item.contentType==='IMAGE', 'ri-video-line': item.contentType==='VIDEO', 'ri-text': item.contentType==='TEXT'}"></i>
-                      <span x-text="item.contentType"></span>
-                    </span>
-                  </td>
-                  <!-- Lịch đăng -->
-                  <td class="px-3 py-2 border-r border-gray-50">
-                    <div class="text-xs text-gray-700 font-medium" x-text="new Date(item.scheduledAt).toLocaleDateString('vi-VN', {timeZone:'Asia/Ho_Chi_Minh', day:'2-digit', month:'2-digit', year:'numeric'})"></div>
-                    <div class="text-[11px] text-gray-400" x-text="new Date(item.scheduledAt).toLocaleTimeString('vi-VN', {timeZone:'Asia/Ho_Chi_Minh', hour:'2-digit', minute:'2-digit'})"></div>
-                  </td>
-                  <!-- Trạng thái -->
-                  <td class="px-3 py-2 border-r border-gray-50">
-                    <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium whitespace-nowrap" :class="statusClass(item.status)" x-text="statusLabel(item.status)"></span>
-                  </td>
-                  <!-- Kết quả -->
-                  <td class="px-3 py-2 border-r border-gray-50">
-                    <div x-show="item.generatedText || item.generatedImageUrl" class="cursor-pointer hover:opacity-80" @click="viewResult(item)">
-                      <div class="flex items-center gap-2">
-                        <img x-show="item.generatedImageUrl" :src="item.generatedImageUrl" class="w-10 h-10 rounded object-cover flex-shrink-0 bg-gray-100" onerror="this.style.display='none'">
-                        <div x-show="item.generatedText" class="text-[11px] text-gray-500 leading-snug" style="display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;max-width:140px" x-text="item.generatedText?.substring(0,60)+(item.generatedText?.length>60?'...':'')"></div>
-                      </div>
-                    </div>
-                    <span x-show="!item.generatedText && !item.generatedImageUrl && item.status==='DRAFT'" class="text-[11px] text-gray-300 italic">Chưa có</span>
-                    <span x-show="!item.generatedText && !item.generatedImageUrl && item.status==='GENERATING'" class="text-[11px] text-purple-400"><i class="ri-loader-4-line animate-spin"></i> Đang gen...</span>
-                    <span x-show="!item.generatedText && !item.generatedImageUrl && item.status!=='DRAFT' && item.status!=='GENERATING'" class="text-gray-200 text-[11px]">—</span>
-                  </td>
-                  <!-- Thao tác - dropdown -->
-                  <td class="px-3 py-2 text-center">
-                    <div x-data="{open:false}">
-                      <button @click="open=!open; $nextTick(()=>{ if(open){ const r=$el.getBoundingClientRect(); const dd=$el.nextElementSibling; dd.style.top=(r.bottom+4)+'px'; dd.style.left=Math.max(8,r.right-168)+'px'; } })" class="p-1.5 text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition">
-                        <i class="ri-more-2-fill text-base"></i>
-                      </button>
-                      <div x-show="open" @click.away="open=false" x-transition class="fixed bg-white rounded-lg shadow-lg border border-gray-100 py-1 z-[100] min-w-[160px]" style="position:fixed">
-                        <button x-show="item.generatedText || item.generatedImageUrl || item.generatedVideoUrl" @click="viewResult(item); open=false"
-                          class="w-full text-left px-3 py-1.5 text-xs hover:bg-gray-50 flex items-center gap-2">
-                          <i class="ri-eye-line text-brand-500"></i> Xem kết quả
-                        </button>
-                        <button x-show="item.status==='DRAFT' || item.status==='FAILED'" @click="regenerateContent(item.id); open=false"
-                          class="w-full text-left px-3 py-1.5 text-xs hover:bg-gray-50 flex items-center gap-2">
-                          <i class="ri-magic-line text-purple-500"></i> Gen content
-                        </button>
-                        <button x-show="item.status==='PENDING_REVIEW'" @click="approveContent(item.id); open=false"
-                          class="w-full text-left px-3 py-1.5 text-xs hover:bg-gray-50 flex items-center gap-2">
-                          <i class="ri-check-line text-green-500"></i> Duyệt
-                        </button>
-                        <button x-show="item.status==='PENDING_REVIEW'" @click="regenerateContent(item.id); open=false"
-                          class="w-full text-left px-3 py-1.5 text-xs hover:bg-gray-50 flex items-center gap-2">
-                          <i class="ri-refresh-line text-orange-500"></i> Gen lại
-                        </button>
-                        <button x-show="item.status==='PENDING_REVIEW'" @click="rejectContent(item.id); open=false"
-                          class="w-full text-left px-3 py-1.5 text-xs hover:bg-gray-50 flex items-center gap-2">
-                          <i class="ri-close-line text-red-500"></i> Hủy
-                        </button>
-                        <button x-show="item.status==='APPROVED'" @click="publishNow(item.id); open=false"
-                          class="w-full text-left px-3 py-1.5 text-xs hover:bg-gray-50 flex items-center gap-2">
-                          <i class="ri-send-plane-line text-green-500"></i> Đăng ngay
-                        </button>
-                        <div x-show="item.status!=='PUBLISHED' && item.status!=='GENERATING'" class="border-t border-gray-100 my-1"></div>
-                        <button x-show="item.status!=='PUBLISHED' && item.status!=='GENERATING'" @click="editContent(item); open=false"
-                          class="w-full text-left px-3 py-1.5 text-xs hover:bg-gray-50 flex items-center gap-2">
-                          <i class="ri-pencil-line text-gray-500"></i> Sửa thông tin
-                        </button>
-                        <button x-show="item.status!=='PUBLISHED' && item.status!=='GENERATING'" @click="deleteContent(item.id, item.topic); open=false"
-                          class="w-full text-left px-3 py-1.5 text-xs hover:bg-red-50 flex items-center gap-2 text-red-500">
-                          <i class="ri-delete-bin-line"></i> Xóa
-                        </button>
-                        <button x-show="item.status==='FAILED' && item.errorMessage" @click="viewError(item); open=false"
-                          class="w-full text-left px-3 py-1.5 text-xs hover:bg-red-50 flex items-center gap-2 text-red-500">
-                          <i class="ri-error-warning-line"></i> Xem lỗi
-                        </button>
-                      </div>
-                    </div>
-                  </td>
-                </tr>
+        <!-- View Presets + Status Tabs -->
+        <div class="flex items-center gap-2 mb-3">
+          <div class="flex border border-gray-200 rounded-lg overflow-hidden bg-white">
+            <template x-for="preset in dgPresets" :key="preset.key">
+              <button @click="dgSetPreset(preset.key)" class="px-3 py-1.5 text-xs font-medium transition border-r border-gray-200 last:border-r-0"
+                :class="dgActivePreset===preset.key ? 'bg-brand-50 text-brand-700' : 'text-gray-500 hover:bg-gray-50'"
+                x-text="preset.label"></button>
+            </template>
+          </div>
+          <div class="w-px h-5 bg-gray-200"></div>
+          <!-- Status tabs -->
+          <div class="flex gap-1">
+            <button @click="contentFilter.status=''; dgPage=1; loadContent()" class="px-2.5 py-1 rounded-full text-xs font-medium transition"
+              :class="!contentFilter.status ? 'bg-gray-800 text-white' : 'text-gray-500 hover:bg-gray-100'">
+              Tất cả <span class="ml-1 opacity-70" x-text="dgStatusCounts.ALL || 0"></span>
+            </button>
+            <template x-for="st in [{k:'DRAFT',l:'Nháp'},{k:'GENERATING',l:'Đang gen'},{k:'PENDING_REVIEW',l:'Chờ duyệt'},{k:'APPROVED',l:'Đã duyệt'},{k:'PUBLISHED',l:'Đã đăng'},{k:'FAILED',l:'Lỗi'}]" :key="st.k">
+              <button @click="contentFilter.status=st.k; dgPage=1; loadContent()" class="px-2.5 py-1 rounded-full text-xs font-medium transition"
+                :class="contentFilter.status===st.k ? 'bg-gray-800 text-white' : 'text-gray-500 hover:bg-gray-100'"
+                x-show="dgStatusCounts[st.k]">
+                <span x-text="st.l"></span> <span class="ml-0.5 opacity-70" x-text="dgStatusCounts[st.k]"></span>
+              </button>
+            </template>
+          </div>
+        </div>
+
+        <div class="flex gap-0">
+          <!-- Data Grid -->
+          <div class="flex-1 bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden" :class="dgColPanel && 'rounded-r-none border-r-0'">
+            <div class="overflow-x-auto" style="scrollbar-width:thin">
+              <table class="w-full border-collapse" :class="dgDensity==='compact' ? 'text-xs' : 'text-sm'">
+                <thead class="bg-gray-50 border-b border-gray-200 sticky top-0 z-10">
+                  <tr>
+                    <template x-for="col in dgVisibleCols" :key="col.key">
+                      <th class="text-left font-semibold text-gray-500 uppercase border-r border-gray-100 select-none whitespace-nowrap"
+                        :class="dgDensity==='compact' ? 'px-2 py-2 text-[10px]' : 'px-3 py-2.5 text-xs'"
+                        :style="'min-width:'+col.minW+'px; width:'+col.w+'px; max-width:'+(col.maxW||600)+'px; position:relative'"
+                        @click="dgSort(col.key)">
+                        <span x-text="col.label"></span>
+                        <i x-show="dgSortBy===col.key" class="ml-0.5" :class="dgSortDir==='asc' ? 'ri-arrow-up-s-line' : 'ri-arrow-down-s-line'"></i>
+                        <div class="absolute right-0 top-0 bottom-0 w-1 cursor-col-resize hover:bg-brand-400"
+                          @mousedown.prevent="dgStartResize($event, col)"></div>
+                      </th>
+                    </template>
+                    <th class="text-center font-semibold text-gray-500 uppercase w-12"
+                      :class="dgDensity==='compact' ? 'px-1 py-2 text-[10px]' : 'px-2 py-2.5 text-xs'">
+                      <i class="ri-more-fill"></i>
+                    </th>
+                  </tr>
+                </thead>
+                <tbody class="divide-y divide-gray-50">
+                  <template x-for="item in contentItems" :key="item.id">
+                    <tr class="hover:bg-blue-50/30 transition group">
+                      <template x-for="col in dgVisibleCols" :key="col.key">
+                        <td class="border-r border-gray-50"
+                          :class="dgDensity==='compact' ? 'px-2 py-1' : 'px-3 py-2'"
+                          :style="'min-width:'+col.minW+'px; width:'+col.w+'px; max-width:'+(col.maxW||600)+'px'">
+                          <!-- Thumbnail -->
+                          <template x-if="col.key==='thumbnail'">
+                            <div class="flex items-center justify-center">
+                              <img x-show="item.generatedImageUrl" :src="item.generatedImageUrl" class="rounded object-cover bg-gray-100 cursor-pointer hover:opacity-80"
+                                :class="dgDensity==='compact' ? 'w-8 h-8' : 'w-10 h-10'" @click="viewResult(item)" onerror="this.style.display='none'">
+                              <i x-show="!item.generatedImageUrl && item.contentType==='VIDEO'" class="ri-video-line text-purple-300" :class="dgDensity==='compact' ? 'text-sm' : 'text-lg'"></i>
+                              <i x-show="!item.generatedImageUrl && item.contentType!=='VIDEO'" class="ri-image-line text-gray-200" :class="dgDensity==='compact' ? 'text-sm' : 'text-lg'"></i>
+                            </div>
+                          </template>
+                          <!-- Topic -->
+                          <template x-if="col.key==='topic'">
+                            <div class="font-medium text-gray-800 leading-snug cursor-pointer hover:text-brand-600 truncate" :title="item.topic"
+                              x-text="item.topic" @click="viewResult(item)"></div>
+                          </template>
+                          <!-- Status -->
+                          <template x-if="col.key==='status'">
+                            <span class="inline-flex items-center px-1.5 py-0.5 rounded-full font-medium whitespace-nowrap"
+                              :class="[statusClass(item.status), dgDensity==='compact' ? 'text-[10px]' : 'text-xs']"
+                              x-text="statusLabel(item.status)"></span>
+                          </template>
+                          <!-- Page -->
+                          <template x-if="col.key==='page'">
+                            <div class="flex items-center gap-1 truncate">
+                              <img x-show="item.page?.platform==='FACEBOOK'" :src="'https://graph.facebook.com/'+item.page?.externalId+'/picture?type=small'"
+                                class="w-4 h-4 rounded-full object-cover flex-shrink-0 bg-gray-100" onerror="this.style.display='none'">
+                              <span class="truncate" x-text="item.page?.name" :title="item.page?.name"></span>
+                            </div>
+                          </template>
+                          <!-- Campaign -->
+                          <template x-if="col.key==='campaign'">
+                            <span class="truncate block text-gray-600" x-text="item.campaign?.name || '—'" :title="item.campaign?.name"></span>
+                          </template>
+                          <!-- Content Type -->
+                          <template x-if="col.key==='contentType'">
+                            <span class="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded"
+                              :class="{'bg-blue-50 text-blue-600': item.contentType==='IMAGE', 'bg-purple-50 text-purple-600': item.contentType==='VIDEO', 'bg-gray-100 text-gray-600': item.contentType==='TEXT'}">
+                              <i :class="{'ri-image-line': item.contentType==='IMAGE', 'ri-video-line': item.contentType==='VIDEO', 'ri-text': item.contentType==='TEXT'}" class="text-[10px]"></i>
+                              <span x-text="item.contentType" class="text-[10px]"></span>
+                            </span>
+                          </template>
+                          <!-- Source -->
+                          <template x-if="col.key==='source'">
+                            <span class="px-1.5 py-0.5 rounded whitespace-nowrap text-[10px]"
+                              :class="{'bg-purple-50 text-purple-600': item.source==='AI'||item.source==='IMPORT', 'bg-teal-50 text-teal-600': item.source==='MANUAL'}"
+                              x-text="sourceLabel(item.source)"></span>
+                          </template>
+                          <!-- Scheduled At -->
+                          <template x-if="col.key==='scheduledAt'">
+                            <div>
+                              <div class="text-gray-700 font-medium" :class="dgDensity==='compact' ? 'text-[10px]' : 'text-xs'"
+                                x-text="new Date(item.scheduledAt).toLocaleDateString('vi-VN',{timeZone:'Asia/Ho_Chi_Minh',day:'2-digit',month:'2-digit',year:'numeric'})"></div>
+                              <div class="text-gray-400" :class="dgDensity==='compact' ? 'text-[9px]' : 'text-[11px]'"
+                                x-text="new Date(item.scheduledAt).toLocaleTimeString('vi-VN',{timeZone:'Asia/Ho_Chi_Minh',hour:'2-digit',minute:'2-digit'})"></div>
+                            </div>
+                          </template>
+                          <!-- Created At -->
+                          <template x-if="col.key==='createdAt'">
+                            <div class="text-gray-500" :class="dgDensity==='compact' ? 'text-[10px]' : 'text-xs'"
+                              x-text="new Date(item.createdAt).toLocaleDateString('vi-VN',{timeZone:'Asia/Ho_Chi_Minh',day:'2-digit',month:'2-digit'})"></div>
+                          </template>
+                          <!-- Published At -->
+                          <template x-if="col.key==='publishedAt'">
+                            <div x-text="item.publishedAt ? new Date(item.publishedAt).toLocaleDateString('vi-VN',{timeZone:'Asia/Ho_Chi_Minh',day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}) : '—'"
+                              class="text-gray-500" :class="dgDensity==='compact' ? 'text-[10px]' : 'text-xs'"></div>
+                          </template>
+                          <!-- Notes -->
+                          <template x-if="col.key==='notes'">
+                            <div class="text-gray-500 truncate" :class="dgDensity==='compact' ? 'text-[10px]' : 'text-[11px]'"
+                              x-text="item.notes || '—'" :title="item.notes"></div>
+                          </template>
+                          <!-- Result preview -->
+                          <template x-if="col.key==='result'">
+                            <div>
+                              <div x-show="item.generatedText" class="text-gray-500 truncate cursor-pointer hover:text-gray-800" :class="dgDensity==='compact' ? 'text-[10px]' : 'text-[11px]'"
+                                x-text="(item.generatedText||'').substring(0,50)" @click="viewResult(item)"></div>
+                              <span x-show="!item.generatedText && item.status==='GENERATING'" class="text-purple-400 text-[10px]"><i class="ri-loader-4-line animate-spin"></i></span>
+                              <span x-show="!item.generatedText && item.status!=='GENERATING'" class="text-gray-200 text-[10px]">—</span>
+                            </div>
+                          </template>
+                          <!-- Metrics: Người xem -->
+                          <template x-if="col.key==='viewers'">
+                            <span class="tabular-nums" x-text="dgMetric(item,'fb_reach')"></span>
+                          </template>
+                          <!-- Metrics: Lượt xem -->
+                          <template x-if="col.key==='mediaViews'">
+                            <span class="tabular-nums" x-text="dgMetric(item,'fb_media_views')"></span>
+                          </template>
+                          <!-- Metrics: Engagement -->
+                          <template x-if="col.key==='engagement'">
+                            <span class="tabular-nums" x-text="dgEngagement(item)"></span>
+                          </template>
+                          <!-- Metrics: Reactions -->
+                          <template x-if="col.key==='reactions'">
+                            <span class="tabular-nums" x-text="dgMetric(item,'fb_reactions')"></span>
+                          </template>
+                          <!-- Metrics: Comments -->
+                          <template x-if="col.key==='comments'">
+                            <span class="tabular-nums" x-text="dgMetric(item,'fb_comments')"></span>
+                          </template>
+                          <!-- Metrics: Shares -->
+                          <template x-if="col.key==='shares'">
+                            <span class="tabular-nums" x-text="dgMetric(item,'fb_shares')"></span>
+                          </template>
+                          <!-- Metrics: Clicks -->
+                          <template x-if="col.key==='clicks'">
+                            <span class="tabular-nums" x-text="dgMetric(item,'fb_clicks')"></span>
+                          </template>
+                          <!-- Metrics: Eng/Viewer -->
+                          <template x-if="col.key==='engPerViewer'">
+                            <span class="tabular-nums" x-text="dgEngPerViewer(item)"></span>
+                          </template>
+                        </td>
+                      </template>
+                      <!-- Actions -->
+                      <td class="text-center" :class="dgDensity==='compact' ? 'px-1 py-1' : 'px-2 py-2'">
+                        <div x-data="{open:false}">
+                          <button @click="open=!open; $nextTick(()=>{ if(open){ const r=$el.getBoundingClientRect(); const dd=$el.nextElementSibling; dd.style.top=(r.bottom+4)+'px'; dd.style.left=Math.max(8,r.right-168)+'px'; } })" class="p-1 text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded transition">
+                            <i class="ri-more-2-fill text-sm"></i>
+                          </button>
+                          <div x-show="open" @click.away="open=false" x-transition class="fixed bg-white rounded-lg shadow-lg border border-gray-100 py-1 z-[100] min-w-[150px]" style="position:fixed">
+                            <button x-show="item.generatedText || item.generatedImageUrl || item.generatedVideoUrl" @click="viewResult(item); open=false"
+                              class="w-full text-left px-3 py-1.5 text-xs hover:bg-gray-50 flex items-center gap-2"><i class="ri-eye-line text-brand-500"></i> Xem</button>
+                            <button x-show="item.status==='DRAFT' || item.status==='FAILED'" @click="regenerateContent(item.id); open=false"
+                              class="w-full text-left px-3 py-1.5 text-xs hover:bg-gray-50 flex items-center gap-2"><i class="ri-magic-line text-purple-500"></i> Gen</button>
+                            <button x-show="item.status==='PENDING_REVIEW'" @click="approveContent(item.id); open=false"
+                              class="w-full text-left px-3 py-1.5 text-xs hover:bg-gray-50 flex items-center gap-2"><i class="ri-check-line text-green-500"></i> Duyệt</button>
+                            <button x-show="item.status==='PENDING_REVIEW'" @click="regenerateContent(item.id); open=false"
+                              class="w-full text-left px-3 py-1.5 text-xs hover:bg-gray-50 flex items-center gap-2"><i class="ri-refresh-line text-orange-500"></i> Gen lại</button>
+                            <button x-show="item.status==='PENDING_REVIEW'" @click="rejectContent(item.id); open=false"
+                              class="w-full text-left px-3 py-1.5 text-xs hover:bg-gray-50 flex items-center gap-2"><i class="ri-close-line text-red-500"></i> Hủy</button>
+                            <button x-show="item.status==='APPROVED'" @click="publishNow(item.id); open=false"
+                              class="w-full text-left px-3 py-1.5 text-xs hover:bg-gray-50 flex items-center gap-2"><i class="ri-send-plane-line text-green-500"></i> Đăng ngay</button>
+                            <div x-show="item.status!=='PUBLISHED'&&item.status!=='GENERATING'" class="border-t border-gray-100 my-1"></div>
+                            <button x-show="item.status!=='PUBLISHED'&&item.status!=='GENERATING'" @click="editContent(item); open=false"
+                              class="w-full text-left px-3 py-1.5 text-xs hover:bg-gray-50 flex items-center gap-2"><i class="ri-pencil-line text-gray-500"></i> Sửa</button>
+                            <button x-show="item.status!=='PUBLISHED'&&item.status!=='GENERATING'" @click="deleteContent(item.id, item.topic); open=false"
+                              class="w-full text-left px-3 py-1.5 text-xs hover:bg-red-50 flex items-center gap-2 text-red-500"><i class="ri-delete-bin-line"></i> Xóa</button>
+                            <button x-show="item.status==='FAILED'&&item.errorMessage" @click="viewError(item); open=false"
+                              class="w-full text-left px-3 py-1.5 text-xs hover:bg-red-50 flex items-center gap-2 text-red-500"><i class="ri-error-warning-line"></i> Lỗi</button>
+                          </div>
+                        </div>
+                      </td>
+                    </tr>
+                  </template>
+                </tbody>
+              </table>
+              <div x-show="contentItems.length===0" class="text-center py-12 text-gray-400">
+                <i class="ri-article-line text-4xl mb-2"></i>
+                <p>Chưa có content nào.</p>
+              </div>
+            </div>
+            <!-- Pagination -->
+            <div x-show="contentTotal > 0" class="flex items-center justify-between px-4 py-2 border-t border-gray-100 bg-gray-50/50">
+              <div class="text-xs text-gray-500">
+                <span x-text="((dgPage-1)*dgPageSize+1)"></span>–<span x-text="Math.min(dgPage*dgPageSize, contentTotal)"></span> / <span x-text="contentTotal"></span>
+              </div>
+              <div class="flex items-center gap-2">
+                <select x-model="dgPageSize" @change="dgPage=1; loadContent()" class="px-2 py-1 border border-gray-200 rounded text-xs outline-none">
+                  <option value="25">25</option>
+                  <option value="50">50</option>
+                  <option value="100">100</option>
+                </select>
+                <span class="text-xs text-gray-400">/ trang</span>
+                <div class="flex gap-1 ml-2">
+                  <button @click="dgPage=Math.max(1,dgPage-1); loadContent()" :disabled="dgPage<=1"
+                    class="px-2 py-1 border border-gray-200 rounded text-xs hover:bg-gray-100 disabled:opacity-30"><i class="ri-arrow-left-s-line"></i></button>
+                  <span class="px-2 py-1 text-xs text-gray-600" x-text="dgPage + ' / ' + Math.ceil(contentTotal/dgPageSize)"></span>
+                  <button @click="dgPage=Math.min(Math.ceil(contentTotal/dgPageSize),dgPage+1); loadContent()" :disabled="dgPage>=Math.ceil(contentTotal/dgPageSize)"
+                    class="px-2 py-1 border border-gray-200 rounded text-xs hover:bg-gray-100 disabled:opacity-30"><i class="ri-arrow-right-s-line"></i></button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Column Manager Panel -->
+          <div x-show="dgColPanel" x-cloak class="w-64 bg-white border border-gray-200 rounded-r-xl shadow-sm flex-shrink-0 overflow-y-auto" style="max-height:calc(100vh - 200px)">
+            <div class="p-3 border-b border-gray-100">
+              <div class="flex items-center justify-between">
+                <h3 class="text-sm font-semibold">Tùy chỉnh cột</h3>
+                <button @click="dgColPanel=false" class="text-gray-400 hover:text-gray-600"><i class="ri-close-line"></i></button>
+              </div>
+            </div>
+            <div class="p-2 space-y-0.5">
+              <template x-for="col in dgAllCols" :key="col.key">
+                <label class="flex items-center gap-2 px-2 py-1.5 rounded hover:bg-gray-50 cursor-pointer text-xs">
+                  <input type="checkbox" :checked="col.visible" @change="col.visible=!col.visible; dgSaveCols()" class="rounded border-gray-300 text-brand-600 focus:ring-brand-500">
+                  <span x-text="col.label" class="text-gray-700"></span>
+                  <span x-show="col.group==='metrics'" class="ml-auto text-[9px] text-gray-400">📊</span>
+                </label>
               </template>
-            </tbody>
-          </table>
-          <div x-show="contentItems.length === 0" class="text-center py-12 text-gray-400">
-            <i class="ri-article-line text-4xl mb-2"></i>
-            <p>Chưa có content nào.</p>
+            </div>
+            <div class="p-3 border-t border-gray-100">
+              <p class="text-[10px] text-gray-400 mb-2">Presets</p>
+              <div class="flex flex-wrap gap-1">
+                <template x-for="preset in dgPresets" :key="preset.key">
+                  <button @click="dgSetPreset(preset.key)" class="px-2 py-1 rounded text-[10px] border transition"
+                    :class="dgActivePreset===preset.key ? 'bg-brand-50 border-brand-300 text-brand-700' : 'border-gray-200 text-gray-500 hover:bg-gray-50'"
+                    x-text="preset.label"></button>
+                </template>
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -1938,6 +2041,43 @@ function app() {
     contentItems: [],
     contentTotal: 0,
     contentFilter: { status: '', pageId: '', search: '', dateFrom: '', dateTo: '', source: '', campaignId: '', contentType: '' },
+    dgPage: 1,
+    dgPageSize: 50,
+    dgSortBy: 'scheduledAt',
+    dgSortDir: 'desc',
+    dgDensity: 'normal',
+    dgColPanel: false,
+    dgActivePreset: 'basic',
+    dgStatusCounts: {},
+    dgResizing: null,
+    dgAllCols: [
+      { key: 'thumbnail', label: 'Ảnh', w: 50, minW: 40, maxW: 80, visible: true, group: 'core' },
+      { key: 'topic', label: 'Chủ đề', w: 220, minW: 120, maxW: 500, visible: true, group: 'core' },
+      { key: 'status', label: 'Trạng thái', w: 100, minW: 80, maxW: 150, visible: true, group: 'core' },
+      { key: 'page', label: 'Page', w: 140, minW: 80, maxW: 250, visible: true, group: 'core' },
+      { key: 'campaign', label: 'Campaign', w: 130, minW: 80, maxW: 250, visible: true, group: 'core' },
+      { key: 'contentType', label: 'Loại', w: 70, minW: 60, maxW: 120, visible: true, group: 'core' },
+      { key: 'source', label: 'Nguồn', w: 70, minW: 60, maxW: 120, visible: true, group: 'ops' },
+      { key: 'scheduledAt', label: 'Lịch đăng', w: 100, minW: 80, maxW: 150, visible: true, group: 'ops' },
+      { key: 'createdAt', label: 'Ngày tạo', w: 80, minW: 60, maxW: 120, visible: false, group: 'ops' },
+      { key: 'publishedAt', label: 'Ngày đăng', w: 100, minW: 70, maxW: 150, visible: false, group: 'ops' },
+      { key: 'notes', label: 'Ghi chú', w: 150, minW: 80, maxW: 400, visible: false, group: 'ops' },
+      { key: 'result', label: 'Kết quả', w: 140, minW: 80, maxW: 300, visible: false, group: 'ops' },
+      { key: 'viewers', label: 'Người xem', w: 85, minW: 65, maxW: 120, visible: false, group: 'metrics' },
+      { key: 'mediaViews', label: 'Lượt xem', w: 85, minW: 65, maxW: 120, visible: false, group: 'metrics' },
+      { key: 'engagement', label: 'Engagement', w: 90, minW: 70, maxW: 130, visible: false, group: 'metrics' },
+      { key: 'reactions', label: 'Reactions', w: 80, minW: 60, maxW: 120, visible: false, group: 'metrics' },
+      { key: 'comments', label: 'Comments', w: 80, minW: 60, maxW: 120, visible: false, group: 'metrics' },
+      { key: 'shares', label: 'Shares', w: 70, minW: 55, maxW: 100, visible: false, group: 'metrics' },
+      { key: 'clicks', label: 'Post Clicks', w: 85, minW: 65, maxW: 120, visible: false, group: 'metrics' },
+      { key: 'engPerViewer', label: 'Eng/Viewer', w: 85, minW: 65, maxW: 120, visible: false, group: 'metrics' },
+    ],
+    dgPresets: [
+      { key: 'basic', label: 'Cơ bản', cols: ['thumbnail','topic','status','page','campaign','contentType','scheduledAt'] },
+      { key: 'ops', label: 'Vận hành', cols: ['thumbnail','topic','status','source','page','scheduledAt','createdAt','publishedAt','notes','result'] },
+      { key: 'perf', label: 'Hiệu suất', cols: ['thumbnail','topic','status','page','viewers','mediaViews','engagement','reactions','comments','shares','clicks','engPerViewer'] },
+      { key: 'all', label: 'Tất cả', cols: null },
+    ],
 
     showContentForm: false,
     editingContent: null,
@@ -2006,6 +2146,7 @@ function app() {
     toast: { show: false, message: '', type: 'success' },
 
     async init() {
+      this.dgLoadCols();
       if (this.token) {
         await this.loadPages();
         await this.loadWorkspaces();
@@ -2338,6 +2479,10 @@ function app() {
         if (this.contentFilter.source) params.set('source', this.contentFilter.source);
         if (this.contentFilter.campaignId) params.set('campaignId', this.contentFilter.campaignId);
         if (this.contentFilter.contentType) params.set('contentType', this.contentFilter.contentType);
+        params.set('page', String(this.dgPage));
+        params.set('pageSize', String(this.dgPageSize));
+        params.set('sortBy', this.dgSortBy);
+        params.set('sortDir', this.dgSortDir);
         if (this.currentScope.type !== 'all') {
           params.set('scopeType', this.currentScope.type);
           params.set('scopeId', this.currentScope.id);
@@ -2345,7 +2490,82 @@ function app() {
         const data = await this.api(`/dashboard/content?${params}`);
         this.contentItems = data.items;
         this.contentTotal = data.total;
+        if (data.statusCounts) this.dgStatusCounts = data.statusCounts;
       } catch {}
+    },
+
+    get dgVisibleCols() { return this.dgAllCols.filter(c => c.visible); },
+
+    dgSort(key) {
+      if (this.dgSortBy === key) {
+        this.dgSortDir = this.dgSortDir === 'asc' ? 'desc' : 'asc';
+      } else {
+        this.dgSortBy = key;
+        this.dgSortDir = 'desc';
+      }
+      this.dgPage = 1;
+      this.loadContent();
+    },
+
+    dgSetPreset(key) {
+      this.dgActivePreset = key;
+      const preset = this.dgPresets.find(p => p.key === key);
+      if (!preset) return;
+      for (const col of this.dgAllCols) {
+        col.visible = preset.cols === null ? true : preset.cols.includes(col.key);
+      }
+      this.dgSaveCols();
+    },
+
+    dgSaveCols() {
+      try {
+        const state = this.dgAllCols.map(c => ({ key: c.key, visible: c.visible, w: c.w }));
+        localStorage.setItem('mkt_dg_cols', JSON.stringify(state));
+      } catch {}
+    },
+
+    dgLoadCols() {
+      try {
+        const saved = JSON.parse(localStorage.getItem('mkt_dg_cols') || '[]');
+        if (saved.length) {
+          for (const s of saved) {
+            const col = this.dgAllCols.find(c => c.key === s.key);
+            if (col) { col.visible = s.visible; col.w = s.w; }
+          }
+        }
+      } catch {}
+    },
+
+    dgStartResize(e, col) {
+      const startX = e.clientX;
+      const startW = col.w;
+      const onMove = (ev) => { col.w = Math.max(col.minW, Math.min(col.maxW || 600, startW + ev.clientX - startX)); };
+      const onUp = () => { document.removeEventListener('mousemove', onMove); document.removeEventListener('mouseup', onUp); this.dgSaveCols(); };
+      document.addEventListener('mousemove', onMove);
+      document.addEventListener('mouseup', onUp);
+    },
+
+    dgMetric(item, key) {
+      const m = item.metrics;
+      if (!m || !item.socialPostId) return '—';
+      const v = m[key];
+      return v === null || v === undefined ? '—' : v === 0 ? '0' : Number(v).toLocaleString('vi-VN');
+    },
+
+    dgEngagement(item) {
+      const m = item.metrics;
+      if (!m || !item.socialPostId) return '—';
+      const v = (m.fb_reactions || 0) + (m.fb_comments || 0) + (m.fb_shares || 0);
+      return v === 0 ? '0' : v.toLocaleString('vi-VN');
+    },
+
+    dgEngPerViewer(item) {
+      const m = item.metrics;
+      if (!m || !item.socialPostId) return '—';
+      const viewers = m.fb_reach || 0;
+      if (!viewers) return '—';
+      const eng = (m.fb_reactions || 0) + (m.fb_comments || 0) + (m.fb_shares || 0);
+      return (eng / viewers * 100).toFixed(1) + '%';
     },
 
     editPage(p) {

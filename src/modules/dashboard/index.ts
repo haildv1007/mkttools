@@ -958,13 +958,13 @@ router.post('/pages/fb-token-exchange', async (req: Request, res: Response) => {
   }
 });
 
-// Content items
+// Content items — data grid API with DB-side sort/page/filter + status counts
 router.get('/content', async (req: Request, res: Response) => {
-  const { status, pageId, limit = '50', offset = '0', search, dateFrom, dateTo, source, campaignId, contentType, scopeType, scopeId } = req.query;
-  const where: Record<string, unknown> = {};
-  if (status) where.status = String(status);
+  const { status, pageId, pageSize = '50', page: pageNum = '1', search, dateFrom, dateTo, source, campaignId, contentType, scopeType, scopeId, sortBy = 'scheduledAt', sortDir = 'desc' } = req.query;
 
-  // Resolve scope
+  // Build base where (without status, so we can count per-status)
+  const baseWhere: Record<string, unknown> = {};
+
   const sType = String(scopeType || 'all');
   const sId = scopeId ? String(scopeId) : undefined;
   const scopePageIds = sType !== 'all' ? await resolvePageIds(sType, sId) : null;
@@ -972,16 +972,16 @@ router.get('/content', async (req: Request, res: Response) => {
   if (pageId) {
     const pid = String(pageId);
     if (scopePageIds && !scopePageIds.includes(pid)) {
-      return res.json({ items: [], total: 0 });
+      return res.json({ items: [], total: 0, statusCounts: {} });
     }
-    where.pageId = pid;
+    baseWhere.pageId = pid;
   } else if (scopePageIds) {
-    where.pageId = { in: scopePageIds };
+    baseWhere.pageId = { in: scopePageIds };
   }
-  if (source) where.source = String(source);
-  if (campaignId) where.campaignId = String(campaignId);
-  if (contentType) where.contentType = String(contentType);
-  if (search) where.topic = { contains: String(search), mode: 'insensitive' };
+  if (source) baseWhere.source = String(source);
+  if (campaignId) baseWhere.campaignId = String(campaignId);
+  if (contentType) baseWhere.contentType = String(contentType);
+  if (search) baseWhere.topic = { contains: String(search), mode: 'insensitive' };
   if (dateFrom || dateTo) {
     const dateFilter: Record<string, Date> = {};
     if (dateFrom) dateFilter.gte = new Date(String(dateFrom));
@@ -990,21 +990,48 @@ router.get('/content', async (req: Request, res: Response) => {
       end.setHours(23, 59, 59, 999);
       dateFilter.lte = end;
     }
-    where.scheduledAt = dateFilter;
+    baseWhere.scheduledAt = dateFilter;
   }
 
-  const [items, total] = await Promise.all([
+  // Status filter applied only to items query
+  const where = { ...baseWhere };
+  if (status) where.status = String(status);
+
+  // Sorting
+  const allowedSorts: Record<string, string> = {
+    scheduledAt: 'scheduledAt', createdAt: 'createdAt', publishedAt: 'publishedAt',
+    topic: 'topic', status: 'status', contentType: 'contentType', source: 'source',
+  };
+  const sortField = allowedSorts[String(sortBy)] || 'scheduledAt';
+  const sortDirection = String(sortDir) === 'asc' ? 'asc' as const : 'desc' as const;
+
+  const take = Math.min(Math.max(1, Number(pageSize)), 200);
+  const skip = (Math.max(1, Number(pageNum)) - 1) * take;
+
+  const [items, total, statusGroups] = await Promise.all([
     prisma.contentItem.findMany({
       where,
-      include: { page: true, campaign: true },
-      orderBy: { scheduledAt: 'desc' },
-      take: Number(limit),
-      skip: Number(offset),
+      include: {
+        page: { select: { id: true, name: true, platform: true, externalId: true } },
+        campaign: { select: { id: true, name: true } },
+      },
+      orderBy: { [sortField]: sortDirection },
+      take,
+      skip,
     }),
     prisma.contentItem.count({ where }),
+    prisma.contentItem.groupBy({ by: ['status'], where: baseWhere, _count: true }),
   ]);
 
-  res.json({ items, total });
+  const statusCounts: Record<string, number> = {};
+  let allCount = 0;
+  for (const g of statusGroups) {
+    statusCounts[g.status] = g._count;
+    allCount += g._count;
+  }
+  statusCounts.ALL = allCount;
+
+  res.json({ items, total, statusCounts, page: Math.floor(skip / take) + 1, pageSize: take });
 });
 
 router.post('/content/generate-all-drafts', async (_req: Request, res: Response) => {
