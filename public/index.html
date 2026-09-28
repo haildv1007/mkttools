@@ -1476,13 +1476,13 @@
                 <div>
                   <button x-show="dgRowMenu.item.generatedText || dgRowMenu.item.generatedImageUrl || dgRowMenu.item.generatedVideoUrl" @click="viewResult(dgRowMenu.item); dgRowMenu.open=false"
                     class="w-full text-left px-3 py-1.5 text-xs hover:bg-gray-50 flex items-center gap-2"><i class="ri-eye-line text-brand-500"></i> Xem</button>
-                  <button x-show="dgRowMenu.item.status==='DRAFT'" @click="regenerateContent(dgRowMenu.item.id); dgRowMenu.open=false"
+                  <button x-show="dgRowMenu.item.status==='DRAFT'&&dgRowMenu.item.source==='AI'" @click="regenerateContent(dgRowMenu.item.id); dgRowMenu.open=false"
                     class="w-full text-left px-3 py-1.5 text-xs hover:bg-gray-50 flex items-center gap-2"><i class="ri-magic-line text-purple-500"></i> Gen</button>
                   <button x-show="dgRowMenu.item.status==='PENDING_REVIEW'||dgRowMenu.item.status==='REVISION_REQUESTED'" @click="approveContent(dgRowMenu.item.id); dgRowMenu.open=false"
                     class="w-full text-left px-3 py-1.5 text-xs hover:bg-gray-50 flex items-center gap-2"><i class="ri-check-line text-green-500"></i> Duyệt</button>
-                  <button x-show="dgRowMenu.item.status==='PENDING_REVIEW'||dgRowMenu.item.status==='REVISION_REQUESTED'" @click="openRevisionModal(dgRowMenu.item); dgRowMenu.open=false"
+                  <button x-show="(dgRowMenu.item.status==='PENDING_REVIEW'||dgRowMenu.item.status==='REVISION_REQUESTED')&&dgRowMenu.item.source==='AI'" @click="openRevisionModal(dgRowMenu.item); dgRowMenu.open=false"
                     class="w-full text-left px-3 py-1.5 text-xs hover:bg-gray-50 flex items-center gap-2"><i class="ri-magic-line text-purple-500"></i> Tinh chỉnh AI</button>
-                  <button x-show="dgRowMenu.item.status==='PENDING_REVIEW'||dgRowMenu.item.status==='REVISION_REQUESTED'" @click="editContent(dgRowMenu.item, 'ai'); dgRowMenu.open=false"
+                  <button x-show="(dgRowMenu.item.status==='PENDING_REVIEW'||dgRowMenu.item.status==='REVISION_REQUESTED')&&dgRowMenu.item.source==='AI'" @click="editContent(dgRowMenu.item, 'ai'); dgRowMenu.open=false"
                     class="w-full text-left px-3 py-1.5 text-xs hover:bg-gray-50 flex items-center gap-2"><i class="ri-refresh-line text-orange-500"></i> Gen lại</button>
                   <button x-show="dgRowMenu.item.status==='PENDING_REVIEW'||dgRowMenu.item.status==='REVISION_REQUESTED'" @click="editContent(dgRowMenu.item, 'manual'); dgRowMenu.open=false"
                     class="w-full text-left px-3 py-1.5 text-xs hover:bg-gray-50 flex items-center gap-2"><i class="ri-pencil-line text-gray-500"></i> Sửa</button>
@@ -1490,6 +1490,12 @@
                     class="w-full text-left px-3 py-1.5 text-xs hover:bg-red-50 flex items-center gap-2 text-red-500"><i class="ri-close-line"></i> Từ chối</button>
                   <button x-show="dgRowMenu.item.status==='APPROVED'" @click="publishNow(dgRowMenu.item.id); dgRowMenu.open=false"
                     class="w-full text-left px-3 py-1.5 text-xs hover:bg-gray-50 flex items-center gap-2"><i class="ri-send-plane-line text-green-500"></i> Đăng ngay</button>
+                  <button x-show="dgRowMenu.item.status==='APPROVED'" @click="editContent(dgRowMenu.item, 'manual'); dgRowMenu.open=false"
+                    class="w-full text-left px-3 py-1.5 text-xs hover:bg-gray-50 flex items-center gap-2"><i class="ri-pencil-line text-gray-500"></i> Sửa</button>
+                  <button x-show="dgRowMenu.item.status==='APPROVED'&&dgRowMenu.item.source==='AI'" @click="openRevisionModal(dgRowMenu.item); dgRowMenu.open=false"
+                    class="w-full text-left px-3 py-1.5 text-xs hover:bg-gray-50 flex items-center gap-2"><i class="ri-magic-line text-purple-500"></i> Tinh chỉnh AI</button>
+                  <button x-show="dgRowMenu.item.status==='APPROVED'&&dgRowMenu.item.source==='AI'" @click="editContent(dgRowMenu.item, 'ai'); dgRowMenu.open=false"
+                    class="w-full text-left px-3 py-1.5 text-xs hover:bg-gray-50 flex items-center gap-2"><i class="ri-refresh-line text-orange-500"></i> Gen lại</button>
                   <button x-show="dgRowMenu.item.status==='FAILED'" @click="publishNow(dgRowMenu.item.id); dgRowMenu.open=false"
                     class="w-full text-left px-3 py-1.5 text-xs hover:bg-gray-50 flex items-center gap-2"><i class="ri-restart-line text-orange-500"></i> Đăng lại</button>
                   <div x-show="dgRowMenu.item.status!=='PUBLISHED'&&dgRowMenu.item.status!=='GENERATING'&&dgRowMenu.item.status!=='PENDING_REVIEW'&&dgRowMenu.item.status!=='REVISION_REQUESTED'" class="border-t border-gray-100 my-1"></div>
@@ -1939,15 +1945,15 @@
                 </div>
                 <!-- Quick Actions -->
                 <div class="border-t border-gray-100 pt-3 flex flex-wrap gap-2">
-                  <button x-show="drawerItem.status==='DRAFT'" @click="regenerateContent(drawerItem.id); showToast('Đã thêm vào hàng đợi gen')"
+                  <button x-show="drawerItem.status==='DRAFT'&&drawerItem.source==='AI'" @click="regenerateContent(drawerItem.id); showToast('Đã thêm vào hàng đợi gen')"
                     class="px-3 py-1.5 bg-purple-500 text-white rounded-lg text-xs font-medium hover:bg-purple-600 flex items-center gap-1"><i class="ri-magic-line"></i> Gen nội dung</button>
                   <button x-show="drawerItem.status==='FAILED'" @click="publishNow(drawerItem.id)"
                     class="px-3 py-1.5 bg-brand-600 text-white rounded-lg text-xs font-medium hover:bg-brand-700 flex items-center gap-1"><i class="ri-restart-line"></i> Đăng lại</button>
                   <button x-show="drawerItem.status==='PENDING_REVIEW'||drawerItem.status==='REVISION_REQUESTED'" @click="approveContent(drawerItem.id).then(()=>refreshDrawer(drawerItem.id))"
                     class="px-3 py-1.5 bg-green-500 text-white rounded-lg text-xs font-medium hover:bg-green-600 flex items-center gap-1"><i class="ri-check-line"></i> Duyệt</button>
-                  <button x-show="drawerItem.status==='PENDING_REVIEW'||drawerItem.status==='REVISION_REQUESTED'" @click="openRevisionModal(drawerItem)"
+                  <button x-show="(drawerItem.status==='PENDING_REVIEW'||drawerItem.status==='REVISION_REQUESTED')&&drawerItem.source==='AI'" @click="openRevisionModal(drawerItem)"
                     class="px-3 py-1.5 bg-purple-500 text-white rounded-lg text-xs font-medium hover:bg-purple-600 flex items-center gap-1"><i class="ri-magic-line"></i> Tinh chỉnh AI</button>
-                  <button x-show="drawerItem.status==='PENDING_REVIEW'||drawerItem.status==='REVISION_REQUESTED'" @click="let _i=drawerItem; closeDrawer(); editContent(_i, 'ai')"
+                  <button x-show="(drawerItem.status==='PENDING_REVIEW'||drawerItem.status==='REVISION_REQUESTED')&&drawerItem.source==='AI'" @click="let _i=drawerItem; closeDrawer(); editContent(_i, 'ai')"
                     class="px-3 py-1.5 bg-orange-500 text-white rounded-lg text-xs font-medium hover:bg-orange-600 flex items-center gap-1"><i class="ri-refresh-line"></i> Gen lại</button>
                   <button x-show="drawerItem.status==='PENDING_REVIEW'||drawerItem.status==='REVISION_REQUESTED'" @click="let _i=drawerItem; closeDrawer(); editContent(_i, 'manual')"
                     class="px-3 py-1.5 border border-gray-300 text-gray-600 rounded-lg text-xs font-medium hover:bg-gray-50 flex items-center gap-1"><i class="ri-pencil-line"></i> Sửa</button>
@@ -1955,6 +1961,12 @@
                     class="px-3 py-1.5 bg-red-500 text-white rounded-lg text-xs font-medium hover:bg-red-600 flex items-center gap-1"><i class="ri-close-line"></i> Từ chối</button>
                   <button x-show="drawerItem.status==='APPROVED'" @click="publishNow(drawerItem.id)"
                     class="px-3 py-1.5 bg-brand-600 text-white rounded-lg text-xs font-medium hover:bg-brand-700 flex items-center gap-1"><i class="ri-send-plane-line"></i> Đăng ngay</button>
+                  <button x-show="drawerItem.status==='APPROVED'" @click="let _i=drawerItem; closeDrawer(); editContent(_i, 'manual')"
+                    class="px-3 py-1.5 border border-gray-300 text-gray-600 rounded-lg text-xs font-medium hover:bg-gray-50 flex items-center gap-1"><i class="ri-pencil-line"></i> Sửa</button>
+                  <button x-show="drawerItem.status==='APPROVED'&&drawerItem.source==='AI'" @click="openRevisionModal(drawerItem)"
+                    class="px-3 py-1.5 bg-purple-500 text-white rounded-lg text-xs font-medium hover:bg-purple-600 flex items-center gap-1"><i class="ri-magic-line"></i> Tinh chỉnh AI</button>
+                  <button x-show="drawerItem.status==='APPROVED'&&drawerItem.source==='AI'" @click="let _i=drawerItem; closeDrawer(); editContent(_i, 'ai')"
+                    class="px-3 py-1.5 bg-orange-500 text-white rounded-lg text-xs font-medium hover:bg-orange-600 flex items-center gap-1"><i class="ri-refresh-line"></i> Gen lại</button>
                   <button x-show="drawerItem.status==='PUBLISHED' && drawerItem.socialPostId" @click="drawerSyncMetrics()"
                     class="px-3 py-1.5 border border-gray-200 rounded-lg text-xs font-medium hover:bg-gray-50 flex items-center gap-1" :disabled="drawerSyncing">
                     <i class="ri-refresh-line" :class="drawerSyncing && 'animate-spin'"></i> Sync metrics
@@ -2098,7 +2110,7 @@
           <h3 class="text-lg font-bold mb-4" x-text="editingContent ? (contentForm._locked ? (contentForm.mode==='ai' ? 'Gen lại nội dung' : 'Sửa bài viết') : 'Sửa Content') : 'Thêm Content mới'"></h3>
           <div class="space-y-4">
             <!-- Mode toggle (hidden when locked to a specific mode) -->
-            <div x-show="!contentForm._locked" class="flex rounded-lg border border-gray-200 overflow-hidden">
+            <div x-show="!contentForm._locked && !editingContent" class="flex rounded-lg border border-gray-200 overflow-hidden">
               <button @click="contentForm.mode='ai'" :class="contentForm.mode==='ai' ? 'bg-purple-500 text-white' : 'bg-white text-gray-600 hover:bg-gray-50'"
                 class="flex-1 py-2 text-sm font-medium transition flex items-center justify-center gap-1">
                 <i class="ri-magic-line"></i> AI tạo nội dung
