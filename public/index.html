@@ -1957,9 +1957,9 @@
                     class="px-3 py-1.5 bg-green-500 text-white rounded-lg text-xs font-medium hover:bg-green-600 flex items-center gap-1"><i class="ri-check-line"></i> Duyệt</button>
                   <button x-show="drawerItem.status==='PENDING_REVIEW'||drawerItem.status==='REVISION_REQUESTED'" @click="openRevisionModal(drawerItem)"
                     class="px-3 py-1.5 bg-purple-500 text-white rounded-lg text-xs font-medium hover:bg-purple-600 flex items-center gap-1"><i class="ri-magic-line"></i> Tinh chỉnh AI</button>
-                  <button x-show="drawerItem.status==='PENDING_REVIEW'||drawerItem.status==='REVISION_REQUESTED'" @click="closeDrawer(); editContent(drawerItem, 'ai')"
+                  <button x-show="drawerItem.status==='PENDING_REVIEW'||drawerItem.status==='REVISION_REQUESTED'" @click="let _i=drawerItem; closeDrawer(); editContent(_i, 'ai')"
                     class="px-3 py-1.5 bg-orange-500 text-white rounded-lg text-xs font-medium hover:bg-orange-600 flex items-center gap-1"><i class="ri-refresh-line"></i> Gen lại</button>
-                  <button x-show="drawerItem.status==='PENDING_REVIEW'||drawerItem.status==='REVISION_REQUESTED'" @click="closeDrawer(); editContent(drawerItem, 'manual')"
+                  <button x-show="drawerItem.status==='PENDING_REVIEW'||drawerItem.status==='REVISION_REQUESTED'" @click="let _i=drawerItem; closeDrawer(); editContent(_i, 'manual')"
                     class="px-3 py-1.5 border border-gray-300 text-gray-600 rounded-lg text-xs font-medium hover:bg-gray-50 flex items-center gap-1"><i class="ri-pencil-line"></i> Sửa</button>
                   <button x-show="drawerItem.status==='PENDING_REVIEW'||drawerItem.status==='REVISION_REQUESTED'" @click="rejectContent(drawerItem.id).then(()=>refreshDrawer(drawerItem.id))"
                     class="px-3 py-1.5 bg-red-500 text-white rounded-lg text-xs font-medium hover:bg-red-600 flex items-center gap-1"><i class="ri-close-line"></i> Từ chối</button>
@@ -4809,8 +4809,9 @@ function app() {
     },
     drawerEditContent() {
       if (!this.drawerItem) return;
+      const item = this.drawerItem;
       this.closeDrawer();
-      this.editContent(this.drawerItem);
+      this.editContent(item);
     },
 
     sourceLabel(source) {
