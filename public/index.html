@@ -3011,6 +3011,7 @@ function app() {
         await this.loadScopePages();
         if (this.currentScope.type === 'page') this.importForm.pageId = this.currentScope.id;
         await this.loadDashboard();
+        this.fetchActiveItems();
         this.initSocket();
       }
       window.addEventListener('resize', () => this.dgCalcHeight());
@@ -3023,11 +3024,16 @@ function app() {
         }
       });
       document.addEventListener('visibilitychange', () => {
-        if (!document.hidden && this._socketConnected) {
+        if (!document.hidden) {
           this.loadActivity();
           this.reconcileContent();
         }
       });
+      setInterval(() => {
+        if (!document.hidden && (this.activeItems.length > 0 || this.actRunning > 0)) {
+          this.fetchActiveItems();
+        }
+      }, 5000);
     },
 
     async api(path, options = {}) {
@@ -4568,6 +4574,30 @@ function app() {
 
     reconcileContent() {
       if (this.page === 'content') this.loadContent();
+      this.fetchActiveItems();
+    },
+
+    async fetchActiveItems() {
+      try {
+        const items = await this.api('/dashboard/content/active');
+        if (!items) return;
+        for (const item of items) {
+          const localVer = this._contentVersions[item.contentId] || 0;
+          if (item.version > localVer) {
+            const idx = this.activeItems.findIndex(a => a.contentId === item.contentId);
+            if (idx >= 0) {
+              this.activeItems[idx] = { ...this.activeItems[idx], ...item };
+            } else {
+              this.activeItems.push(item);
+            }
+            this._contentVersions[item.contentId] = item.version;
+          }
+        }
+        const activeIds = new Set(items.map(i => i.contentId));
+        this.activeItems = this.activeItems.filter(a =>
+          activeIds.has(a.contentId) || (a.status !== 'started' && a.status !== 'progress')
+        );
+      } catch {}
     },
 
     socketSubscribeScope() {

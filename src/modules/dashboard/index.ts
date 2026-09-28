@@ -2104,4 +2104,42 @@ router.get('/activity', async (req: Request, res: Response) => {
   }
 });
 
+router.get('/content/active', async (req: Request, res: Response) => {
+  try {
+    const items = await prisma.contentItem.findMany({
+      where: { status: { in: ['GENERATING', 'PUBLISHING'] } },
+      select: {
+        id: true,
+        topic: true,
+        status: true,
+        pageId: true,
+        campaignId: true,
+        updatedAt: true,
+        page: { select: { name: true, externalId: true, platform: true } },
+        campaign: { select: { name: true } },
+      },
+      take: 100,
+      orderBy: { updatedAt: 'desc' },
+    });
+    res.json(items.map(i => ({
+      contentId: i.id,
+      pageId: i.pageId,
+      campaignId: i.campaignId,
+      operation: i.status === 'GENERATING' ? 'generate' : 'publish',
+      status: 'started',
+      step: i.status === 'GENERATING' ? 'Đang gen nội dung' : 'Đang đăng bài',
+      contentTitle: i.topic?.slice(0, 100),
+      pageName: i.page?.name,
+      pageAvatar: i.page?.platform === 'FACEBOOK' && i.page?.externalId ? `https://graph.facebook.com/${i.page.externalId}/picture?type=small` : undefined,
+      campaignName: i.campaign?.name,
+      contentStatus: i.status,
+      startedAt: i.updatedAt.toISOString(),
+      updatedAt: i.updatedAt.toISOString(),
+      version: i.updatedAt.getTime(),
+    })));
+  } catch {
+    res.json([]);
+  }
+});
+
 export { router as dashboardRouter };
