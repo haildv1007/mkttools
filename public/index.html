@@ -2348,10 +2348,14 @@
 
           <!-- Content preview + chat area -->
           <div class="flex-1 overflow-y-auto px-5 py-4 space-y-4" x-ref="revChatArea">
-            <!-- Current content preview -->
-            <div class="bg-gray-50 rounded-xl p-4 space-y-3">
-              <div class="flex items-center gap-2 text-xs text-gray-500 font-medium">
-                <i class="ri-article-line"></i> Nội dung hiện tại
+            <!-- Original content (selectable) -->
+            <div @click="revModal.selectedVersion = 0" class="rounded-xl p-4 space-y-3 cursor-pointer border-2 transition"
+              :class="revModal.selectedVersion === 0 ? 'border-purple-500 bg-purple-50' : 'border-transparent bg-gray-50 hover:border-gray-300'">
+              <div class="flex items-center justify-between">
+                <div class="flex items-center gap-2 text-xs font-medium" :class="revModal.selectedVersion === 0 ? 'text-purple-600' : 'text-gray-500'">
+                  <i class="ri-article-line"></i> Bản gốc
+                </div>
+                <div x-show="revModal.selectedVersion === 0" class="text-xs bg-purple-500 text-white px-2 py-0.5 rounded-full">Đang chọn</div>
               </div>
               <template x-if="revModal.currentText">
                 <div class="text-sm text-gray-700 whitespace-pre-wrap leading-relaxed max-h-40 overflow-y-auto" x-text="revModal.currentText"></div>
@@ -2380,9 +2384,11 @@
                     <p class="text-sm" x-text="msg.feedback"></p>
                   </div>
                 </div>
-                <!-- AI response -->
+                <!-- AI response (selectable version) -->
                 <div class="flex justify-start mb-2">
-                  <div class="bg-gray-100 rounded-2xl rounded-bl-sm px-4 py-2 max-w-[80%]">
+                  <div @click="msg.status==='done' && (revModal.selectedVersion = idx + 1)"
+                    class="rounded-2xl rounded-bl-sm px-4 py-2 max-w-[80%] transition"
+                    :class="msg.status==='done' ? (revModal.selectedVersion === idx + 1 ? 'bg-purple-100 border-2 border-purple-500 cursor-pointer' : 'bg-gray-100 border-2 border-transparent cursor-pointer hover:border-gray-300') : 'bg-gray-100'">
                     <template x-if="msg.status==='loading'">
                       <div class="flex items-center gap-2 text-sm text-gray-500">
                         <i class="ri-loader-4-line animate-spin"></i> Đang tinh chỉnh...
@@ -2390,7 +2396,10 @@
                     </template>
                     <template x-if="msg.status==='done'">
                       <div class="space-y-2">
-                        <p class="text-xs text-green-600 font-medium"><i class="ri-check-line"></i> Đã cập nhật</p>
+                        <div class="flex items-center justify-between">
+                          <p class="text-xs text-green-600 font-medium"><i class="ri-check-line"></i> Phiên bản <span x-text="idx + 1"></span></p>
+                          <div x-show="revModal.selectedVersion === idx + 1" class="text-xs bg-purple-500 text-white px-2 py-0.5 rounded-full">Đang chọn</div>
+                        </div>
                         <template x-if="msg.newText">
                           <div class="text-sm text-gray-700 whitespace-pre-wrap leading-relaxed max-h-32 overflow-y-auto" x-text="msg.newText"></div>
                         </template>
@@ -2459,9 +2468,9 @@
             </div>
             <!-- Confirm button -->
             <div x-show="revModal.chatHistory.length > 0 && !revModal.loading" class="flex justify-end">
-              <button @click="revModal.open=false; loadContent(); if(drawerItem?.id===revModal.item?.id) refreshDrawer(revModal.item.id)"
+              <button @click="confirmRevisionVersion()"
                 class="px-4 py-1.5 bg-green-500 text-white rounded-lg text-xs font-medium hover:bg-green-600 flex items-center gap-1">
-                <i class="ri-check-line"></i> Xác nhận kết quả
+                <i class="ri-check-line"></i> Xác nhận bản <span x-text="revModal.selectedVersion === 0 ? 'gốc' : revModal.selectedVersion"></span>
               </button>
             </div>
           </div>
@@ -3091,7 +3100,7 @@ function app() {
     textPopup: { show: false, title: '', content: '' },
     showErrorModal: false,
     errorItem: null,
-    revModal: { open: false, item: null, type: 'TEXT', feedback: '', images: [], selImgs: [], loading: false, chatHistory: [], currentText: '' },
+    revModal: { open: false, item: null, type: 'TEXT', feedback: '', images: [], selImgs: [], loading: false, chatHistory: [], currentText: '', selectedVersion: 0 },
 
     showPageModal: false,
     editingPage: null,
@@ -4472,6 +4481,7 @@ function app() {
         images: Array.isArray(images) ? images : [],
         selImgs: [], loading: false, chatHistory: [],
         currentText: item.generatedText || '',
+        selectedVersion: 0,
       };
     },
 
@@ -4500,8 +4510,7 @@ function app() {
         msg.status = 'done';
         msg.newText = updated.generatedText || '';
         msg.newImages = updated.generatedImages || [];
-        m.currentText = msg.newText;
-        m.images = msg.newImages.length ? msg.newImages : m.images;
+        m.selectedVersion = m.chatHistory.indexOf(msg) + 1;
         m.item = { ...m.item, ...updated };
       } catch (e) {
         msg.status = 'error';
@@ -4511,6 +4520,37 @@ function app() {
         m.selImgs = [];
         this.$nextTick(() => { if (this.$refs.revChatArea) this.$refs.revChatArea.scrollTop = this.$refs.revChatArea.scrollHeight; });
       }
+    },
+
+    async confirmRevisionVersion() {
+      const m = this.revModal;
+      const ver = m.selectedVersion;
+      if (ver === 0) {
+        // Revert to original — update content with original text/images
+        try {
+          await this.api(`/dashboard/content/${m.item.id}`, {
+            method: 'PATCH', body: JSON.stringify({ generatedText: m.currentText }),
+          });
+        } catch (e) { /* original is already saved if no changes */ }
+      }
+      // If ver > 0, the content is already updated by the last submitRevision call to the selected version's API response
+      // However if user picks an older version (not the latest), we need to apply it
+      if (ver > 0 && ver < m.chatHistory.length) {
+        const chosen = m.chatHistory[ver - 1];
+        if (chosen.newText || chosen.newImages?.length) {
+          try {
+            await this.api(`/dashboard/content/${m.item.id}`, {
+              method: 'PATCH', body: JSON.stringify({
+                ...(chosen.newText ? { generatedText: chosen.newText } : {}),
+              }),
+            });
+          } catch (e) { this.showToast('Lỗi áp dụng phiên bản', 'error'); }
+        }
+      }
+      m.open = false;
+      this.loadContent();
+      if (this.drawerItem?.id === m.item?.id) this.refreshDrawer(m.item.id);
+      this.showToast(ver === 0 ? 'Đã giữ bản gốc' : `Đã chọn phiên bản ${ver}`);
     },
 
     // --- Content Detail Drawer ---
