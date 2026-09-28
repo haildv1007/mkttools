@@ -1076,8 +1076,14 @@ router.get('/content', async (req: Request, res: Response) => {
   }
 
   // Status filter applied only to items query
-  const where = { ...baseWhere };
-  const statusFilter = buildInFilter(statuses, status);
+  const where: Record<string, any> = { ...baseWhere };
+  let statusFilter = buildInFilter(statuses, status);
+  // Include REVISION_REQUESTED when filtering by PENDING_REVIEW
+  if (statusFilter === 'PENDING_REVIEW') {
+    statusFilter = { in: ['PENDING_REVIEW', 'REVISION_REQUESTED'] };
+  } else if (statusFilter && typeof statusFilter === 'object' && statusFilter.in && statusFilter.in.includes('PENDING_REVIEW')) {
+    if (!statusFilter.in.includes('REVISION_REQUESTED')) statusFilter.in.push('REVISION_REQUESTED');
+  }
   if (statusFilter !== undefined) where.status = statusFilter;
 
   // Sorting

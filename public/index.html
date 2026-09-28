@@ -1092,11 +1092,11 @@
               <i class="ri-loader-4-line text-[10px]" :class="activeTab ? 'spin-slow' : ''"></i>
               Đang thực hiện <span class="ml-0.5 opacity-70" x-text="scopedActiveItems().length"></span>
             </button>
-            <template x-for="st in [{k:'DRAFT',l:'Nháp'},{k:'GENERATING',l:'Đang gen'},{k:'PENDING_REVIEW',l:'Chờ duyệt'},{k:'REVISION_REQUESTED',l:'Yêu cầu sửa'},{k:'APPROVED',l:'Đã duyệt'},{k:'PUBLISHING',l:'Đang đăng'},{k:'PUBLISHED',l:'Đã đăng'},{k:'FAILED',l:'Lỗi'},{k:'CANCELLED',l:'Đã hủy'}]" :key="st.k">
+            <template x-for="st in [{k:'DRAFT',l:'Nháp'},{k:'GENERATING',l:'Đang gen'},{k:'PENDING_REVIEW',l:'Chờ duyệt'},{k:'APPROVED',l:'Đã duyệt'},{k:'PUBLISHING',l:'Đang đăng'},{k:'PUBLISHED',l:'Đã đăng'},{k:'FAILED',l:'Lỗi'},{k:'CANCELLED',l:'Đã hủy'}]" :key="st.k">
               <button @click="activeTab=false; contentFilter.status=st.k; dgPage=1; loadContent()" class="px-2.5 py-1 rounded-full text-xs font-medium transition"
                 :class="contentFilter.status===st.k && !activeTab ? 'bg-gray-800 text-white' : 'text-gray-500 hover:bg-gray-100'"
                 >
-                <span x-text="st.l"></span> <span class="ml-0.5 opacity-70" x-text="dgStatusCounts[st.k]"></span>
+                <span x-text="st.l"></span> <span class="ml-0.5 opacity-70" x-text="st.k==='PENDING_REVIEW' ? ((dgStatusCounts['PENDING_REVIEW']||0)+(dgStatusCounts['REVISION_REQUESTED']||0)) : dgStatusCounts[st.k]"></span>
               </button>
             </template>
           </div>
@@ -2184,7 +2184,7 @@
             </div>
 
             <!-- Image upload (chỉ hiện khi manual + IMAGE, hoặc khi đang edit có ảnh) -->
-            <div x-show="contentForm.contentType === 'IMAGE' && (contentForm.mode==='manual' || (contentForm.mode==='ai' && contentForm.images.length > 0))">
+            <div x-show="contentForm.contentType === 'IMAGE' && (contentForm.mode==='manual' || (contentForm.mode==='ai' && contentForm.images.length > 0)) && !(contentForm._locked && contentForm.mode==='ai')">
               <label class="block text-sm font-medium text-gray-700 mb-1">Ảnh <span class="text-xs text-gray-400 font-normal">(tối đa 10 ảnh, kéo để sắp xếp)</span></label>
               <!-- Image list with drag reorder -->
               <div class="space-y-2 mb-2">
@@ -2284,11 +2284,20 @@
             <div x-show="contentFormError" class="text-red-500 text-sm" x-text="contentFormError"></div>
             <div class="flex gap-3 pt-2">
               <button @click="showContentForm=false" class="flex-1 py-2.5 border border-gray-300 rounded-lg text-gray-600 hover:bg-gray-50 transition">Hủy</button>
-              <button @click="saveContent()" :disabled="contentFormSaving"
-                class="flex-1 py-2.5 bg-brand-600 text-white rounded-lg font-medium hover:bg-brand-700 disabled:opacity-50 transition">
-                <span x-show="!contentFormSaving" x-text="editingContent ? 'Cập nhật' : 'Thêm'"></span>
-                <span x-show="contentFormSaving"><i class="ri-loader-4-line animate-spin"></i> Đang lưu...</span>
-              </button>
+              <template x-if="contentForm._locked && contentForm.mode==='ai'">
+                <button @click="saveAndRegenerate()" :disabled="contentFormSaving"
+                  class="flex-1 py-2.5 bg-orange-500 text-white rounded-lg font-medium hover:bg-orange-600 disabled:opacity-50 transition">
+                  <span x-show="!contentFormSaving"><i class="ri-refresh-line"></i> Gen lại nội dung</span>
+                  <span x-show="contentFormSaving"><i class="ri-loader-4-line animate-spin"></i> Đang lưu...</span>
+                </button>
+              </template>
+              <template x-if="!(contentForm._locked && contentForm.mode==='ai')">
+                <button @click="saveContent()" :disabled="contentFormSaving"
+                  class="flex-1 py-2.5 bg-brand-600 text-white rounded-lg font-medium hover:bg-brand-700 disabled:opacity-50 transition">
+                  <span x-show="!contentFormSaving" x-text="editingContent ? 'Cập nhật' : 'Thêm'"></span>
+                  <span x-show="contentFormSaving"><i class="ri-loader-4-line animate-spin"></i> Đang lưu...</span>
+                </button>
+              </template>
             </div>
           </div>
         </div>
@@ -4378,6 +4387,36 @@ function app() {
           await this.api(`/dashboard/content/${contentId}/upload-video`, { method: 'POST', body: form });
         }
         this.showContentForm = false;
+        await this.loadContent();
+      } catch (e) {
+        this.contentFormError = e.message;
+      } finally {
+        this.contentFormSaving = false;
+      }
+    },
+
+    async saveAndRegenerate() {
+      this.contentFormError = '';
+      if (!this.contentForm.topic || !this.contentForm.scheduledDate) {
+        this.contentFormError = 'Vui lòng điền Chủ đề và Ngày đăng';
+        return;
+      }
+      this.contentFormSaving = true;
+      try {
+        const contentId = this.editingContent.id;
+        const scheduledAt = `${this.contentForm.scheduledDate}T${this.contentForm.scheduledTime || '09:00'}:00`;
+        await this.api(`/dashboard/content/${contentId}`, {
+          method: 'PATCH',
+          body: JSON.stringify({
+            topic: this.contentForm.topic,
+            notes: this.contentForm.notes,
+            imageDescriptions: this.contentForm.imageDescriptions,
+            scheduledAt,
+          }),
+        });
+        await this.api(`/dashboard/content/${contentId}/regenerate`, { method: 'POST' });
+        this.showContentForm = false;
+        this.showToast('Đã lưu và đưa vào hàng đợi gen lại');
         await this.loadContent();
       } catch (e) {
         this.contentFormError = e.message;
