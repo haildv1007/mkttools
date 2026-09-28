@@ -1188,7 +1188,7 @@ router.post('/content/:id/regenerate', async (req: Request, res: Response) => {
 });
 
 router.post('/content/:id/publish-now', async (req: Request, res: Response) => {
-  const { id } = req.params;
+  const id = req.params.id as string;
   const item = await prisma.contentItem.findUnique({ where: { id }, select: { generatedText: true, status: true } });
   if (!item) return res.status(404).json({ success: false, error: 'Not found' });
   if (!item.generatedText) {
