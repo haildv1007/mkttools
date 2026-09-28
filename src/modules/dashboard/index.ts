@@ -1318,7 +1318,7 @@ router.post('/content/bulk/generate', async (req: Request, res: Response) => {
     if (!ids?.length) return res.status(400).json({ error: 'No ids' });
     const actId = await logActivity({ action: 'bulk_generate', category: 'bulk', summary: `Gen hàng loạt ${ids.length} mục`, total: ids.length });
     const items = await prisma.contentItem.findMany({ where: { id: { in: ids } }, select: { id: true, status: true } });
-    const eligible = items.filter(i => ['DRAFT', 'FAILED'].includes(i.status));
+    const eligible = items.filter(i => ['DRAFT', 'FAILED', 'PENDING_REVIEW', 'REVISION_REQUESTED', 'APPROVED'].includes(i.status));
     const skipped = items.length - eligible.length;
     let success = 0, errors = 0;
     for (const item of eligible) {
