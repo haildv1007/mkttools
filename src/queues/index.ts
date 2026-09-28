@@ -195,7 +195,7 @@ export function startWorkers() {
     emitActFromLog(actId, { ...actOpts, summary: actSummary }, 'success');
 
     return { contentItemId, status: shouldAutoApprove ? 'auto_approved' : 'pending_review' };
-  }, { connection, concurrency: 10 });
+  }, { connection, concurrency: 15 });
 
   const publishWorker = new Worker('content-publishing', async (job) => {
     const { contentItemId } = job.data;
