@@ -1301,6 +1301,103 @@ router.delete('/content/:id', async (req: Request, res: Response) => {
   }
 });
 
+// ===== BULK ACTIONS =====
+
+router.post('/content/bulk/generate', async (req: Request, res: Response) => {
+  try {
+    const { ids } = req.body as { ids: string[] };
+    if (!ids?.length) return res.status(400).json({ error: 'No ids' });
+    const items = await prisma.contentItem.findMany({ where: { id: { in: ids } }, select: { id: true, status: true } });
+    const eligible = items.filter(i => ['DRAFT', 'FAILED'].includes(i.status));
+    const skipped = items.length - eligible.length;
+    let success = 0, errors = 0;
+    for (const item of eligible) {
+      try {
+        await contentQueue.add('generate', { contentItemId: item.id }, {
+          jobId: `bulk-gen-${item.id}-${Date.now()}`,
+          attempts: 3,
+          backoff: { type: 'exponential', delay: 5000 },
+        });
+        success++;
+      } catch { errors++; }
+    }
+    const notFound = ids.length - items.length;
+    res.json({ success: true, total: ids.length, generated: success, skipped: skipped + notFound, errors });
+  } catch (err) {
+    res.status(500).json({ error: err instanceof Error ? err.message : 'Bulk generate failed' });
+  }
+});
+
+router.post('/content/bulk/approve', async (req: Request, res: Response) => {
+  try {
+    const { ids, userId } = req.body as { ids: string[]; userId?: string };
+    if (!ids?.length) return res.status(400).json({ error: 'No ids' });
+    const items = await prisma.contentItem.findMany({ where: { id: { in: ids } }, select: { id: true, status: true } });
+    const eligible = items.filter(i => i.status === 'PENDING_REVIEW');
+    const skipped = items.length - eligible.length;
+    let success = 0, errors = 0;
+    for (const item of eligible) {
+      try {
+        await prisma.contentItem.update({ where: { id: item.id }, data: { status: 'APPROVED' } });
+        await prisma.approvalLog.create({ data: { contentItemId: item.id, userId: userId || 'system', action: 'APPROVE' } });
+        success++;
+      } catch { errors++; }
+    }
+    const notFound = ids.length - items.length;
+    res.json({ success: true, total: ids.length, approved: success, skipped: skipped + notFound, errors });
+  } catch (err) {
+    res.status(500).json({ error: err instanceof Error ? err.message : 'Bulk approve failed' });
+  }
+});
+
+router.post('/content/bulk/publish', async (req: Request, res: Response) => {
+  try {
+    const { ids } = req.body as { ids: string[] };
+    if (!ids?.length) return res.status(400).json({ error: 'No ids' });
+    const items = await prisma.contentItem.findMany({
+      where: { id: { in: ids } },
+      select: { id: true, status: true, generatedText: true, pageId: true },
+    });
+    const eligible = items.filter(i => ['APPROVED', 'FAILED'].includes(i.status) && i.generatedText);
+    const skipped = items.length - eligible.length;
+    let success = 0, errors = 0;
+    for (const item of eligible) {
+      try {
+        await publishQueue.add('publish', { contentItemId: item.id }, {
+          jobId: `bulk-pub-${item.id}-${Date.now()}`,
+        });
+        success++;
+      } catch { errors++; }
+    }
+    const notFound = ids.length - items.length;
+    res.json({ success: true, total: ids.length, published: success, skipped: skipped + notFound, errors });
+  } catch (err) {
+    res.status(500).json({ error: err instanceof Error ? err.message : 'Bulk publish failed' });
+  }
+});
+
+router.post('/content/bulk/delete', async (req: Request, res: Response) => {
+  try {
+    const { ids } = req.body as { ids: string[] };
+    if (!ids?.length) return res.status(400).json({ error: 'No ids' });
+    const items = await prisma.contentItem.findMany({ where: { id: { in: ids } }, select: { id: true, status: true } });
+    const eligible = items.filter(i => !['PUBLISHING'].includes(i.status));
+    const skipped = items.length - eligible.length;
+    let success = 0, errors = 0;
+    for (const item of eligible) {
+      try {
+        await prisma.approvalLog.deleteMany({ where: { contentItemId: item.id } });
+        await prisma.contentItem.delete({ where: { id: item.id } });
+        success++;
+      } catch { errors++; }
+    }
+    const notFound = ids.length - items.length;
+    res.json({ success: true, total: ids.length, deleted: success, skipped: skipped + notFound, errors });
+  } catch (err) {
+    res.status(500).json({ error: err instanceof Error ? err.message : 'Bulk delete failed' });
+  }
+});
+
 router.patch('/content/:id', async (req: Request, res: Response) => {
   const id = req.params.id as string;
   const { scheduledAt, status, topic, notes, contentType, imageDescriptions, generatedText, imageUrl, videoUrl } = req.body;

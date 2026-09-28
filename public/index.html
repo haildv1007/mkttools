@@ -977,9 +977,15 @@
           <!-- Data Grid -->
           <div class="bg-white rounded-xl border border-gray-100 shadow-sm min-w-0 max-w-full flex flex-col" x-ref="dgGridShell" :style="dgGridMaxH ? 'max-height:'+dgGridMaxH+'px' : ''">
             <!-- Bulk Selection Bar -->
-            <div x-show="dgBulkSelected.length > 0" class="flex-shrink-0 flex items-center gap-3 px-4 py-2 bg-brand-50 border-b border-brand-200 text-sm">
+            <div x-show="dgBulkSelected.length > 0" class="flex-shrink-0 flex items-center gap-2 px-4 py-1.5 bg-brand-50 border-b border-brand-200 text-sm">
               <span class="font-medium text-brand-700" x-text="dgBulkSelected.length + ' mục đã chọn'"></span>
-              <button @click="dgBulkSelected=[]; dgBulkAll=false" class="text-xs text-gray-500 hover:text-gray-700 underline">Bỏ chọn</button>
+              <div class="flex gap-1 ml-2">
+                <button @click="bulkGenerate()" class="px-2.5 py-1 rounded bg-purple-500 text-white text-xs font-medium hover:bg-purple-600 flex items-center gap-1"><i class="ri-magic-line"></i> Gen</button>
+                <button @click="bulkApprove()" class="px-2.5 py-1 rounded bg-green-500 text-white text-xs font-medium hover:bg-green-600 flex items-center gap-1"><i class="ri-check-line"></i> Duyệt</button>
+                <button @click="bulkPublish()" class="px-2.5 py-1 rounded bg-brand-600 text-white text-xs font-medium hover:bg-brand-700 flex items-center gap-1"><i class="ri-send-plane-line"></i> Đăng</button>
+                <button @click="bulkDelete()" class="px-2.5 py-1 rounded bg-red-500 text-white text-xs font-medium hover:bg-red-600 flex items-center gap-1"><i class="ri-delete-bin-line"></i> Xóa</button>
+              </div>
+              <button @click="dgBulkSelected=[]; dgBulkAll=false" class="text-xs text-gray-500 hover:text-gray-700 underline ml-auto">Bỏ chọn</button>
             </div>
             <div class="overflow-auto min-h-0 max-w-full" style="scrollbar-width:thin" x-ref="dgScroll">
 
@@ -3600,6 +3606,76 @@ function app() {
       } catch (e) {
         this.showToast(e.message, 'error');
       }
+    },
+
+    // ===== BULK ACTIONS =====
+    bulkResultMsg(r, actionName) {
+      const parts = [actionName + ' hoàn tất'];
+      const count = r.generated || r.approved || r.published || r.deleted || 0;
+      if (count) parts.push(count + ' thành công');
+      if (r.skipped) parts.push(r.skipped + ' bỏ qua');
+      if (r.errors) parts.push(r.errors + ' lỗi');
+      return parts.join(' · ');
+    },
+
+    async bulkGenerate() {
+      const ids = [...this.dgBulkSelected];
+      const eligible = this.contentItems.filter(i => ids.includes(i.id) && ['DRAFT','FAILED'].includes(i.status));
+      const skip = ids.length - eligible.length;
+      let msg = `Gen ${eligible.length} nội dung?`;
+      if (skip) msg += `\n${skip} nội dung không phù hợp trạng thái sẽ được bỏ qua.`;
+      if (!eligible.length) { this.showToast('Không có nội dung phù hợp để gen', 'error'); return; }
+      if (!confirm(msg)) return;
+      try {
+        const r = await this.api('/dashboard/content/bulk/generate', { method: 'POST', body: JSON.stringify({ ids }) });
+        this.showToast(this.bulkResultMsg(r, 'Gen'));
+        this.dgBulkSelected = []; this.dgBulkAll = false;
+        setTimeout(() => this.loadContent(), 2000);
+      } catch (e) { this.showToast(e.message, 'error'); }
+    },
+
+    async bulkApprove() {
+      const ids = [...this.dgBulkSelected];
+      const eligible = this.contentItems.filter(i => ids.includes(i.id) && i.status === 'PENDING_REVIEW');
+      const skip = ids.length - eligible.length;
+      let msg = `Duyệt ${eligible.length} nội dung?`;
+      if (skip) msg += `\n${skip} nội dung không phù hợp trạng thái sẽ được bỏ qua.`;
+      if (!eligible.length) { this.showToast('Không có nội dung phù hợp để duyệt', 'error'); return; }
+      if (!confirm(msg)) return;
+      try {
+        const r = await this.api('/dashboard/content/bulk/approve', { method: 'POST', body: JSON.stringify({ ids, userId: this.user?.id }) });
+        this.showToast(this.bulkResultMsg(r, 'Duyệt'));
+        this.dgBulkSelected = []; this.dgBulkAll = false;
+        await this.loadContent();
+      } catch (e) { this.showToast(e.message, 'error'); }
+    },
+
+    async bulkPublish() {
+      const ids = [...this.dgBulkSelected];
+      const eligible = this.contentItems.filter(i => ids.includes(i.id) && ['APPROVED','FAILED'].includes(i.status) && i.generatedText);
+      const skip = ids.length - eligible.length;
+      let msg = `Đăng ${eligible.length} nội dung lên Facebook?`;
+      if (skip) msg += `\n${skip} nội dung không phù hợp sẽ được bỏ qua.`;
+      if (!eligible.length) { this.showToast('Không có nội dung phù hợp để đăng', 'error'); return; }
+      if (!confirm(msg)) return;
+      try {
+        const r = await this.api('/dashboard/content/bulk/publish', { method: 'POST', body: JSON.stringify({ ids }) });
+        this.showToast(this.bulkResultMsg(r, 'Đăng'));
+        this.dgBulkSelected = []; this.dgBulkAll = false;
+        setTimeout(() => this.loadContent(), 3000);
+      } catch (e) { this.showToast(e.message, 'error'); }
+    },
+
+    async bulkDelete() {
+      const ids = [...this.dgBulkSelected];
+      if (!confirm(`Xóa ${ids.length} nội dung?\nHành động này không thể hoàn tác.`)) return;
+      try {
+        const r = await this.api('/dashboard/content/bulk/delete', { method: 'POST', body: JSON.stringify({ ids }) });
+        this.showToast(this.bulkResultMsg(r, 'Xóa'));
+        this.dgBulkSelected = []; this.dgBulkAll = false;
+        await this.loadContent();
+        await this.loadDashboard();
+      } catch (e) { this.showToast(e.message, 'error'); }
     },
 
     async loadSettings() {
