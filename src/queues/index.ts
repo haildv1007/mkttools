@@ -295,6 +295,7 @@ export function startWorkers() {
         if (item.scheduledAt > ahead) continue;
         allFuture = false;
 
+        await prisma.contentItem.update({ where: { id: item.id }, data: { status: 'QUEUED' } });
         await contentQueue.add('generate', { contentItemId: item.id }, {
           jobId: `gen-${item.id}-${Date.now()}`,
           attempts: 3,

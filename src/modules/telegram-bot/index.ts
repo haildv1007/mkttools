@@ -189,7 +189,7 @@ function setupHandlers(bot: TelegramBot) {
 
       case 'edit': {
         // Show revision type selection keyboard
-        if (['GENERATING', 'PUBLISHING'].includes(item.status)) {
+        if (['QUEUED', 'GENERATING', 'PUBLISHING'].includes(item.status)) {
           bot.answerCallbackQuery(query.id, { text: 'Nội dung đang xử lý, vui lòng chờ.' });
           return;
         }
@@ -276,7 +276,7 @@ function setupHandlers(bot: TelegramBot) {
       }
 
       case 'regenerate': {
-        if (['GENERATING', 'PUBLISHING'].includes(item.status)) {
+        if (['QUEUED', 'GENERATING', 'PUBLISHING'].includes(item.status)) {
           bot.answerCallbackQuery(query.id, { text: 'Nội dung đang xử lý, vui lòng chờ.' });
           return;
         }

@@ -26,6 +26,7 @@ enum ContentType {
 
 enum ContentStatus {
   DRAFT
+  QUEUED
   GENERATING
   PENDING_REVIEW
   REVISION_REQUESTED

@@ -420,7 +420,7 @@ router.get('/stats/dashboard', async (req: Request, res: Response) => {
       where: {
         ...baseWhere,
         scheduledAt: { gte: now, lte: next7 },
-        status: { in: ['DRAFT', 'PENDING_REVIEW', 'APPROVED', 'GENERATING'] },
+        status: { in: ['DRAFT', 'QUEUED', 'PENDING_REVIEW', 'APPROVED', 'GENERATING'] },
       },
       select: {
         id: true, topic: true, scheduledAt: true, status: true,
@@ -612,7 +612,7 @@ router.get('/stats/upcoming', async (_req: Request, res: Response) => {
     const items = await prisma.contentItem.findMany({
       where: {
         scheduledAt: { gte: now, lte: nextWeek },
-        status: { in: ['DRAFT', 'PENDING_REVIEW', 'APPROVED', 'GENERATING'] },
+        status: { in: ['DRAFT', 'QUEUED', 'PENDING_REVIEW', 'APPROVED', 'GENERATING'] },
       },
       include: {
         page: { select: { id: true, name: true, platform: true } },
@@ -1176,6 +1176,7 @@ router.post('/content/generate-all-drafts', async (_req: Request, res: Response)
   });
 
   for (const item of drafts) {
+    await prisma.contentItem.update({ where: { id: item.id }, data: { status: 'QUEUED' } });
     await contentQueue.add('generate', { contentItemId: item.id }, {
       jobId: `gen-${item.id}-${Date.now()}`,
       attempts: 3,
@@ -1188,6 +1189,7 @@ router.post('/content/generate-all-drafts', async (_req: Request, res: Response)
 
 router.post('/content/:id/regenerate', async (req: Request, res: Response) => {
   const { id } = req.params;
+  await prisma.contentItem.update({ where: { id }, data: { status: 'QUEUED' } });
   await contentQueue.add('generate', { contentItemId: id }, {
     jobId: `regen-${id}-${Date.now()}`,
     attempts: 3,
@@ -1201,6 +1203,7 @@ router.post('/content/:id/publish-now', async (req: Request, res: Response) => {
   const item = await prisma.contentItem.findUnique({ where: { id }, select: { generatedText: true, status: true } });
   if (!item) return res.status(404).json({ success: false, error: 'Not found' });
   if (!item.generatedText) {
+    await prisma.contentItem.update({ where: { id }, data: { status: 'QUEUED' } });
     await contentQueue.add('generate', { contentItemId: id }, {
       jobId: `regen-${id}-${Date.now()}`,
       attempts: 3,
@@ -1323,6 +1326,7 @@ router.post('/content/bulk/generate', async (req: Request, res: Response) => {
     let success = 0, errors = 0;
     for (const item of eligible) {
       try {
+        await prisma.contentItem.update({ where: { id: item.id }, data: { status: 'QUEUED' } });
         await contentQueue.add('generate', { contentItemId: item.id }, {
           jobId: `bulk-gen-${item.id}-${Date.now()}`,
           attempts: 3,
@@ -2114,7 +2118,7 @@ router.get('/activity', async (req: Request, res: Response) => {
 router.get('/content/active', async (req: Request, res: Response) => {
   try {
     const items = await prisma.contentItem.findMany({
-      where: { status: { in: ['GENERATING', 'PUBLISHING'] } },
+      where: { status: { in: ['QUEUED', 'GENERATING', 'PUBLISHING'] } },
       select: {
         id: true,
         topic: true,
@@ -2132,9 +2136,9 @@ router.get('/content/active', async (req: Request, res: Response) => {
       contentId: i.id,
       pageId: i.pageId,
       campaignId: i.campaignId,
-      operation: i.status === 'GENERATING' ? 'generate' : 'publish',
-      status: 'started',
-      step: i.status === 'GENERATING' ? 'Đang gen nội dung' : 'Đang đăng bài',
+      operation: i.status === 'PUBLISHING' ? 'publish' : 'generate',
+      status: i.status === 'QUEUED' ? 'queued' : 'started',
+      step: i.status === 'QUEUED' ? 'Chờ đến lượt' : i.status === 'GENERATING' ? 'Đang gen nội dung' : 'Đang đăng bài',
       contentTitle: i.topic?.slice(0, 100),
       pageName: i.page?.name,
       pageAvatar: i.page?.platform === 'FACEBOOK' && i.page?.externalId ? `https://graph.facebook.com/${i.page.externalId}/picture?type=small` : undefined,
