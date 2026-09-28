@@ -9,6 +9,7 @@
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link href="https://cdn.jsdelivr.net/npm/remixicon@4.1.0/fonts/remixicon.css" rel="stylesheet">
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/socket.io-client@4/dist/socket.io.min.js"></script>
   <script>
     tailwind.config = {
       theme: {
@@ -28,6 +29,12 @@
     .stat-card:hover { transform: translateY(-2px); }
     .fade-in { animation: fadeIn 0.3s ease-in; }
     @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+    @keyframes activeEnter { from { opacity: 0; max-height: 0; transform: translateY(-8px); } to { opacity: 1; max-height: 120px; transform: translateY(0); } }
+    @keyframes activeExit { from { opacity: 1; max-height: 120px; } to { opacity: 0; max-height: 0; } }
+    .active-item-enter { animation: activeEnter 0.2s ease-out forwards; }
+    .active-item-exit { animation: activeExit 0.2s ease-in forwards; }
+    @keyframes spinPulse { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+    .spin-slow { animation: spinPulse 1.5s linear infinite; }
   </style>
 </head>
 <body class="bg-gray-50 font-sans text-gray-800" x-data="app()" x-init="init()" x-cloak>
@@ -1058,13 +1065,19 @@
           <div class="w-px h-5 bg-gray-200"></div>
           <!-- Status tabs -->
           <div class="flex gap-1">
-            <button @click="contentFilter.status=''; dgPage=1; loadContent()" class="px-2.5 py-1 rounded-full text-xs font-medium transition"
-              :class="!contentFilter.status ? 'bg-gray-800 text-white' : 'text-gray-500 hover:bg-gray-100'">
+            <button @click="activeTab=false; contentFilter.status=''; dgPage=1; loadContent()" class="px-2.5 py-1 rounded-full text-xs font-medium transition"
+              :class="!contentFilter.status && !activeTab ? 'bg-gray-800 text-white' : 'text-gray-500 hover:bg-gray-100'">
               Tất cả <span class="ml-1 opacity-70" x-text="dgStatusCounts.ALL || 0"></span>
             </button>
+            <button @click="activeTab=true; contentFilter.status=''" class="px-2.5 py-1 rounded-full text-xs font-medium transition flex items-center gap-1"
+              :class="activeTab ? 'bg-blue-600 text-white' : 'text-gray-500 hover:bg-gray-100'"
+              x-show="scopedActiveItems().length > 0">
+              <i class="ri-loader-4-line text-[10px]" :class="activeTab ? 'spin-slow' : ''"></i>
+              Đang thực hiện <span class="ml-0.5 opacity-70" x-text="scopedActiveItems().length"></span>
+            </button>
             <template x-for="st in [{k:'DRAFT',l:'Nháp'},{k:'GENERATING',l:'Đang gen'},{k:'PENDING_REVIEW',l:'Chờ duyệt'},{k:'REVISION_REQUESTED',l:'Yêu cầu sửa'},{k:'APPROVED',l:'Đã duyệt'},{k:'PUBLISHING',l:'Đang đăng'},{k:'PUBLISHED',l:'Đã đăng'},{k:'FAILED',l:'Lỗi'},{k:'CANCELLED',l:'Đã hủy'}]" :key="st.k">
-              <button @click="contentFilter.status=st.k; dgPage=1; loadContent()" class="px-2.5 py-1 rounded-full text-xs font-medium transition"
-                :class="contentFilter.status===st.k ? 'bg-gray-800 text-white' : 'text-gray-500 hover:bg-gray-100'"
+              <button @click="activeTab=false; contentFilter.status=st.k; dgPage=1; loadContent()" class="px-2.5 py-1 rounded-full text-xs font-medium transition"
+                :class="contentFilter.status===st.k && !activeTab ? 'bg-gray-800 text-white' : 'text-gray-500 hover:bg-gray-100'"
                 x-show="dgStatusCounts[st.k]">
                 <span x-text="st.l"></span> <span class="ml-0.5 opacity-70" x-text="dgStatusCounts[st.k]"></span>
               </button>
@@ -1072,7 +1085,108 @@
           </div>
         </div>
 
-        <div class="relative min-w-0 max-w-full">
+        <!-- Active Processing Tab View -->
+        <div x-show="activeTab" x-cloak class="bg-white rounded-xl border border-gray-100 shadow-sm p-4 mb-3">
+          <div class="flex items-center justify-between mb-3">
+            <div class="flex items-center gap-2">
+              <i class="ri-loader-4-line text-blue-500 spin-slow"></i>
+              <span class="text-sm font-semibold text-gray-800">Đang thực hiện</span>
+              <span class="text-xs px-1.5 py-0.5 bg-blue-100 text-blue-700 rounded-full font-medium" x-text="scopedActiveItems().length"></span>
+            </div>
+          </div>
+          <div class="space-y-2 max-h-[520px] overflow-y-auto">
+            <template x-for="ai in scopedActiveItems()" :key="ai.contentId">
+              <div class="flex items-center gap-3 p-3 rounded-lg border transition"
+                :class="ai.status==='completed' ? 'border-green-200 bg-green-50/50' : ai.status==='failed' ? 'border-red-200 bg-red-50/50' : 'border-gray-200 bg-gray-50/30 hover:bg-gray-50'">
+                <div class="shrink-0 w-8 h-8 rounded-full overflow-hidden bg-gray-100 flex items-center justify-center">
+                  <img x-show="ai.pageAvatar" :src="ai.pageAvatar" class="w-full h-full object-cover" onerror="this.style.display='none'">
+                  <i x-show="!ai.pageAvatar" class="ri-pages-line text-gray-400 text-sm"></i>
+                </div>
+                <div class="flex-1 min-w-0">
+                  <p class="text-sm font-medium text-gray-800 truncate" x-text="ai.contentTitle || 'Nội dung'"></p>
+                  <div class="flex items-center gap-2 mt-0.5">
+                    <span class="text-xs text-gray-500" x-text="ai.pageName"></span>
+                    <span x-show="ai.campaignName" class="text-xs text-gray-400">·</span>
+                    <span x-show="ai.campaignName" class="text-xs text-gray-500" x-text="ai.campaignName"></span>
+                  </div>
+                  <div class="flex items-center gap-2 mt-1">
+                    <template x-if="ai.status==='started' || ai.status==='progress'">
+                      <div class="flex items-center gap-1.5 text-xs text-blue-600">
+                        <i class="ri-loader-4-line spin-slow text-[10px]"></i>
+                        <span x-text="ai.step || (ai.operation==='generate' ? 'Đang gen' : 'Đang đăng')"></span>
+                      </div>
+                    </template>
+                    <template x-if="ai.status==='completed'">
+                      <div class="flex items-center gap-1.5 text-xs text-green-600">
+                        <i class="ri-check-line"></i>
+                        <span x-text="ai.safeMessage || 'Hoàn tất'"></span>
+                      </div>
+                    </template>
+                    <template x-if="ai.status==='failed'">
+                      <div class="flex items-center gap-1.5 text-xs text-red-600">
+                        <i class="ri-close-circle-line"></i>
+                        <span x-text="ai.safeMessage || 'Thất bại'"></span>
+                      </div>
+                    </template>
+                  </div>
+                  <div x-show="ai.progressTotal && ai.progressTotal > 1" class="mt-1.5 flex items-center gap-2">
+                    <div class="flex-1 bg-gray-200 rounded-full h-1.5 overflow-hidden">
+                      <div class="bg-blue-500 h-full rounded-full transition-all duration-300" :style="'width:'+Math.round(((ai.progressCurrent||0)/ai.progressTotal)*100)+'%'"></div>
+                    </div>
+                    <span class="text-[10px] text-gray-400 shrink-0" x-text="(ai.progressCurrent||0)+'/'+ai.progressTotal"></span>
+                  </div>
+                </div>
+                <div class="shrink-0 text-right">
+                  <span class="text-[10px] text-gray-400" x-text="activeElapsed(ai)"></span>
+                </div>
+              </div>
+            </template>
+            <div x-show="scopedActiveItems().length === 0" class="text-center py-8 text-gray-400 text-sm">
+              <i class="ri-check-double-line text-2xl mb-2 block"></i>
+              Không có nội dung đang xử lý
+            </div>
+          </div>
+        </div>
+
+        <!-- Active Lane in "Tất cả" tab -->
+        <div x-show="!activeTab && !contentFilter.status && scopedActiveItems().length > 0" x-cloak class="bg-blue-50/50 rounded-xl border border-blue-100 p-3 mb-3">
+          <div class="flex items-center justify-between mb-2">
+            <div class="flex items-center gap-2">
+              <i class="ri-loader-4-line text-blue-500 spin-slow text-sm"></i>
+              <span class="text-xs font-semibold text-blue-700">ĐANG THỰC HIỆN</span>
+              <span class="text-[10px] px-1.5 py-0.5 bg-blue-200/60 text-blue-700 rounded-full font-medium" x-text="scopedActiveItems().length"></span>
+            </div>
+            <button x-show="scopedActiveItems().length > 5" @click="activeTab=true" class="text-[10px] text-blue-600 hover:underline">Xem tất cả</button>
+          </div>
+          <div class="space-y-1.5">
+            <template x-for="ai in scopedActiveItems().slice(0, 5)" :key="ai.contentId">
+              <div class="flex items-center gap-2.5 px-2.5 py-2 rounded-lg bg-white/80 border border-blue-100/60">
+                <div class="shrink-0 w-6 h-6 rounded-full overflow-hidden bg-gray-100 flex items-center justify-center">
+                  <img x-show="ai.pageAvatar" :src="ai.pageAvatar" class="w-full h-full object-cover" onerror="this.style.display='none'">
+                  <i x-show="!ai.pageAvatar" class="ri-pages-line text-gray-400 text-[10px]"></i>
+                </div>
+                <div class="flex-1 min-w-0">
+                  <p class="text-xs font-medium text-gray-800 truncate" x-text="ai.contentTitle || 'Nội dung'"></p>
+                  <div class="flex items-center gap-1.5">
+                    <span class="text-[10px] text-gray-500" x-text="ai.pageName"></span>
+                    <span class="text-[10px]" :class="ai.status==='failed' ? 'text-red-500' : 'text-blue-500'" x-text="ai.step || (ai.operation==='generate' ? '⟳ Đang gen' : '⟳ Đang đăng')"></span>
+                  </div>
+                </div>
+                <div x-show="ai.progressTotal && ai.progressTotal > 1" class="w-16">
+                  <div class="bg-gray-200 rounded-full h-1 overflow-hidden">
+                    <div class="bg-blue-500 h-full rounded-full" :style="'width:'+Math.round(((ai.progressCurrent||0)/ai.progressTotal)*100)+'%'"></div>
+                  </div>
+                </div>
+                <span class="text-[10px] text-gray-400 shrink-0" x-text="activeElapsed(ai)"></span>
+              </div>
+            </template>
+          </div>
+          <div x-show="scopedActiveItems().length > 5" class="text-center pt-2">
+            <button @click="activeTab=true" class="text-xs text-blue-600 hover:underline">+ <span x-text="scopedActiveItems().length - 5"></span> nội dung khác đang thực hiện</button>
+          </div>
+        </div>
+
+        <div class="relative min-w-0 max-w-full" x-show="!activeTab">
           <!-- Data Grid -->
           <div class="bg-white rounded-xl border border-gray-100 shadow-sm min-w-0 max-w-full flex flex-col" x-ref="dgGridShell" :style="dgGridMaxH ? 'max-height:'+dgGridMaxH+'px' : ''">
             <!-- Bulk Selection Bar -->
@@ -2877,6 +2991,17 @@ function app() {
     actRunning: 0,
     _actPollTimer: null,
 
+    // Realtime
+    _socket: null,
+    _socketConnected: false,
+    _socketFallbackTimer: null,
+    _contentVersions: {},
+    _reconcileTimer: null,
+
+    // Active processing items
+    activeItems: [],
+    activeTab: false,
+
     async init() {
       this.dgLoadCols();
       if (this.token) {
@@ -2886,9 +3011,23 @@ function app() {
         await this.loadScopePages();
         if (this.currentScope.type === 'page') this.importForm.pageId = this.currentScope.id;
         await this.loadDashboard();
+        this.initSocket();
       }
       window.addEventListener('resize', () => this.dgCalcHeight());
-      this.$watch('actOpen', (v) => { if (v) { this.loadActivity(); this.startActPoll(); } else { this.stopActPoll(); } });
+      this.$watch('actOpen', (v) => {
+        if (v) {
+          this.loadActivity();
+          if (!this._socketConnected) this.startActPoll();
+        } else {
+          this.stopActPoll();
+        }
+      });
+      document.addEventListener('visibilitychange', () => {
+        if (!document.hidden && this._socketConnected) {
+          this.loadActivity();
+          this.reconcileContent();
+        }
+      });
     },
 
     async api(path, options = {}) {
@@ -2956,6 +3095,7 @@ function app() {
     },
 
     logout() {
+      this.destroySocket();
       this.token = '';
       this.user = null;
       localStorage.removeItem('mkt_token');
@@ -4326,6 +4466,137 @@ function app() {
       return d + ' ngày trước';
     },
 
+    // === REALTIME MANAGER ===
+    initSocket() {
+      if (!this.token || this._socket) return;
+      const s = io({ auth: { token: this.token }, transports: ['websocket', 'polling'], reconnection: true, reconnectionDelay: 1000, reconnectionDelayMax: 5000 });
+      this._socket = s;
+
+      s.on('connect', () => {
+        this._socketConnected = true;
+        this.stopActPoll();
+        if (this._socketFallbackTimer) { clearInterval(this._socketFallbackTimer); this._socketFallbackTimer = null; }
+        this.socketSubscribeScope();
+        this.loadActivity();
+        this.reconcileContent();
+      });
+
+      s.on('disconnect', () => {
+        this._socketConnected = false;
+        this._socketFallbackTimer = setInterval(() => {
+          if (this.actOpen) this.loadActivity();
+        }, 15000);
+      });
+
+      s.on('activity:update', (evt) => {
+        if (!evt?.id) return;
+        const idx = this.actItems.findIndex(a => a.id === evt.id);
+        if (idx >= 0) {
+          this.actItems[idx] = { ...this.actItems[idx], ...evt };
+        } else {
+          if (this.actTab !== 'all' && evt.category !== this.actTab) return;
+          this.actItems.unshift(evt);
+          if (this.actItems.length > 50) this.actItems.length = 50;
+        }
+        this.actRunning = this.actItems.filter(a => a.status === 'running').length;
+      });
+
+      s.on('content:update', (evt) => this.handleContentEvent(evt));
+      s.on('content:update:global', (evt) => this.handleContentEvent(evt));
+    },
+
+    handleContentEvent(evt) {
+      if (!evt?.contentId) return;
+      const localVer = this._contentVersions[evt.contentId] || 0;
+      if (evt.version <= localVer) return;
+      this._contentVersions[evt.contentId] = evt.version;
+
+      if (evt.status === 'started') {
+        const existing = this.activeItems.findIndex(a => a.contentId === evt.contentId);
+        if (existing >= 0) {
+          this.activeItems[existing] = { ...this.activeItems[existing], ...evt };
+        } else {
+          this.activeItems.unshift(evt);
+        }
+      } else if (evt.status === 'progress') {
+        const idx = this.activeItems.findIndex(a => a.contentId === evt.contentId);
+        if (idx >= 0) {
+          this.activeItems[idx] = { ...this.activeItems[idx], ...evt };
+        } else {
+          this.activeItems.unshift(evt);
+        }
+      } else if (evt.status === 'completed' || evt.status === 'failed') {
+        const idx = this.activeItems.findIndex(a => a.contentId === evt.contentId);
+        if (idx >= 0) {
+          this.activeItems[idx] = { ...this.activeItems[idx], ...evt };
+          const holdMs = evt.status === 'failed' ? 4000 : 1500;
+          setTimeout(() => {
+            const ri = this.activeItems.findIndex(a => a.contentId === evt.contentId);
+            if (ri >= 0) this.activeItems.splice(ri, 1);
+          }, holdMs);
+        }
+        this.scheduleReconcile();
+      }
+
+      this.patchGridRow(evt);
+      if (evt.contentStatus && this.drawerOpen && this.drawerItem?.id === evt.contentId) {
+        this.drawerItem.status = evt.contentStatus;
+        if (evt.status === 'completed') {
+          this.openDrawer(this.drawerItem);
+        }
+      }
+    },
+
+    patchGridRow(evt) {
+      if (!evt.contentStatus) return;
+      const row = this.contentItems.find(r => r.id === evt.contentId);
+      if (row) {
+        row.status = evt.contentStatus;
+      }
+      if (evt.contentStatus) {
+        this.scheduleReconcile();
+      }
+    },
+
+    scheduleReconcile() {
+      if (this._reconcileTimer) return;
+      this._reconcileTimer = setTimeout(() => {
+        this._reconcileTimer = null;
+        this.loadContent();
+      }, 500);
+    },
+
+    reconcileContent() {
+      if (this.page === 'content') this.loadContent();
+    },
+
+    socketSubscribeScope() {
+      if (!this._socket) return;
+      const pids = this.scopePages.map(p => p.id);
+      this._socket.emit('subscribe:scope', { type: this.currentScope.type, pageIds: pids });
+    },
+
+    scopedActiveItems() {
+      if (this.currentScope.type === 'all') return this.activeItems;
+      const pids = new Set(this.scopePages.map(p => p.id));
+      return this.activeItems.filter(a => pids.has(a.pageId));
+    },
+
+    activeElapsed(ai) {
+      if (!ai.startedAt) return '';
+      const s = Math.floor((Date.now() - new Date(ai.startedAt).getTime()) / 1000);
+      if (s < 60) return s + 's';
+      const m = Math.floor(s / 60);
+      if (m < 60) return m + ' phút';
+      return Math.floor(m / 60) + 'h ' + (m % 60) + 'm';
+    },
+
+    destroySocket() {
+      if (this._socket) { this._socket.disconnect(); this._socket = null; }
+      this._socketConnected = false;
+      if (this._socketFallbackTimer) { clearInterval(this._socketFallbackTimer); this._socketFallbackTimer = null; }
+    },
+
     showToast(message, type = 'success') {
       this.toast = { show: true, message, type };
       setTimeout(() => this.toast.show = false, 3000);
@@ -4404,10 +4675,12 @@ function app() {
       this.dbFilter.campaignId = '';
       this.importForm.pageId = scope.type === 'page' ? scope.id : '';
       this.importForm.campaignId = '';
+      this.activeTab = false;
       this.loadScopePages();
       this.loadDashboard();
       if (this.page === 'content') this.loadContent();
       if (this.page === 'campaigns') this.loadCampaigns();
+      this.$nextTick(() => this.socketSubscribeScope());
     },
 
     async loadScopePages() {

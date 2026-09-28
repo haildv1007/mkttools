@@ -1,4 +1,5 @@
 import express from 'express';
+import { createServer } from 'http';
 import cors from 'cors';
 import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
@@ -13,6 +14,7 @@ import { dashboardRouter } from './modules/dashboard';
 import { workspaceRouter } from './modules/workspace';
 import { getBot } from './modules/telegram-bot';
 import { startWorkers, startScheduler } from './queues';
+import { initSocketIO } from './realtime';
 
 const app = express();
 app.set('trust proxy', 1);
@@ -26,7 +28,7 @@ app.use(helmet({
       fontSrc: ["'self'", "https://fonts.gstatic.com", "https://cdn.jsdelivr.net"],
       imgSrc: ["'self'", "data:", "https:"],
       mediaSrc: ["'self'", "https:"],
-      connectSrc: ["'self'"],
+      connectSrc: ["'self'", "ws:", "wss:"],
     },
   },
   hsts: false,
@@ -83,7 +85,10 @@ async function main() {
       logger.warn('REDIS_URL not set, queue disabled');
     }
 
-    const server = app.listen(config.port, () => {
+    const httpServer = createServer(app);
+    initSocketIO(httpServer);
+
+    const server = httpServer.listen(config.port, () => {
       logger.info({ port: config.port }, 'MKT Tools API running');
     });
 

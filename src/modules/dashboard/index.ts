@@ -9,6 +9,7 @@ import { contentQueue, publishQueue } from '../../queues';
 import { getSetting, getSettings, setSettings } from '../settings';
 import { resolvePageIds } from '../workspace';
 import { logActivity, updateActivity, sanitizeError } from '../../utils/activity';
+import { emitActivity, emitContentUpdate } from '../../realtime';
 
 const UPLOAD_DIR = path.join(process.cwd(), 'public', 'uploads');
 const VIDEO_DIR = path.join(UPLOAD_DIR, 'videos');
@@ -1348,7 +1349,12 @@ router.post('/content/bulk/approve', async (req: Request, res: Response) => {
       } catch { errors++; }
     }
     const notFound = ids.length - items.length;
-    await updateActivity(actId, { status: errors > 0 ? 'error' : 'success', summary: `Duyệt hàng loạt: ${success} thành công, ${skipped + notFound} bỏ qua`, progress: success, total: ids.length });
+    const finalSummary = `Duyệt hàng loạt: ${success} thành công, ${skipped + notFound} bỏ qua`;
+    await updateActivity(actId, { status: errors > 0 ? 'error' : 'success', summary: finalSummary, progress: success, total: ids.length });
+    emitActivity({ id: actId, action: 'bulk_approve', category: 'bulk', status: errors > 0 ? 'error' : 'success', summary: finalSummary, progress: success, total: ids.length, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() });
+    for (const item of eligible) {
+      emitContentUpdate({ contentId: item.id, pageId: '', operation: 'approve', status: 'completed', contentStatus: 'APPROVED', updatedAt: new Date().toISOString(), version: Date.now() });
+    }
     res.json({ success: true, total: ids.length, approved: success, skipped: skipped + notFound, errors });
   } catch (err) {
     res.status(500).json({ error: err instanceof Error ? err.message : 'Bulk approve failed' });
@@ -1400,7 +1406,9 @@ router.post('/content/bulk/delete', async (req: Request, res: Response) => {
       } catch { errors++; }
     }
     const notFound = ids.length - items.length;
-    await updateActivity(actId, { status: errors > 0 ? 'error' : 'success', summary: `Xóa hàng loạt: ${success} đã xóa, ${skipped + notFound} bỏ qua`, progress: success, total: ids.length });
+    const delSummary = `Xóa hàng loạt: ${success} đã xóa, ${skipped + notFound} bỏ qua`;
+    await updateActivity(actId, { status: errors > 0 ? 'error' : 'success', summary: delSummary, progress: success, total: ids.length });
+    emitActivity({ id: actId, action: 'bulk_delete', category: 'bulk', status: errors > 0 ? 'error' : 'success', summary: delSummary, progress: success, total: ids.length, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() });
     res.json({ success: true, total: ids.length, deleted: success, skipped: skipped + notFound, errors });
   } catch (err) {
     res.status(500).json({ error: err instanceof Error ? err.message : 'Bulk delete failed' });
