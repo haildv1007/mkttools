@@ -130,7 +130,8 @@ export function startWorkers() {
     const draftItems = await prisma.contentItem.findMany({
       where: { status: 'DRAFT' },
       include: { campaign: { select: { genLeadTime: true } } },
-      take: 50,
+      orderBy: { scheduledAt: 'asc' },
+      take: 200,
     });
 
     let generatedCount = 0;
@@ -140,7 +141,7 @@ export function startWorkers() {
       if (item.scheduledAt > ahead) continue;
 
       await contentQueue.add('generate', { contentItemId: item.id }, {
-        jobId: `gen-${item.id}`,
+        jobId: `gen-${item.id}-${Date.now()}`,
         attempts: 3,
         backoff: { type: 'exponential', delay: 5000 },
       });
@@ -157,7 +158,7 @@ export function startWorkers() {
 
     for (const item of approvedItems) {
       await publishQueue.add('publish', { contentItemId: item.id }, {
-        jobId: `pub-${item.id}`,
+        jobId: `pub-${item.id}-${Date.now()}`,
         attempts: 3,
         backoff: { type: 'exponential', delay: 10000 },
       });
