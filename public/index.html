@@ -3594,8 +3594,8 @@ function app() {
     async publishNow(id) {
       if (!confirm('Đăng bài ngay?')) return;
       try {
-        await this.api(`/dashboard/content/${id}/publish-now`, { method: 'POST' });
-        this.showToast('Đã đưa vào hàng đợi đăng bài');
+        const data = await this.api(`/dashboard/content/${id}/publish-now`, { method: 'POST' });
+        this.showToast(data.message || 'Đã đưa vào hàng đợi đăng bài');
         setTimeout(() => this.loadContent(), 3000);
       } catch (e) {
         this.showToast(e.message, 'error');

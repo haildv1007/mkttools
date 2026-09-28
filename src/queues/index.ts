@@ -105,7 +105,12 @@ export function startWorkers() {
 
   const publishWorker = new Worker('content-publishing', async (job) => {
     const { contentItemId } = job.data;
-    return publishContent(contentItemId);
+    const result = await publishContent(contentItemId);
+    if (!result.success) {
+      logger.error({ contentItemId, error: result.error }, 'Publish failed');
+      throw new Error(result.error || 'Publish failed');
+    }
+    return result;
   }, { connection, concurrency: 5 });
 
   const schedulerWorker = new Worker('content-scheduler', async () => {
@@ -150,8 +155,17 @@ export function startWorkers() {
     return { generated: generatedCount, published: approvedItems.length };
   }, { connection });
 
-  contentWorker.on('failed', (job, err) => {
+  contentWorker.on('failed', async (job, err) => {
     logger.error({ jobId: job?.id, err }, 'Content generation failed');
+    if (job?.data?.contentItemId) {
+      await prisma.contentItem.update({
+        where: { id: job.data.contentItemId },
+        data: {
+          status: 'FAILED',
+          errorMessage: err?.message || 'Generation failed',
+        },
+      }).catch(() => {});
+    }
   });
 
   publishWorker.on('failed', (job, err) => {
