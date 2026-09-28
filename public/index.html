@@ -2354,7 +2354,7 @@
       </div>
 
       <!-- Tinh chỉnh AI Modal (Chat-style) -->
-      <div x-show="revModal.open" class="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" @click.self="!revModal.loading && (revModal.open=false)">
+      <div x-show="revModal.open" class="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" @click.self="closeRevModal()">
         <div class="bg-white rounded-2xl shadow-xl w-full max-w-2xl fade-in flex flex-col" style="max-height:85vh">
           <!-- Header -->
           <div class="flex items-center justify-between px-5 py-3 border-b border-gray-100">
@@ -2367,7 +2367,7 @@
                 <p class="text-xs text-gray-400 truncate max-w-[350px]" x-text="revModal.item?.topic"></p>
               </div>
             </div>
-            <button @click="revModal.open=false" :disabled="revModal.loading" class="text-gray-400 hover:text-gray-600"><i class="ri-close-line text-lg"></i></button>
+            <button @click="closeRevModal()" class="text-gray-400 hover:text-gray-600"><i class="ri-close-line text-lg"></i></button>
           </div>
 
           <!-- Content preview + chat area -->
@@ -4579,6 +4579,11 @@ function app() {
       this.revModal.loadingVersions = false;
     },
 
+    closeRevModal() {
+      this.revModal.open = false;
+      this.revModal.loading = false;
+      this.revModal.chatHistory.forEach(msg => { if (msg.status === 'loading') msg.status = 'cancelled'; });
+    },
     async submitRevision() {
       const m = this.revModal;
       if (!m.feedback.trim() || !m.item) return;
