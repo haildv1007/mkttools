@@ -975,7 +975,7 @@
 
         <div class="flex gap-0">
           <!-- Data Grid -->
-          <div class="flex-1 bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden" :class="dgColPanel && 'rounded-r-none border-r-0'">
+          <div class="flex-1 min-w-0 bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden" :class="dgColPanel && 'rounded-r-none border-r-0'">
             <!-- Bulk Selection Bar -->
             <div x-show="dgBulkSelected.length > 0" class="flex items-center gap-3 px-4 py-2 bg-brand-50 border-b border-brand-200 text-sm">
               <span class="font-medium text-brand-700" x-text="dgBulkSelected.length + ' mục đã chọn'"></span>
