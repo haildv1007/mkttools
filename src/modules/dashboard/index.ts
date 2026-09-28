@@ -1188,7 +1188,7 @@ router.post('/content/generate-all-drafts', async (_req: Request, res: Response)
 });
 
 router.post('/content/:id/regenerate', async (req: Request, res: Response) => {
-  const { id } = req.params;
+  const id = req.params.id as string;
   await prisma.contentItem.update({ where: { id }, data: { status: 'QUEUED' } });
   await contentQueue.add('generate', { contentItemId: id }, {
     jobId: `regen-${id}-${Date.now()}`,
