@@ -975,7 +975,7 @@
 
         <div class="relative min-w-0 max-w-full">
           <!-- Data Grid -->
-          <div class="bg-white rounded-xl border border-gray-100 shadow-sm min-w-0 max-w-full flex flex-col" style="max-height:calc(100dvh - 220px)">
+          <div class="bg-white rounded-xl border border-gray-100 shadow-sm min-w-0 max-w-full flex flex-col" x-ref="dgGridShell" :style="dgGridMaxH ? 'max-height:'+dgGridMaxH+'px' : ''">
             <!-- Bulk Selection Bar -->
             <div x-show="dgBulkSelected.length > 0" class="flex-shrink-0 flex items-center gap-3 px-4 py-2 bg-brand-50 border-b border-brand-200 text-sm">
               <span class="font-medium text-brand-700" x-text="dgBulkSelected.length + ' mục đã chọn'"></span>
@@ -2682,6 +2682,7 @@ function app() {
 
     dgSummary: null,
     dgSummaryVisible: (() => { try { return localStorage.getItem('mkt_dg_summary') !== 'hidden'; } catch { return true; } })(),
+    dgGridMaxH: 0,
     textPopup: { show: false, title: '', content: '' },
     showErrorModal: false,
     errorItem: null,
@@ -2750,6 +2751,7 @@ function app() {
         if (this.currentScope.type === 'page') this.importForm.pageId = this.currentScope.id;
         await this.loadDashboard();
       }
+      window.addEventListener('resize', () => this.dgCalcHeight());
     },
 
     async api(path, options = {}) {
@@ -3063,6 +3065,15 @@ function app() {
       } catch {}
     },
 
+    dgCalcHeight() {
+      const el = this.$refs.dgGridShell;
+      if (!el) { this.dgGridMaxH = 0; return; }
+      const top = el.getBoundingClientRect().top;
+      const vh = window.innerHeight;
+      const h = Math.floor(vh - top - 16);
+      if (h > 100 && Math.abs(h - this.dgGridMaxH) > 2) this.dgGridMaxH = h;
+    },
+
     async loadContent() {
       try {
         const params = new URLSearchParams();
@@ -3105,6 +3116,7 @@ function app() {
         if (data.statusCounts) this.dgStatusCounts = data.statusCounts;
         if (data.summary) this.dgSummary = data.summary;
         this.dgBulkSelected = []; this.dgBulkAll = false;
+        this.$nextTick(() => this.dgCalcHeight());
       } catch {}
     },
 
