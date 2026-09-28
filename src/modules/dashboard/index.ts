@@ -2160,11 +2160,11 @@ router.post('/content/:id/revision', async (req: Request, res: Response) => {
     });
 
     if (feedbackText) {
-      await submitFeedbackAndExecute({
+      submitFeedbackAndExecute({
         sessionId: session.id,
         feedbackText,
         userId: userId || 'system',
-      });
+      }).catch(err => console.error('Revision execute error:', err));
     }
 
     res.json({ sessionId: session.id, status: session.status });
