@@ -197,3 +197,25 @@ model AppSetting {
 
   @@map("app_settings")
 }
+
+model ActivityLog {
+  id          String   @id @default(cuid())
+  action      String
+  category    String
+  status      String   @default("running")
+  summary     String
+  detail      String?
+  entityType  String?  @map("entity_type")
+  entityId    String?  @map("entity_id")
+  entityLabel String?  @map("entity_label")
+  progress    Int?
+  total       Int?
+  errorCode   String?  @map("error_code")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  @@index([createdAt])
+  @@index([category])
+  @@index([status])
+  @@map("activity_logs")
+}

@@ -8,6 +8,7 @@ import { listProviders, setTextProvider, setImageProvider, generateText, testCon
 import { contentQueue, publishQueue } from '../../queues';
 import { getSetting, getSettings, setSettings } from '../settings';
 import { resolvePageIds } from '../workspace';
+import { logActivity, updateActivity, sanitizeError } from '../../utils/activity';
 
 const UPLOAD_DIR = path.join(process.cwd(), 'public', 'uploads');
 const VIDEO_DIR = path.join(UPLOAD_DIR, 'videos');
@@ -1307,6 +1308,7 @@ router.post('/content/bulk/generate', async (req: Request, res: Response) => {
   try {
     const { ids } = req.body as { ids: string[] };
     if (!ids?.length) return res.status(400).json({ error: 'No ids' });
+    const actId = await logActivity({ action: 'bulk_generate', category: 'bulk', summary: `Gen hàng loạt ${ids.length} mục`, total: ids.length });
     const items = await prisma.contentItem.findMany({ where: { id: { in: ids } }, select: { id: true, status: true } });
     const eligible = items.filter(i => ['DRAFT', 'FAILED'].includes(i.status));
     const skipped = items.length - eligible.length;
@@ -1322,6 +1324,7 @@ router.post('/content/bulk/generate', async (req: Request, res: Response) => {
       } catch { errors++; }
     }
     const notFound = ids.length - items.length;
+    await updateActivity(actId, { status: errors > 0 ? 'error' : 'success', summary: `Gen hàng loạt: ${success} thành công, ${skipped + notFound} bỏ qua`, progress: success, total: ids.length });
     res.json({ success: true, total: ids.length, generated: success, skipped: skipped + notFound, errors });
   } catch (err) {
     res.status(500).json({ error: err instanceof Error ? err.message : 'Bulk generate failed' });
@@ -1332,6 +1335,7 @@ router.post('/content/bulk/approve', async (req: Request, res: Response) => {
   try {
     const { ids, userId } = req.body as { ids: string[]; userId?: string };
     if (!ids?.length) return res.status(400).json({ error: 'No ids' });
+    const actId = await logActivity({ action: 'bulk_approve', category: 'bulk', summary: `Duyệt hàng loạt ${ids.length} mục`, total: ids.length });
     const items = await prisma.contentItem.findMany({ where: { id: { in: ids } }, select: { id: true, status: true } });
     const eligible = items.filter(i => i.status === 'PENDING_REVIEW');
     const skipped = items.length - eligible.length;
@@ -1344,6 +1348,7 @@ router.post('/content/bulk/approve', async (req: Request, res: Response) => {
       } catch { errors++; }
     }
     const notFound = ids.length - items.length;
+    await updateActivity(actId, { status: errors > 0 ? 'error' : 'success', summary: `Duyệt hàng loạt: ${success} thành công, ${skipped + notFound} bỏ qua`, progress: success, total: ids.length });
     res.json({ success: true, total: ids.length, approved: success, skipped: skipped + notFound, errors });
   } catch (err) {
     res.status(500).json({ error: err instanceof Error ? err.message : 'Bulk approve failed' });
@@ -1354,6 +1359,7 @@ router.post('/content/bulk/publish', async (req: Request, res: Response) => {
   try {
     const { ids } = req.body as { ids: string[] };
     if (!ids?.length) return res.status(400).json({ error: 'No ids' });
+    const actId = await logActivity({ action: 'bulk_publish', category: 'bulk', summary: `Đăng hàng loạt ${ids.length} mục`, total: ids.length });
     const items = await prisma.contentItem.findMany({
       where: { id: { in: ids } },
       select: { id: true, status: true, generatedText: true, pageId: true },
@@ -1370,6 +1376,7 @@ router.post('/content/bulk/publish', async (req: Request, res: Response) => {
       } catch { errors++; }
     }
     const notFound = ids.length - items.length;
+    await updateActivity(actId, { status: errors > 0 ? 'error' : 'success', summary: `Đăng hàng loạt: ${success} đưa vào hàng đợi, ${skipped + notFound} bỏ qua`, progress: success, total: ids.length });
     res.json({ success: true, total: ids.length, published: success, skipped: skipped + notFound, errors });
   } catch (err) {
     res.status(500).json({ error: err instanceof Error ? err.message : 'Bulk publish failed' });
@@ -1380,6 +1387,7 @@ router.post('/content/bulk/delete', async (req: Request, res: Response) => {
   try {
     const { ids } = req.body as { ids: string[] };
     if (!ids?.length) return res.status(400).json({ error: 'No ids' });
+    const actId = await logActivity({ action: 'bulk_delete', category: 'bulk', summary: `Xóa hàng loạt ${ids.length} mục`, total: ids.length });
     const items = await prisma.contentItem.findMany({ where: { id: { in: ids } }, select: { id: true, status: true } });
     const eligible = items.filter(i => !['PUBLISHING'].includes(i.status));
     const skipped = items.length - eligible.length;
@@ -1392,6 +1400,7 @@ router.post('/content/bulk/delete', async (req: Request, res: Response) => {
       } catch { errors++; }
     }
     const notFound = ids.length - items.length;
+    await updateActivity(actId, { status: errors > 0 ? 'error' : 'success', summary: `Xóa hàng loạt: ${success} đã xóa, ${skipped + notFound} bỏ qua`, progress: success, total: ids.length });
     res.json({ success: true, total: ids.length, deleted: success, skipped: skipped + notFound, errors });
   } catch (err) {
     res.status(500).json({ error: err instanceof Error ? err.message : 'Bulk delete failed' });
@@ -2046,6 +2055,44 @@ router.post('/stats/fb-sync', async (req: Request, res: Response) => {
     });
   } catch (err) {
     res.status(500).json({ error: err instanceof Error ? err.message : 'Sync failed' });
+  }
+});
+
+// ===== ACTIVITY FEED =====
+
+const ACTIVITY_WHITELIST_FIELDS = ['id', 'action', 'category', 'status', 'summary', 'detail', 'entityType', 'entityLabel', 'progress', 'total', 'errorCode', 'createdAt', 'updatedAt'] as const;
+
+router.get('/activity', async (req: Request, res: Response) => {
+  try {
+    const { category, limit: limitParam, cursor } = req.query;
+    const take = Math.min(Math.max(1, Number(limitParam) || 30), 100);
+
+    const where: Record<string, unknown> = {};
+    if (category && category !== 'all') where.category = String(category);
+    if (cursor) where.createdAt = { lt: new Date(String(cursor)) };
+
+    const logs = await prisma.activityLog.findMany({
+      where,
+      orderBy: { createdAt: 'desc' },
+      take: take + 1,
+    });
+
+    const hasMore = logs.length > take;
+    const items = logs.slice(0, take).map(log => {
+      const safe: Record<string, unknown> = {};
+      for (const f of ACTIVITY_WHITELIST_FIELDS) {
+        safe[f] = (log as Record<string, unknown>)[f];
+      }
+      return safe;
+    });
+
+    res.json({
+      items,
+      hasMore,
+      nextCursor: hasMore && items.length > 0 ? (items[items.length - 1].createdAt as Date).toISOString() : null,
+    });
+  } catch (err) {
+    res.status(500).json({ error: 'Không thể tải nhật ký hoạt động' });
   }
 });
 

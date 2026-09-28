@@ -7,6 +7,7 @@ import { generateText, generateImage } from '../modules/content-generator';
 import { sendContentForApproval } from '../modules/telegram-bot';
 import { publishContent } from '../modules/publisher';
 import { extractCleanText } from '../utils/clean-text';
+import { logActivity, updateActivity, sanitizeError } from '../utils/activity';
 
 const connection = new IORedis(config.redis.url, { maxRetriesPerRequest: null });
 
@@ -23,6 +24,8 @@ export function startWorkers() {
       include: { page: true, campaign: true },
     });
     if (!item) throw new Error(`Content item ${contentItemId} not found`);
+
+    const actId = await logActivity({ action: 'generate', category: 'content', summary: `Đang gen nội dung: ${item.topic.slice(0, 80)}`, entityType: 'content', entityId: contentItemId, entityLabel: item.topic.slice(0, 100) });
 
     await prisma.contentItem.update({
       where: { id: contentItemId },
@@ -100,16 +103,24 @@ export function startWorkers() {
       });
     }
 
+    await updateActivity(actId, { status: 'success', summary: `Gen xong: ${item.topic.slice(0, 80)}` + (shouldAutoApprove ? ' (tự duyệt)' : '') });
+
     return { contentItemId, status: shouldAutoApprove ? 'auto_approved' : 'pending_review' };
   }, { connection, concurrency: 3 });
 
   const publishWorker = new Worker('content-publishing', async (job) => {
     const { contentItemId } = job.data;
+    const ci = await prisma.contentItem.findUnique({ where: { id: contentItemId }, select: { topic: true } });
+    const label = ci?.topic?.slice(0, 80) || contentItemId;
+    const actId = await logActivity({ action: 'publish', category: 'publish', summary: `Đang đăng bài: ${label}`, entityType: 'content', entityId: contentItemId, entityLabel: label });
     const result = await publishContent(contentItemId);
     if (!result.success) {
+      const safe = sanitizeError(result.error);
+      await updateActivity(actId, { status: 'error', summary: `Đăng thất bại: ${label}`, detail: safe.message, errorCode: safe.code });
       logger.error({ contentItemId, error: result.error }, 'Publish failed');
       throw new Error(result.error || 'Publish failed');
     }
+    await updateActivity(actId, { status: 'success', summary: `Đã đăng: ${label}` });
     return result;
   }, { connection, concurrency: 5 });
 
@@ -158,6 +169,7 @@ export function startWorkers() {
   contentWorker.on('failed', async (job, err) => {
     logger.error({ jobId: job?.id, err }, 'Content generation failed');
     if (job?.data?.contentItemId) {
+      const safe = sanitizeError(err);
       await prisma.contentItem.update({
         where: { id: job.data.contentItemId },
         data: {
@@ -165,6 +177,7 @@ export function startWorkers() {
           errorMessage: err?.message || 'Generation failed',
         },
       }).catch(() => {});
+      await logActivity({ action: 'generate', category: 'content', status: 'error', summary: `Gen thất bại: ${job.data.contentItemId.slice(0, 20)}`, detail: safe.message, errorCode: safe.code, entityType: 'content', entityId: job.data.contentItemId });
     }
   });
 
