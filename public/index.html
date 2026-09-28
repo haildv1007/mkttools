@@ -993,6 +993,10 @@
                 <thead class="bg-gray-50 border-b border-gray-200 sticky top-0 z-10">
                   <tr>
                     <th class="text-center font-semibold text-gray-500 uppercase w-10 sticky left-0 z-20 bg-gray-50"
+                      :class="dgDensity==='compact' ? 'px-1 py-1.5 text-[10px]' : 'px-1.5 py-2 text-xs'">
+                      <input type="checkbox" :checked="dgBulkAll" @click.stop="dgToggleAll()" class="rounded border-gray-300 text-brand-600 focus:ring-brand-500">
+                    </th>
+                    <th class="text-center font-semibold text-gray-500 uppercase w-10 sticky left-[40px] z-20 bg-gray-50"
                       :class="dgDensity==='compact' ? 'px-1 py-1.5 text-[10px]' : 'px-1.5 py-2 text-xs'"
                       style="box-shadow: 2px 0 4px -2px rgba(0,0,0,0.1)">
                       <i class="ri-more-fill"></i>
@@ -1028,37 +1032,16 @@
                   <template x-for="item in contentItems" :key="item.id">
                     <tr class="hover:bg-blue-50/30 transition group cursor-pointer" :class="[dgBulkSelected.includes(item.id) && 'bg-brand-50/40', drawerItem?.id===item.id && 'bg-brand-50/60 ring-1 ring-brand-200']"
                       @click="openDrawer(item)">
-                      <!-- Actions (leftmost) -->
-                      <td class="text-center sticky left-0 z-[5] bg-white" :class="dgDensity==='compact' ? 'px-1 py-1' : 'px-1.5 py-1.5'" @click.stop
+                      <!-- Checkbox (leftmost) -->
+                      <td class="text-center sticky left-0 z-[5] bg-white w-10" :class="dgDensity==='compact' ? 'px-1 py-1' : 'px-1.5 py-1.5'" @click.stop>
+                        <input type="checkbox" :checked="dgBulkSelected.includes(item.id)" @click.stop="dgToggleRow(item.id)" class="rounded border-gray-300 text-brand-600 focus:ring-brand-500">
+                      </td>
+                      <!-- Actions -->
+                      <td class="text-center sticky left-[40px] z-[5] bg-white" :class="dgDensity==='compact' ? 'px-1 py-1' : 'px-1.5 py-1.5'" @click.stop
                         style="box-shadow: 2px 0 4px -2px rgba(0,0,0,0.1)">
-                        <div x-data="{open:false}">
-                          <button @click="open=!open; $nextTick(()=>{ if(open){ const r=$el.getBoundingClientRect(); const dd=$el.nextElementSibling; dd.style.top=(r.bottom+4)+'px'; dd.style.left=(r.left)+'px'; } })" class="p-1 text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded transition">
-                            <i class="ri-more-2-fill text-sm"></i>
-                          </button>
-                          <div x-show="open" @click.away="open=false" x-transition class="fixed bg-white rounded-lg shadow-lg border border-gray-100 py-1 z-[100] min-w-[150px]" style="position:fixed">
-                            <button x-show="item.generatedText || item.generatedImageUrl || item.generatedVideoUrl" @click="viewResult(item); open=false"
-                              class="w-full text-left px-3 py-1.5 text-xs hover:bg-gray-50 flex items-center gap-2"><i class="ri-eye-line text-brand-500"></i> Xem</button>
-                            <button x-show="item.status==='DRAFT'" @click="regenerateContent(item.id); open=false"
-                              class="w-full text-left px-3 py-1.5 text-xs hover:bg-gray-50 flex items-center gap-2"><i class="ri-magic-line text-purple-500"></i> Gen</button>
-                            <button x-show="item.status==='PENDING_REVIEW'" @click="approveContent(item.id); open=false"
-                              class="w-full text-left px-3 py-1.5 text-xs hover:bg-gray-50 flex items-center gap-2"><i class="ri-check-line text-green-500"></i> Duyệt</button>
-                            <button x-show="item.status==='PENDING_REVIEW'" @click="regenerateContent(item.id); open=false"
-                              class="w-full text-left px-3 py-1.5 text-xs hover:bg-gray-50 flex items-center gap-2"><i class="ri-refresh-line text-orange-500"></i> Gen lại</button>
-                            <button x-show="item.status==='PENDING_REVIEW'" @click="rejectContent(item.id); open=false"
-                              class="w-full text-left px-3 py-1.5 text-xs hover:bg-gray-50 flex items-center gap-2"><i class="ri-close-line text-red-500"></i> Hủy</button>
-                            <button x-show="item.status==='APPROVED'" @click="publishNow(item.id); open=false"
-                              class="w-full text-left px-3 py-1.5 text-xs hover:bg-gray-50 flex items-center gap-2"><i class="ri-send-plane-line text-green-500"></i> Đăng ngay</button>
-                            <button x-show="item.status==='FAILED'" @click="publishNow(item.id); open=false"
-                              class="w-full text-left px-3 py-1.5 text-xs hover:bg-gray-50 flex items-center gap-2"><i class="ri-restart-line text-orange-500"></i> Đăng lại</button>
-                            <div x-show="item.status!=='PUBLISHED'&&item.status!=='GENERATING'" class="border-t border-gray-100 my-1"></div>
-                            <button x-show="item.status!=='PUBLISHED'&&item.status!=='GENERATING'" @click="editContent(item); open=false"
-                              class="w-full text-left px-3 py-1.5 text-xs hover:bg-gray-50 flex items-center gap-2"><i class="ri-pencil-line text-gray-500"></i> Sửa</button>
-                            <button x-show="item.status!=='PUBLISHED'&&item.status!=='GENERATING'" @click="deleteContent(item.id, item.topic); open=false"
-                              class="w-full text-left px-3 py-1.5 text-xs hover:bg-red-50 flex items-center gap-2 text-red-500"><i class="ri-delete-bin-line"></i> Xóa</button>
-                            <button x-show="item.status==='FAILED'&&item.errorMessage" @click="viewError(item); open=false"
-                              class="w-full text-left px-3 py-1.5 text-xs hover:bg-red-50 flex items-center gap-2 text-red-500"><i class="ri-error-warning-line"></i> Xem lỗi</button>
-                          </div>
-                        </div>
+                        <button @click="dgOpenRowMenu($event, item)" class="p-1 text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded transition">
+                          <i class="ri-more-2-fill text-sm"></i>
+                        </button>
                       </td>
                       <template x-for="(col, ci) in dgVisibleCols" :key="col.key">
                         <td class="border-r border-gray-50"
@@ -1187,7 +1170,8 @@
                 <!-- Summary tfoot: same table layout = perfect column alignment -->
                 <tfoot x-show="dgSummaryVisible && dgSummary && contentItems.length > 0" class="sticky bottom-0 z-[8] border-t-2 border-gray-200 bg-gray-50/95 backdrop-blur-sm">
                   <tr>
-                    <td class="w-10 sticky left-0 z-[9] bg-gray-50" style="box-shadow: 2px 0 4px -2px rgba(0,0,0,0.1)"></td>
+                    <td class="w-10 sticky left-0 z-[9] bg-gray-50"></td>
+                    <td class="w-10 sticky left-[40px] z-[9] bg-gray-50" style="box-shadow: 2px 0 4px -2px rgba(0,0,0,0.1)"></td>
                     <template x-for="(col, ci) in dgVisibleCols" :key="col.key">
                       <td class="border-r border-gray-100"
                         :class="[dgDensity==='compact' ? 'px-2 py-1.5' : 'px-3 py-2', col.pinned ? 'sticky z-[9] bg-gray-50' : '']"
@@ -1263,6 +1247,36 @@
             <!-- Show summary toggle -->
             <div x-show="!dgSummaryVisible && contentItems.length > 0" class="flex-shrink-0 border-t border-gray-100 px-3 py-1.5 bg-gray-50/50">
               <button @click="dgSummaryVisible=true; try{localStorage.setItem('mkt_dg_summary','visible')}catch{}" class="text-[10px] text-gray-400 hover:text-brand-500">Hiện kết quả</button>
+            </div>
+            <!-- Row Actions Dropdown (portal outside scroll) -->
+            <div x-show="dgRowMenu.open" @click.away="dgRowMenu.open=false" x-transition
+              class="fixed bg-white rounded-lg shadow-lg border border-gray-100 py-1 z-[100] min-w-[150px]"
+              :style="'top:'+dgRowMenu.y+'px;left:'+dgRowMenu.x+'px'">
+              <template x-if="dgRowMenu.item">
+                <div>
+                  <button x-show="dgRowMenu.item.generatedText || dgRowMenu.item.generatedImageUrl || dgRowMenu.item.generatedVideoUrl" @click="viewResult(dgRowMenu.item); dgRowMenu.open=false"
+                    class="w-full text-left px-3 py-1.5 text-xs hover:bg-gray-50 flex items-center gap-2"><i class="ri-eye-line text-brand-500"></i> Xem</button>
+                  <button x-show="dgRowMenu.item.status==='DRAFT'" @click="regenerateContent(dgRowMenu.item.id); dgRowMenu.open=false"
+                    class="w-full text-left px-3 py-1.5 text-xs hover:bg-gray-50 flex items-center gap-2"><i class="ri-magic-line text-purple-500"></i> Gen</button>
+                  <button x-show="dgRowMenu.item.status==='PENDING_REVIEW'" @click="approveContent(dgRowMenu.item.id); dgRowMenu.open=false"
+                    class="w-full text-left px-3 py-1.5 text-xs hover:bg-gray-50 flex items-center gap-2"><i class="ri-check-line text-green-500"></i> Duyệt</button>
+                  <button x-show="dgRowMenu.item.status==='PENDING_REVIEW'" @click="regenerateContent(dgRowMenu.item.id); dgRowMenu.open=false"
+                    class="w-full text-left px-3 py-1.5 text-xs hover:bg-gray-50 flex items-center gap-2"><i class="ri-refresh-line text-orange-500"></i> Gen lại</button>
+                  <button x-show="dgRowMenu.item.status==='PENDING_REVIEW'" @click="rejectContent(dgRowMenu.item.id); dgRowMenu.open=false"
+                    class="w-full text-left px-3 py-1.5 text-xs hover:bg-gray-50 flex items-center gap-2"><i class="ri-close-line text-red-500"></i> Hủy</button>
+                  <button x-show="dgRowMenu.item.status==='APPROVED'" @click="publishNow(dgRowMenu.item.id); dgRowMenu.open=false"
+                    class="w-full text-left px-3 py-1.5 text-xs hover:bg-gray-50 flex items-center gap-2"><i class="ri-send-plane-line text-green-500"></i> Đăng ngay</button>
+                  <button x-show="dgRowMenu.item.status==='FAILED'" @click="publishNow(dgRowMenu.item.id); dgRowMenu.open=false"
+                    class="w-full text-left px-3 py-1.5 text-xs hover:bg-gray-50 flex items-center gap-2"><i class="ri-restart-line text-orange-500"></i> Đăng lại</button>
+                  <div x-show="dgRowMenu.item.status!=='PUBLISHED'&&dgRowMenu.item.status!=='GENERATING'" class="border-t border-gray-100 my-1"></div>
+                  <button x-show="dgRowMenu.item.status!=='PUBLISHED'&&dgRowMenu.item.status!=='GENERATING'" @click="editContent(dgRowMenu.item); dgRowMenu.open=false"
+                    class="w-full text-left px-3 py-1.5 text-xs hover:bg-gray-50 flex items-center gap-2"><i class="ri-pencil-line text-gray-500"></i> Sửa</button>
+                  <button x-show="dgRowMenu.item.status!=='PUBLISHED'&&dgRowMenu.item.status!=='GENERATING'" @click="deleteContent(dgRowMenu.item.id, dgRowMenu.item.topic); dgRowMenu.open=false"
+                    class="w-full text-left px-3 py-1.5 text-xs hover:bg-red-50 flex items-center gap-2 text-red-500"><i class="ri-delete-bin-line"></i> Xóa</button>
+                  <button x-show="dgRowMenu.item.status==='FAILED'&&dgRowMenu.item.errorMessage" @click="viewError(dgRowMenu.item); dgRowMenu.open=false"
+                    class="w-full text-left px-3 py-1.5 text-xs hover:bg-red-50 flex items-center gap-2 text-red-500"><i class="ri-error-warning-line"></i> Xem lỗi</button>
+                </div>
+              </template>
             </div>
             <!-- Pagination -->
             <div x-show="contentTotal > 0" class="flex-shrink-0 flex items-center justify-between px-4 py-1.5 border-t border-gray-100 bg-white rounded-b-xl">
@@ -2641,6 +2655,7 @@ function app() {
     dgHeaderFilterData: {},
     dgBulkSelected: [],
     dgBulkAll: false,
+    dgRowMenu: { open: false, item: null, x: 0, y: 0 },
     dgSavedViews: [],
     dgActiveView: null,
     dgShowSaveView: false,
@@ -3133,7 +3148,7 @@ function app() {
     },
 
     get dgVisibleCols() {
-      const cols = this.dgAllCols.filter(c => c.visible);
+      const cols = this.dgAllCols.filter(c => c.visible && c.key !== 'checkbox');
       if (this.currentScope.type === 'page') return cols.filter(c => c.key !== 'page');
       return cols;
     },
@@ -3141,7 +3156,7 @@ function app() {
     dgColStyle(col, ci) {
       let s = 'min-width:'+col.minW+'px; width:'+col.w+'px; max-width:'+(col.maxW||600)+'px;';
       if (col.pinned) {
-        let left = 40;
+        let left = 80;
         const vis = this.dgVisibleCols;
         for (let i = 0; i < ci; i++) { if (vis[i].pinned) left += vis[i].w; }
         s += ' left:'+left+'px;';
@@ -3259,6 +3274,13 @@ function app() {
       const idx = this.dgBulkSelected.indexOf(id);
       if (idx >= 0) this.dgBulkSelected.splice(idx, 1); else this.dgBulkSelected.push(id);
       this.dgBulkAll = this.dgBulkSelected.length === this.contentItems.length && this.contentItems.length > 0;
+    },
+    dgOpenRowMenu(e, item) {
+      e.stopPropagation();
+      const r = e.currentTarget.getBoundingClientRect();
+      const menuH = 250;
+      const y = (r.bottom + menuH > window.innerHeight) ? Math.max(4, r.top - menuH) : r.bottom + 4;
+      this.dgRowMenu = { open: true, item, x: r.left, y };
     },
 
     dgOpenHeaderFilter(col, x, y) {
