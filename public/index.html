@@ -243,7 +243,7 @@
     </aside>
 
     <!-- Main Content -->
-    <main class="flex-1 ml-64 p-6">
+    <main class="ml-64 p-6 overflow-x-hidden" style="max-width:calc(100vw - 16rem);">
 
       <!-- Dashboard -->
       <div x-show="page==='dashboard'" class="fade-in">
@@ -864,10 +864,10 @@
       </div>
 
       <!-- Content List (Sheet View) -->
-      <div x-show="page==='content'" class="fade-in">
+      <div x-show="page==='content'" class="fade-in min-w-0 max-w-full">
         <!-- Toolbar -->
-        <div class="flex items-center justify-between mb-3">
-          <div class="flex items-center gap-3">
+        <div class="flex items-center justify-between mb-3 min-w-0 max-w-full">
+          <div class="flex items-center gap-3 min-w-0 flex-1 overflow-x-auto" style="scrollbar-width:none">
             <h2 class="text-xl font-bold">Content</h2>
             <div class="relative flex-shrink-0" style="min-width:220px">
               <i class="ri-search-line absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm"></i>
@@ -922,7 +922,7 @@
               @click="contentFilter={status:'',pageId:'',search:'',dateFrom:'',dateTo:'',source:'',campaignId:'',contentType:''}; dgPage=1; loadContent()"
               class="p-1.5 text-gray-400 hover:text-red-500 text-xs" title="Xóa bộ lọc"><i class="ri-filter-off-line"></i></button>
           </div>
-          <div class="flex items-center gap-2">
+          <div class="flex items-center gap-2 flex-shrink-0">
             <!-- Density toggle -->
             <div class="flex border border-gray-200 rounded-lg overflow-hidden">
               <button @click="dgDensity='compact'" :class="dgDensity==='compact' ? 'bg-gray-100 text-gray-700' : 'text-gray-400'" class="px-2 py-1" title="Thu gọn"><i class="ri-list-check text-sm"></i></button>
@@ -943,7 +943,7 @@
         </div>
 
         <!-- View Presets + Status Tabs -->
-        <div class="flex items-center gap-2 mb-3">
+        <div class="flex items-center gap-2 mb-3 min-w-0 max-w-full overflow-x-auto" style="scrollbar-width:none">
           <div class="flex border border-gray-200 rounded-lg overflow-hidden bg-white">
             <template x-for="preset in dgPresets" :key="preset.key">
               <button @click="dgSetPreset(preset.key); dgActiveView=null" class="px-3 py-1.5 text-xs font-medium transition border-r border-gray-200 last:border-r-0"
@@ -973,16 +973,16 @@
           </div>
         </div>
 
-        <div class="relative">
+        <div class="relative min-w-0 max-w-full">
           <!-- Data Grid -->
-          <div class="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
+          <div class="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden min-w-0 max-w-full">
             <!-- Bulk Selection Bar -->
             <div x-show="dgBulkSelected.length > 0" class="flex items-center gap-3 px-4 py-2 bg-brand-50 border-b border-brand-200 text-sm">
               <span class="font-medium text-brand-700" x-text="dgBulkSelected.length + ' mục đã chọn'"></span>
               <button @click="dgBulkSelected=[]; dgBulkAll=false" class="text-xs text-gray-500 hover:text-gray-700 underline">Bỏ chọn</button>
             </div>
-            <div class="overflow-x-auto" style="scrollbar-width:thin" x-ref="dgScroll">
-              <table class="w-full border-collapse" :class="dgDensity==='compact' ? 'text-xs' : 'text-sm'">
+            <div class="overflow-x-auto max-w-full" style="scrollbar-width:thin" x-ref="dgScroll">
+              <table class="border-collapse" style="min-width:100%;width:max-content" :class="dgDensity==='compact' ? 'text-xs' : 'text-sm'">
                 <thead class="bg-gray-50 border-b border-gray-200 sticky top-0 z-10">
                   <tr>
                     <template x-for="(col, ci) in dgVisibleCols" :key="col.key">
