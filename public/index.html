@@ -4333,7 +4333,7 @@ function app() {
     editContent(item, forceMode) {
       this.editingContent = item;
       const d = new Date(item.scheduledAt);
-      const isManual = item.source === 'MANUAL' || item.source === 'IMPORT';
+      const isManual = item.source === 'MANUAL';
       const existingImages = [];
       if (item.generatedImages?.length) {
         item.generatedImages.forEach(img => existingImages.push({ url: img.url || img.localPath, file: null }));
