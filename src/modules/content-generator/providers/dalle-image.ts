@@ -2,8 +2,6 @@ import * as fs from 'fs';
 import * as path from 'path';
 import * as crypto from 'crypto';
 import OpenAI from 'openai';
-import { config } from '../../../config';
-import { getSetting } from '../../settings';
 import type { ImageProvider, ImageGeneratorOptions, GeneratedImage } from '../../../types';
 
 const UPLOAD_DIR = path.join(process.cwd(), 'public', 'uploads');
@@ -28,8 +26,10 @@ export class DalleImageProvider implements ImageProvider {
     if (!apiKey) throw new Error('AI_PROVIDER_NOT_CONFIGURED');
 
     const client = new OpenAI({ apiKey });
-    const dbModel = options.credential?.model || (await getSetting('AI_IMAGE_MODEL'));
-    const model = (dbModel && (dbModel.startsWith('dall-e') || dbModel.startsWith('gpt-image'))) ? dbModel : 'gpt-image-2.5-flare';
+    // resolveGeneration() always resolves a concrete model before this
+    // provider is called — use it exactly as selected, never substitute.
+    const model = options.credential?.model;
+    if (!model) throw new Error('AI_MODEL_NOT_AVAILABLE');
 
     const isGptImage = model.startsWith('gpt-image');
     const genParams: Record<string, unknown> = {

@@ -2696,180 +2696,21 @@
             </div>
           </div>
 
-          <!-- API Keys -->
+          <!-- AI configuration moved to Organization → AI Providers (org-scoped, BYOK). -->
           <div class="bg-white rounded-xl border border-gray-100 shadow-sm p-6">
-            <div class="flex items-center gap-3 mb-5">
+            <div class="flex items-center gap-3">
               <div class="w-10 h-10 bg-amber-50 rounded-xl flex items-center justify-center">
                 <i class="ri-key-2-line text-amber-600 text-xl"></i>
               </div>
               <div>
-                <h3 class="font-semibold">API Keys</h3>
-                <p class="text-xs text-gray-400">Quản lý API keys cho các dịch vụ AI</p>
-              </div>
-            </div>
-            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div>
-                <label class="block text-sm font-medium text-gray-700 mb-1">Anthropic API Key</label>
-                <div class="relative">
-                  <input x-model="settingsForm.ANTHROPIC_API_KEY" :type="showKeys.anthropic ? 'text' : 'password'" placeholder="sk-ant-..."
-                    class="w-full px-4 py-2.5 pr-10 border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-brand-500 font-mono text-sm">
-                  <button @click="showKeys.anthropic = !showKeys.anthropic" type="button"
-                    class="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
-                    <i :class="showKeys.anthropic ? 'ri-eye-off-line' : 'ri-eye-line'"></i>
-                  </button>
-                </div>
-                <p class="text-xs text-gray-400 mt-1">Dùng cho Claude AI viết bài</p>
-              </div>
-              <div>
-                <label class="block text-sm font-medium text-gray-700 mb-1">OpenAI API Key</label>
-                <div class="relative">
-                  <input x-model="settingsForm.OPENAI_API_KEY" :type="showKeys.openai ? 'text' : 'password'" placeholder="sk-..."
-                    class="w-full px-4 py-2.5 pr-10 border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-brand-500 font-mono text-sm">
-                  <button @click="showKeys.openai = !showKeys.openai" type="button"
-                    class="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
-                    <i :class="showKeys.openai ? 'ri-eye-off-line' : 'ri-eye-line'"></i>
-                  </button>
-                </div>
-                <p class="text-xs text-gray-400 mt-1">Dùng cho GPT viết bài + DALL-E tạo ảnh</p>
-              </div>
-              <div>
-                <label class="block text-sm font-medium text-gray-700 mb-1">Gemini API Key</label>
-                <div class="relative">
-                  <input x-model="settingsForm.GEMINI_API_KEY" :type="showKeys.gemini ? 'text' : 'password'" placeholder="AIza..."
-                    class="w-full px-4 py-2.5 pr-10 border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-brand-500 font-mono text-sm">
-                  <button @click="showKeys.gemini = !showKeys.gemini" type="button"
-                    class="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
-                    <i :class="showKeys.gemini ? 'ri-eye-off-line' : 'ri-eye-line'"></i>
-                  </button>
-                </div>
-                <p class="text-xs text-gray-400 mt-1">Dùng cho Gemini viết bài + tạo ảnh</p>
-              </div>
-            </div>
-            <p class="text-xs text-amber-600 mt-4 flex items-center gap-1">
-              <i class="ri-shield-keyhole-line"></i>
-              API keys được mã hóa và không hiển thị lại sau khi lưu. Nhập key mới để thay đổi.
-            </p>
-          </div>
-
-          <!-- AI Text Provider -->
-          <div class="bg-white rounded-xl border border-gray-100 shadow-sm p-6">
-            <div class="flex items-center gap-3 mb-5">
-              <div class="w-10 h-10 bg-blue-50 rounded-xl flex items-center justify-center">
-                <i class="ri-quill-pen-line text-blue-600 text-xl"></i>
-              </div>
-              <div>
-                <h3 class="font-semibold">AI Text (Viết bài)</h3>
-                <p class="text-xs text-gray-400">Chọn AI provider và model để viết content</p>
-              </div>
-            </div>
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <label class="block text-sm font-medium text-gray-700 mb-1">Provider</label>
-                <select x-model="settingsForm.AI_TEXT_PROVIDER"
-                  class="w-full px-4 py-2.5 border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-brand-500">
-                  <option value="claude">Claude (Anthropic)</option>
-                  <option value="openai">GPT (OpenAI)</option>
-                  <option value="gemini">Gemini (Google)</option>
-                </select>
-              </div>
-              <div>
-                <label class="block text-sm font-medium text-gray-700 mb-1">Model</label>
-                <select x-model="settingsForm.AI_TEXT_MODEL"
-                  class="w-full px-4 py-2.5 border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-brand-500 text-sm">
-                  <template x-if="settingsForm.AI_TEXT_PROVIDER === 'claude'">
-                    <template x-for="m in textModelsMap.claude" :key="m.id">
-                      <option :value="m.id" x-text="m.name"></option>
-                    </template>
-                  </template>
-                  <template x-if="settingsForm.AI_TEXT_PROVIDER === 'openai'">
-                    <template x-for="m in textModelsMap.openai" :key="m.id">
-                      <option :value="m.id" x-text="m.name"></option>
-                    </template>
-                  </template>
-                  <template x-if="settingsForm.AI_TEXT_PROVIDER === 'gemini'">
-                    <template x-for="m in textModelsMap.gemini" :key="m.id">
-                      <option :value="m.id" x-text="m.name"></option>
-                    </template>
-                  </template>
-                </select>
+                <h3 class="font-semibold">Cấu hình AI (Provider, Model, API Key)</h3>
+                <p class="text-xs text-gray-400 mt-0.5">
+                  Đã chuyển sang <a href="#" @click.prevent="openOrgSettings()" class="text-brand-600 hover:underline font-medium">Organization → AI Providers</a>
+                  — mỗi tổ chức tự cấu hình provider/model/API key riêng.
+                </p>
               </div>
             </div>
           </div>
-
-          <!-- AI Image Provider -->
-          <div class="bg-white rounded-xl border border-gray-100 shadow-sm p-6">
-            <div class="flex items-center gap-3 mb-5">
-              <div class="w-10 h-10 bg-purple-50 rounded-xl flex items-center justify-center">
-                <i class="ri-image-line text-purple-600 text-xl"></i>
-              </div>
-              <div>
-                <h3 class="font-semibold">AI Image (Tạo ảnh)</h3>
-                <p class="text-xs text-gray-400">Chọn AI provider và model để tạo ảnh</p>
-              </div>
-            </div>
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <label class="block text-sm font-medium text-gray-700 mb-1">Provider</label>
-                <select x-model="settingsForm.AI_IMAGE_PROVIDER" @change="onImageProviderChange()"
-                  class="w-full px-4 py-2.5 border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-brand-500">
-                  <option value="gemini">Gemini Imagen (Google)</option>
-                  <option value="dalle">DALL-E / GPT Image (OpenAI)</option>
-                </select>
-              </div>
-              <div>
-                <label class="block text-sm font-medium text-gray-700 mb-1">Model</label>
-                <template x-if="settingsForm.AI_IMAGE_PROVIDER === 'gemini'">
-                  <div>
-                    <div class="flex gap-2">
-                      <select x-model="settingsForm.AI_IMAGE_MODEL"
-                        class="flex-1 px-4 py-2.5 border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-brand-500 text-sm min-w-0">
-                        <template x-for="m in geminiImageModels" :key="m.id">
-                          <option :value="m.id" x-text="m.name + ' — ' + m.description"></option>
-                        </template>
-                      </select>
-                      <button @click="loadGeminiImageModels()" type="button"
-                        class="px-3 py-2 bg-gray-100 hover:bg-gray-200 rounded-lg text-sm" title="Tải lại danh sách model">
-                        <i class="ri-refresh-line"></i>
-                      </button>
-                      <button @click="testImageModel()" type="button" :disabled="testingImageModel"
-                        class="px-3 py-2 bg-brand-500 hover:bg-brand-600 text-white rounded-lg text-sm whitespace-nowrap disabled:opacity-50">
-                        <span x-show="!testingImageModel">Test</span>
-                        <span x-show="testingImageModel">Đang test...</span>
-                      </button>
-                    </div>
-                    <p x-show="imageModelTestResult" x-text="imageModelTestResult"
-                      :class="imageModelTestSuccess ? 'text-green-600' : 'text-red-600'"
-                      class="text-xs mt-1"></p>
-                  </div>
-                </template>
-                <template x-if="settingsForm.AI_IMAGE_PROVIDER === 'dalle'">
-                  <div>
-                    <div class="flex gap-2">
-                      <select x-model="settingsForm.AI_IMAGE_MODEL"
-                        class="flex-1 px-4 py-2.5 border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-brand-500 text-sm min-w-0">
-                        <template x-for="m in openaiImageModels" :key="m.id">
-                          <option :value="m.id" x-text="m.name + ' — ' + m.description"></option>
-                        </template>
-                      </select>
-                      <button @click="loadOpenaiImageModels()" type="button"
-                        class="px-3 py-2 bg-gray-100 hover:bg-gray-200 rounded-lg text-sm" title="Tải lại">
-                        <i class="ri-refresh-line"></i>
-                      </button>
-                      <button @click="testOpenaiImageModel()" type="button" :disabled="testingImageModel"
-                        class="px-3 py-2 bg-brand-500 hover:bg-brand-600 text-white rounded-lg text-sm whitespace-nowrap disabled:opacity-50">
-                        <span x-show="!testingImageModel">Test</span>
-                        <span x-show="testingImageModel">Đang test...</span>
-                      </button>
-                    </div>
-                    <p x-show="imageModelTestResult" x-text="imageModelTestResult"
-                      :class="imageModelTestSuccess ? 'text-green-600' : 'text-red-600'"
-                      class="text-xs mt-1"></p>
-                  </div>
-                </template>
-              </div>
-            </div>
-          </div>
-
 
           <!-- Facebook App -->
           <div class="bg-white rounded-xl border border-gray-100 shadow-sm p-6">
@@ -3103,13 +2944,56 @@
         </p>
         <template x-if="currentOrganization?.role==='OWNER'||currentOrganization?.role==='ADMIN'">
           <div>
+            <!-- Operation configuration: which provider+model runs each operation -->
+            <div class="space-y-3 mb-4">
+              <template x-for="opDef in [{op:'TEXT_GENERATION', label:'AI Text (Viết bài)', providers:['claude','openai','gemini']}, {op:'IMAGE_GENERATION', label:'AI Image (Tạo ảnh)', providers:['gemini','openai']}]" :key="opDef.op">
+                <div class="border border-gray-100 rounded-lg p-3">
+                  <p class="text-xs font-semibold text-gray-700 mb-2" x-text="opDef.label"></p>
+                  <div class="flex flex-wrap gap-2 items-center">
+                    <select x-model="orgOpForm[opDef.op].provider" @change="onOrgOpProviderChange(opDef.op)"
+                      class="text-xs border border-gray-200 rounded px-2 py-1.5">
+                      <template x-for="p in opDef.providers" :key="p">
+                        <option :value="p" x-text="p"></option>
+                      </template>
+                    </select>
+                    <template x-if="!orgOpForm[opDef.op].useManualModel">
+                      <select x-model="orgOpForm[opDef.op].model" class="flex-1 min-w-[180px] text-xs border border-gray-200 rounded px-2 py-1.5">
+                        <option value="">— Chọn model —</option>
+                        <template x-for="m in orgOpModelOptions[opDef.op]" :key="m.id">
+                          <option :value="m.id" x-text="m.name || m.id"></option>
+                        </template>
+                      </select>
+                    </template>
+                    <template x-if="orgOpForm[opDef.op].useManualModel">
+                      <input x-model="orgOpForm[opDef.op].manualModel" type="text" placeholder="Model ID (vd: gpt-4.1)"
+                        class="flex-1 min-w-[180px] text-xs border border-gray-200 rounded px-2 py-1.5 font-mono">
+                    </template>
+                    <button @click="orgOpForm[opDef.op].useManualModel = !orgOpForm[opDef.op].useManualModel" type="button"
+                      class="text-[11px] text-brand-600 hover:underline whitespace-nowrap"
+                      x-text="orgOpForm[opDef.op].useManualModel ? 'Chọn từ danh sách' : 'Nhập Model ID khác'"></button>
+                    <button @click="saveOrgOpSetting(opDef.op)" class="text-xs bg-brand-600 text-white px-3 py-1.5 rounded hover:bg-brand-700">Lưu</button>
+                  </div>
+                  <p x-show="!orgOpCredentialConfigured[opDef.op]" class="text-[11px] text-amber-600 mt-1.5">
+                    <i class="ri-error-warning-line"></i> Chưa cấu hình API Key cho <span x-text="orgOpForm[opDef.op].provider"></span> — thêm key bên dưới trước khi tạo nội dung.
+                  </p>
+                  <p x-show="orgOpForm[opDef.op].model" class="text-[11px] text-gray-400 mt-1">
+                    Đang dùng: <span class="font-mono" x-text="orgOpForm[opDef.op].model"></span>
+                  </p>
+                </div>
+              </template>
+            </div>
+
+            <p class="text-xs font-semibold text-gray-700 mb-2">API Credentials</p>
             <div class="space-y-2 mb-3">
               <template x-for="p in (orgAiCreds?.supportedProviders || ['gemini','openai','claude'])" :key="p">
                 <div class="flex items-center gap-3 py-2 border-b border-gray-100 last:border-0">
                   <div class="w-8 h-8 rounded bg-gray-100 flex items-center justify-center text-xs font-semibold text-gray-600" x-text="p.slice(0,2).toUpperCase()"></div>
                   <div class="flex-1 min-w-0">
                     <p class="text-sm font-medium capitalize" x-text="p"></p>
-                    <template x-if="(orgAiCreds?.credentials || []).find(c=>c.provider===p)">
+                    <template x-if="(orgAiCreds?.credentials || []).find(c=>c.provider===p)?.status === 'DECRYPT_ERROR'">
+                      <p class="text-xs text-red-600"><i class="ri-error-warning-line"></i> Lỗi credential — nhập lại API key</p>
+                    </template>
+                    <template x-if="(orgAiCreds?.credentials || []).find(c=>c.provider===p)?.status === 'CONFIGURED'">
                       <p class="text-xs text-gray-500">
                         <span x-text="(orgAiCreds.credentials.find(c=>c.provider===p) || {}).maskedKey"></span>
                         <span class="ml-2 text-[10px] px-1.5 py-0.5 rounded"
@@ -3362,6 +3246,13 @@ function app() {
     orgAiCreds: null,
     orgAiForm: { provider: 'gemini', apiKey: '', defaultModel: '', defaultQuality: '' },
     orgAiError: '',
+    // Canonical AI configuration: one provider+model per operation.
+    orgOpForm: {
+      TEXT_GENERATION: { provider: 'gemini', model: '', useManualModel: false, manualModel: '' },
+      IMAGE_GENERATION: { provider: 'gemini', model: '', useManualModel: false, manualModel: '' },
+    },
+    orgOpModelOptions: { TEXT_GENERATION: [], IMAGE_GENERATION: [] },
+    orgOpCredentialConfigured: { TEXT_GENERATION: false, IMAGE_GENERATION: false },
     orgInvitations: [],
     inviteForm: { email: '', role: 'MEMBER', accessMode: 'ALL' },
     inviteError: '',
@@ -4537,81 +4428,12 @@ function app() {
     async loadSettings() {
       try {
         const data = await this.api('/dashboard/settings');
+        // AI provider/model/key fields are no longer edited on this page —
+        // see Organization → AI Providers. Non-AI fields (Telegram,
+        // Facebook, timezone) still live here.
         this.settingsForm = data.settings || {};
         this.showKeys = { anthropic: false, openai: false, gemini: false, telegram: false, fbSecret: false };
-        if (this.settingsForm.AI_IMAGE_PROVIDER === 'gemini') {
-          await this.loadGeminiImageModels();
-        } else if (this.settingsForm.AI_IMAGE_PROVIDER === 'dalle') {
-          await this.loadOpenaiImageModels();
-        }
       } catch {}
-    },
-
-    async loadGeminiImageModels() {
-      try {
-        this.geminiImageModels = await this.api('/dashboard/gemini-image-models');
-        if (this.geminiImageModels.length && !this.geminiImageModels.find(m => m.id === this.settingsForm.AI_IMAGE_MODEL)) {
-          this.settingsForm.AI_IMAGE_MODEL = this.geminiImageModels[0].id;
-        }
-      } catch (e) {
-        this.showToast('Không thể tải danh sách model: ' + e.message, 'error');
-      }
-    },
-
-    async loadOpenaiImageModels() {
-      try {
-        this.openaiImageModels = await this.api('/dashboard/openai-image-models');
-        if (this.openaiImageModels.length && !this.openaiImageModels.find(m => m.id === this.settingsForm.AI_IMAGE_MODEL)) {
-          this.settingsForm.AI_IMAGE_MODEL = this.openaiImageModels[0].id;
-        }
-      } catch (e) {
-        this.showToast('Không thể tải danh sách model: ' + e.message, 'error');
-      }
-    },
-
-    async testOpenaiImageModel() {
-      this.testingImageModel = true;
-      this.imageModelTestResult = '';
-      try {
-        const data = await this.api('/dashboard/test-openai-image-model', {
-          method: 'POST',
-          body: JSON.stringify({ model: this.settingsForm.AI_IMAGE_MODEL }),
-        });
-        this.imageModelTestSuccess = data.success;
-        this.imageModelTestResult = data.success ? data.message : data.error;
-      } catch (e) {
-        this.imageModelTestSuccess = false;
-        this.imageModelTestResult = e.message;
-      } finally {
-        this.testingImageModel = false;
-      }
-    },
-
-    async onImageProviderChange() {
-      this.imageModelTestResult = '';
-      if (this.settingsForm.AI_IMAGE_PROVIDER === 'gemini') {
-        await this.loadGeminiImageModels();
-      } else if (this.settingsForm.AI_IMAGE_PROVIDER === 'dalle') {
-        await this.loadOpenaiImageModels();
-      }
-    },
-
-    async testImageModel() {
-      this.testingImageModel = true;
-      this.imageModelTestResult = '';
-      try {
-        const data = await this.api('/dashboard/test-image-model', {
-          method: 'POST',
-          body: JSON.stringify({ model: this.settingsForm.AI_IMAGE_MODEL }),
-        });
-        this.imageModelTestSuccess = data.success;
-        this.imageModelTestResult = data.success ? data.message : data.error;
-      } catch (e) {
-        this.imageModelTestSuccess = false;
-        this.imageModelTestResult = e.message;
-      } finally {
-        this.testingImageModel = false;
-      }
     },
 
     async saveSettings() {
@@ -5498,7 +5320,67 @@ function app() {
         this.orgMembers = await this.api(`/organizations/${this.currentOrganization.id}/members`);
         this.orgAiCreds = await this.api('/ai-credentials');
         this.orgInvitations = await this.api('/organizations-invitations');
+        await this.loadOrgAiOperations();
       } catch (e) { console.warn('org settings load failed', e); }
+    },
+    // ---------------- AI operation settings (canonical AI config UI) ----------------
+    async loadOrgAiOperations() {
+      try {
+        const r = await this.api('/ai-credentials/operations');
+        const byOp = Object.fromEntries((r.operations || []).map(o => [o.operation, o]));
+        for (const op of ['TEXT_GENERATION', 'IMAGE_GENERATION']) {
+          this.orgOpForm[op].provider = byOp[op]?.provider || this.orgOpForm[op].provider;
+          this.orgOpForm[op].model = byOp[op]?.model || '';
+        }
+        await this.loadOrgOpModelOptions('TEXT_GENERATION');
+        await this.loadOrgOpModelOptions('IMAGE_GENERATION');
+      } catch (e) { console.warn('load ai operations failed', e); }
+    },
+    async loadOrgOpModelOptions(op) {
+      const provider = this.orgOpForm[op].provider;
+      if (op === 'TEXT_GENERATION') {
+        this.orgOpModelOptions[op] = this.textModelsMap[provider] || [];
+        this.orgOpCredentialConfigured[op] = !!(this.orgAiCreds?.credentials || []).find(c => c.provider === provider && c.status === 'CONFIGURED');
+        return;
+      }
+      // IMAGE_GENERATION — ask the backend, which merges the recommended
+      // catalog with a live listing from the org's own credential.
+      try {
+        if (provider === 'gemini') {
+          const r = await this.api('/dashboard/gemini-image-models');
+          this.orgOpModelOptions[op] = r.models || [];
+          this.orgOpCredentialConfigured[op] = !!r.credentialConfigured;
+        } else if (provider === 'openai') {
+          const r = await this.api('/dashboard/openai-image-models');
+          this.orgOpModelOptions[op] = r.models || [];
+          this.orgOpCredentialConfigured[op] = !!r.credentialConfigured;
+        } else {
+          this.orgOpModelOptions[op] = [];
+          this.orgOpCredentialConfigured[op] = false;
+        }
+      } catch (e) {
+        // Listing failed — never erase an already-configured model.
+        console.warn('load image model options failed', e);
+      }
+    },
+    async onOrgOpProviderChange(op) {
+      this.orgOpForm[op].model = '';
+      await this.loadOrgOpModelOptions(op);
+    },
+    async saveOrgOpSetting(op) {
+      this.orgAiError = '';
+      const form = this.orgOpForm[op];
+      const model = (form.useManualModel ? form.manualModel : form.model || form.manualModel || '').trim();
+      if (!form.provider || !model) { this.orgAiError = 'Vui lòng chọn Provider và Model.'; return; }
+      try {
+        await this.api(`/ai-credentials/operations/${op}`, {
+          method: 'PUT',
+          body: JSON.stringify({ provider: form.provider, model }),
+        });
+        form.model = model;
+        form.useManualModel = false;
+        form.manualModel = '';
+      } catch (e) { this.orgAiError = e.message; }
     },
     async sendInvitation() {
       this.inviteError = '';
@@ -5615,6 +5497,8 @@ function app() {
         });
         this.orgAiForm.apiKey = '';
         this.orgAiCreds = await this.api('/ai-credentials');
+        await this.loadOrgOpModelOptions('TEXT_GENERATION');
+        await this.loadOrgOpModelOptions('IMAGE_GENERATION');
       } catch (e) { this.orgAiError = e.message; }
     },
     async testAiCredential(provider) {
@@ -5629,6 +5513,8 @@ function app() {
       try {
         await this.api(`/ai-credentials/${provider}`, { method: 'DELETE' });
         this.orgAiCreds = await this.api('/ai-credentials');
+        await this.loadOrgOpModelOptions('TEXT_GENERATION');
+        await this.loadOrgOpModelOptions('IMAGE_GENERATION');
       } catch (e) { alert(e.message); }
     },
     async reconcileMemberAccess() {

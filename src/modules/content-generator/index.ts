@@ -1,12 +1,10 @@
-import { config } from '../../config';
-import { getSetting } from '../settings';
 import type { TextProvider, ImageProvider, TextGeneratorOptions, ImageGeneratorOptions, GeneratedContent, GeneratedImage, CredentialContext } from '../../types';
 import { ClaudeTextProvider } from './providers/claude';
 import { OpenAITextProvider } from './providers/openai-text';
 import { GeminiTextProvider } from './providers/gemini-text';
 import { DalleImageProvider } from './providers/dalle-image';
 import { GeminiImageProvider } from './providers/gemini-image';
-import { resolveCredential, tryResolveCredential, AiProviderNotConfiguredError, resolveModel } from '../ai-credentials';
+import { tryResolveCredential, resolveGeneration } from '../ai-credentials';
 import type { Operation } from '../ai-credentials';
 
 const textProviders: Record<string, () => TextProvider> = {
@@ -15,26 +13,17 @@ const textProviders: Record<string, () => TextProvider> = {
   gemini: () => new GeminiTextProvider(),
 };
 
+// Keyed by OrganizationAiCredential.provider ('openai' / 'gemini'), not by
+// the provider class's internal display name (DalleImageProvider.name is
+// still 'dalle' — that's cosmetic only).
 const imageProviders: Record<string, () => ImageProvider> = {
-  dalle: () => new DalleImageProvider(),
+  openai: () => new DalleImageProvider(),
   gemini: () => new GeminiImageProvider(),
 };
 
 // Providers are now stateless factories; there is no cached "active provider"
-// because credentials are per-organization and resolved at call time.
-
-async function getTextProviderName(): Promise<string> {
-  return (await getSetting('AI_TEXT_PROVIDER')) || config.ai.text.provider;
-}
-async function getImageProviderName(): Promise<string> {
-  return (await getSetting('AI_IMAGE_PROVIDER')) || config.ai.image.provider;
-}
-async function getTextModelName(): Promise<string | null> {
-  return (await getSetting('AI_TEXT_MODEL')) || config.ai.text.defaultModel || null;
-}
-async function getImageModelName(): Promise<string | null> {
-  return (await getSetting('AI_IMAGE_MODEL')) || config.ai.image.defaultModel || null;
-}
+// because credentials + operation settings are per-organization and resolved
+// at call time via resolveGeneration().
 
 async function makeTextProvider(name: string): Promise<TextProvider> {
   const f = textProviders[name];
@@ -47,69 +36,51 @@ async function makeImageProvider(name: string): Promise<ImageProvider> {
   return f();
 }
 
-/** No-op setters kept for backwards-compatible callers. */
-export function setTextProvider(_name: string): void { /* stateless now */ }
-export function setImageProvider(_name: string): void { /* stateless now */ }
-
-export async function listProviders() {
-  return {
-    text: Object.keys(textProviders),
-    image: Object.keys(imageProviders),
-    activeText: await getTextProviderName(),
-    activeImage: await getImageProviderName(),
-  };
+export function listProviders() {
+  return { text: Object.keys(textProviders), image: Object.keys(imageProviders) };
 }
+
+/** No-ops kept only so the deprecated legacy settings routes still resolve.
+ *  Provider selection is organization+operation scoped now (see
+ *  resolveGeneration) — there is no global "active provider" to set. */
+export function setTextProvider(_name: string): void {}
+export function setImageProvider(_name: string): void {}
 
 async function attachCredential(
   opts: { credential?: CredentialContext } | undefined,
-  providerName: string,
   operation: Operation,
 ): Promise<CredentialContext> {
   const ctx: CredentialContext = { ...(opts?.credential ?? { organizationId: '' }) };
   if (!ctx.organizationId) {
-    throw new AiProviderNotConfiguredError(providerName);
+    throw new Error('AI_PROVIDER_NOT_CONFIGURED: missing organizationId');
   }
-  ctx.provider = providerName;
-  ctx.operation = ctx.operation || operation;
-  // Resolve credential (per org, encrypted) if not already injected.
-  if (!ctx.apiKey) {
-    const resolved = await resolveCredential({
-      organizationId: ctx.organizationId,
-      provider: providerName,
-      actorUserId: ctx.actorUserId,
-    });
-    ctx.apiKey = resolved.apiKey;
-    // The org's saved default model (from Settings) wins over the quality-tier
-    // fallback below, unless the caller already passed an explicit model.
-    if (!ctx.model && resolved.defaultModel) ctx.model = resolved.defaultModel;
-  }
-  // Resolve model via AiModelResolver: explicit ctx.model wins, otherwise
-  // (org default quality) -> BALANCED -> first supported tier.
-  const resolved = await resolveModel({
+  const resolved = await resolveGeneration({
     organizationId: ctx.organizationId,
-    provider: providerName,
-    operation: ctx.operation!,
-    qualityTier: ctx.qualityTier ?? null,
+    operation: ctx.operation || operation,
+    explicitProvider: ctx.provider ?? null,
     explicitModel: ctx.model ?? null,
+    qualityTier: ctx.qualityTier ?? null,
+    actorUserId: ctx.actorUserId,
   });
+  ctx.provider = resolved.provider;
   ctx.model = resolved.model;
+  ctx.apiKey = resolved.apiKey;
+  ctx.operation = resolved.operation;
   ctx.qualityTier = resolved.quality;
   return ctx;
 }
 
 export async function generateText(options: TextGeneratorOptions): Promise<GeneratedContent> {
-  const providerName = options.credential?.provider || (await getTextProviderName());
   const op: Operation = options.credential?.operation || (options.previousFeedback ? 'TEXT_REVISION' : 'TEXT_GENERATION');
-  const credential = await attachCredential(options, providerName, op);
-  const provider = await makeTextProvider(providerName);
+  const credential = await attachCredential(options, op);
+  const provider = await makeTextProvider(credential.provider!);
   return provider.generate({ ...options, credential });
 }
 
 export async function generateImage(options: ImageGeneratorOptions): Promise<GeneratedImage> {
-  const providerName = options.credential?.provider || (await getImageProviderName());
   const op: Operation = options.credential?.operation || 'IMAGE_GENERATION';
-  const credential = await attachCredential(options, providerName, op);
-  const provider = await makeImageProvider(providerName);
+  const credential = await attachCredential(options, op);
+  const provider = await makeImageProvider(credential.provider!);
   return provider.generate({ ...options, credential });
 }
 
@@ -121,18 +92,19 @@ export function registerImageProvider(name: string, factory: () => ImageProvider
 }
 
 /**
- * Legacy admin "test connection" from the global settings page. It's fine
- * to keep this using the default text/image provider name — the resolver
- * still needs an organizationId, which the caller must supply.
+ * Test connectivity for whichever provider the organization has configured
+ * for TEXT_GENERATION / IMAGE_GENERATION — reads the same operation setting
+ * generation itself uses, so "Test" reflects what will actually run.
  */
 export async function testConnection(type: 'text' | 'image', organizationId?: string): Promise<{ ok: boolean; error?: string }> {
   try {
-    const name = type === 'text' ? await getTextProviderName() : await getImageProviderName();
     if (!organizationId) return { ok: false, error: 'Cần Organization context' };
-    const cred = await tryResolveCredential({ organizationId, provider: name });
-    if (!cred) return { ok: false, error: `Chưa cấu hình API ${name}` };
+    const op: Operation = type === 'text' ? 'TEXT_GENERATION' : 'IMAGE_GENERATION';
+    const resolved = await resolveGeneration({ organizationId, operation: op });
+    const cred = await tryResolveCredential({ organizationId, provider: resolved.provider });
+    if (!cred) return { ok: false, error: `Chưa cấu hình API ${resolved.provider}` };
     const provider: { testConnection?(cred: { apiKey: string }): Promise<{ ok: boolean; error?: string }> } =
-      type === 'text' ? await makeTextProvider(name) : await makeImageProvider(name);
+      type === 'text' ? await makeTextProvider(resolved.provider) : await makeImageProvider(resolved.provider);
     if (!provider.testConnection) return { ok: true };
     return await provider.testConnection({ apiKey: cred.apiKey });
   } catch (e) {

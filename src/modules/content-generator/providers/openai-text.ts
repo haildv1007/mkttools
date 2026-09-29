@@ -1,5 +1,4 @@
 import OpenAI from 'openai';
-import { config } from '../../../config';
 import type { TextProvider, TextGeneratorOptions, GeneratedContent } from '../../../types';
 
 export class OpenAITextProvider implements TextProvider {
@@ -9,9 +8,12 @@ export class OpenAITextProvider implements TextProvider {
     const apiKey = options.credential?.apiKey;
     if (!apiKey) throw new Error('AI_PROVIDER_NOT_CONFIGURED');
     const client = new OpenAI({ apiKey });
-    const requestedModel = options.credential?.model || config.ai.text.defaultModel;
+    // resolveGeneration() always resolves a concrete model before this
+    // provider is called — use it exactly as selected, never substitute.
+    const requestedModel = options.credential?.model;
+    if (!requestedModel) throw new Error('AI_MODEL_NOT_AVAILABLE');
     const response = await client.chat.completions.create({
-      model: requestedModel.startsWith('gpt') ? requestedModel : 'gpt-5-mini',
+      model: requestedModel,
       messages: [
         {
           role: 'system',

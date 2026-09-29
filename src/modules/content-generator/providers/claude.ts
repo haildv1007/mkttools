@@ -1,5 +1,4 @@
 import Anthropic from '@anthropic-ai/sdk';
-import { config } from '../../../config';
 import type { TextProvider, TextGeneratorOptions, GeneratedContent } from '../../../types';
 
 export class ClaudeTextProvider implements TextProvider {
@@ -17,8 +16,12 @@ Chỉ trả về JSON, không thêm gì khác.`;
 
     const userPrompt = this.buildPrompt(options);
 
+    // resolveGeneration() always resolves a concrete model before this
+    // provider is called — use it exactly as selected, never substitute.
+    const requestedModel = options.credential?.model;
+    if (!requestedModel) throw new Error('AI_MODEL_NOT_AVAILABLE');
     const response = await client.messages.create({
-      model: options.credential?.model || config.ai.text.defaultModel,
+      model: requestedModel,
       max_tokens: 1024,
       system: systemPrompt,
       messages: [{ role: 'user', content: userPrompt }],
@@ -32,7 +35,7 @@ Chỉ trả về JSON, không thêm gì khác.`;
     try {
       if (!cred?.apiKey) return { ok: false, error: 'Chưa có API key' };
       const client = new Anthropic({ apiKey: cred.apiKey });
-      await client.messages.countTokens({ model: config.ai.text.defaultModel || 'claude-sonnet-4-20250514', messages: [{ role: 'user', content: 'test' }] });
+      await client.messages.countTokens({ model: 'claude-haiku-4-5-20251001', messages: [{ role: 'user', content: 'test' }] });
       return { ok: true };
     } catch (e) {
       return { ok: false, error: e instanceof Error ? e.message : 'Unknown error' };

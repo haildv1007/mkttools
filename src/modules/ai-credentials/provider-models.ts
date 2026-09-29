@@ -1,12 +1,14 @@
 /**
- * Centralized model catalog. Any generation code that used to hard-code a
- * model string should route through resolveModel() so quality tiers, org
- * defaults, and provider capability checks live in one file.
+ * Recommended model catalog. This is BYOK (bring your own key): the customer
+ * pays the provider directly, so this table is a set of recommended
+ * defaults/labels/fallbacks — NOT a strict allowlist. A customer may type in
+ * any model id their key supports; `providerSupportsModel` below is used for
+ * UI labeling only and must never block saving an operation setting or
+ * credential default.
  *
- * IMPORTANT: only list combinations the current provider integrations
- * actually support. Model IDs should match what the provider APIs accept
- * as of the codebase — updating this table is where you upgrade to a new
- * model, never the workers.
+ * `providerSupports(provider, operation)` IS still an enforced check: it
+ * reflects which operations this codebase has an actual provider
+ * integration for (e.g. Claude has no image provider wired up).
  */
 
 export type Operation = 'TEXT_GENERATION' | 'TEXT_REVISION' | 'IMAGE_GENERATION' | 'IMAGE_REVISION' | 'VIDEO_GENERATION';

@@ -151,6 +151,7 @@ model Organization {
   contentItems ContentItem[]
   subscriptions OrganizationSubscription[]
   aiCredentials OrganizationAiCredential[]
+  aiOperationSettings OrganizationAiOperationSetting[]
   invitations   OrganizationInvitation[]
   paymentOrders PaymentOrder[]
 
@@ -246,6 +247,36 @@ model OrganizationAiCredential {
 
   @@unique([organizationId, provider])
   @@map("organization_ai_credentials")
+}
+
+enum AiOperation {
+  TEXT_GENERATION
+  TEXT_REVISION
+  IMAGE_GENERATION
+  IMAGE_REVISION
+  VIDEO_GENERATION
+}
+
+/**
+ * Per-operation runtime AI selection. One provider credential (above) can
+ * back different models for different operations (e.g. OpenAI "gpt-5" for
+ * text, OpenAI "gpt-image-1" for images) — this table is the explicit,
+ * customer-controlled source of truth generation reads first, before ever
+ * falling back to a provider's defaultModel or a quality tier.
+ */
+model OrganizationAiOperationSetting {
+  id             String      @id @default(cuid())
+  organizationId String      @map("organization_id")
+  operation      AiOperation
+  provider       String
+  model          String
+  createdAt      DateTime    @default(now()) @map("created_at")
+  updatedAt      DateTime    @updatedAt @map("updated_at")
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, operation])
+  @@map("organization_ai_operation_settings")
 }
 
 model SubscriptionPlan {

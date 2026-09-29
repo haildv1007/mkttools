@@ -1825,30 +1825,33 @@ router.get('/users', async (_req: Request, res: Response) => {
   res.json(users);
 });
 
-// Gemini image models
-router.get('/gemini-image-models', async (_req: Request, res: Response) => {
+// Gemini image models — recommended catalog + best-effort live listing from
+// the organization's OWN credential. Model list is always returned even when
+// the org has no (or an invalid) Gemini credential; credential health is a
+// separate signal (`credentialConfigured`) so the dropdown never goes blank.
+router.get('/gemini-image-models', async (req: AuthRequest, res: Response) => {
+  const knownModels = [
+    { id: 'gemini-3.1-flash-image', name: 'Nano Banana 2', description: 'Mới nhất, hỗ trợ 4K, chỉnh sửa ảnh (2026)' },
+    { id: 'gemini-3.1-flash-lite-image', name: 'Nano Banana 2 Lite', description: 'Nhanh nhất, tiết kiệm chi phí (2026)' },
+    { id: 'imagen-4', name: 'Imagen 4', description: 'Google Imagen — chất lượng cao' },
+  ];
+  const cred = await tryResolveCredential({ organizationId: req.organizationId!, provider: 'gemini' });
+  if (!cred?.apiKey) {
+    return res.json({ models: knownModels, credentialConfigured: false });
+  }
   try {
-    const apiKey = (await getSetting('GEMINI_API_KEY')) || process.env.GEMINI_API_KEY;
-    if (!apiKey) return res.status(400).json({ error: 'GEMINI_API_KEY chưa được cấu hình' });
-
-    const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${apiKey}`);
+    const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${cred.apiKey}`);
     const data = await r.json() as { models?: Array<{ name: string; displayName: string; description: string; supportedGenerationMethods: string[] }> };
-
     const apiModels = (data.models || [])
       .filter(m => m.name.includes('image') || m.description?.toLowerCase().includes('image'))
       .map(m => ({ id: m.name.replace('models/', ''), name: m.displayName, description: m.description }));
-
-    const knownModels = [
-      { id: 'gemini-3.1-flash-image', name: 'Nano Banana 2', description: 'Mới nhất, hỗ trợ 4K, chỉnh sửa ảnh (2026)' },
-      { id: 'gemini-3.1-flash-lite-image', name: 'Nano Banana 2 Lite', description: 'Nhanh nhất, tiết kiệm chi phí (2026)' },
-      { id: 'imagen-4', name: 'Imagen 4', description: 'Google Imagen — chất lượng cao' },
-    ];
     const apiIds = new Set(apiModels.map(m => m.id));
     const merged = [...knownModels.filter(m => !apiIds.has(m.id)), ...apiModels];
-
-    res.json(merged);
-  } catch (err) {
-    res.status(500).json({ error: err instanceof Error ? err.message : 'Failed to list models' });
+    res.json({ models: merged, credentialConfigured: true });
+  } catch {
+    // Live listing failed — still return the known catalog so an already
+    // configured model never disappears from the dropdown.
+    res.json({ models: knownModels, credentialConfigured: true });
   }
 });
 
@@ -1887,23 +1890,19 @@ router.post('/test-image-model', async (req: AuthRequest, res: Response) => {
   }
 });
 
-// OpenAI image models
+// OpenAI image models — same contract as gemini-image-models: the catalog is
+// always returned; `credentialConfigured` tells the UI whether the org can
+// actually use it yet.
 router.get('/openai-image-models', async (req: AuthRequest, res: Response) => {
-  try {
-    const cred = await tryResolveCredential({ organizationId: req.organizationId!, provider: 'openai' });
-    if (!cred?.apiKey) return res.status(400).json({ error: 'Chưa cấu hình OpenAI cho tổ chức' });
-
-    const models = [
-      { id: 'gpt-image-2.5-sunburst', name: 'GPT Image 2.5 Sunburst', description: '#1 — editing chính xác, chi tiết sắc nét (9/2026)' },
-      { id: 'gpt-image-2.5-flare', name: 'GPT Image 2.5 Flare', description: 'Nhanh, chất lượng cao, dùng hàng ngày (9/2026)' },
-      { id: 'gpt-image-2', name: 'GPT Image 2', description: 'Chất lượng rất cao (2026)' },
-      { id: 'gpt-image-1', name: 'GPT Image 1', description: 'Chất lượng tốt (2025)' },
-      { id: 'dall-e-3', name: 'DALL-E 3', description: 'Text in images, ổn định' },
-    ];
-    res.json(models);
-  } catch (err) {
-    res.status(500).json({ error: err instanceof Error ? err.message : 'Failed to list models' });
-  }
+  const models = [
+    { id: 'gpt-image-2.5-sunburst', name: 'GPT Image 2.5 Sunburst', description: '#1 — editing chính xác, chi tiết sắc nét (9/2026)' },
+    { id: 'gpt-image-2.5-flare', name: 'GPT Image 2.5 Flare', description: 'Nhanh, chất lượng cao, dùng hàng ngày (9/2026)' },
+    { id: 'gpt-image-2', name: 'GPT Image 2', description: 'Chất lượng rất cao (2026)' },
+    { id: 'gpt-image-1', name: 'GPT Image 1', description: 'Chất lượng tốt (2025)' },
+    { id: 'dall-e-3', name: 'DALL-E 3', description: 'Text in images, ổn định' },
+  ];
+  const cred = await tryResolveCredential({ organizationId: req.organizationId!, provider: 'openai' });
+  res.json({ models, credentialConfigured: !!cred?.apiKey });
 });
 
 router.post('/test-openai-image-model', async (req: AuthRequest, res: Response) => {

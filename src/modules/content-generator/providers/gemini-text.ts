@@ -1,4 +1,3 @@
-import { config } from '../../../config';
 import type { TextProvider, TextGeneratorOptions, GeneratedContent } from '../../../types';
 
 export class GeminiTextProvider implements TextProvider {
@@ -13,7 +12,10 @@ Trả về JSON với format: {"text": "nội dung bài đăng", "hashtags": ["t
 
     const apiKey = options.credential?.apiKey;
     if (!apiKey) throw new Error('AI_PROVIDER_NOT_CONFIGURED');
-    const model = options.credential?.model || config.ai.text.defaultModel || 'gemini-3.8-flash';
+    // resolveGeneration() always resolves a concrete model before this
+    // provider is called — use it exactly as selected, never substitute.
+    const model = options.credential?.model;
+    if (!model) throw new Error('AI_MODEL_NOT_AVAILABLE');
     const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
 
     const response = await fetch(url, {
