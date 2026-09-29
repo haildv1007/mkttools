@@ -116,6 +116,27 @@
             <td><button @click="savePlan(p)" class="px-3 py-1 bg-brand-600 text-white rounded-lg text-xs">Lưu</button></td></tr>
         </template></tbody></table></div>
 
+      <h2 class="font-semibold mb-2">Giá gói</h2>
+      <div class="bg-white border border-gray-200 rounded-lg p-3 mb-5 space-y-3">
+        <template x-for="p in plans" :key="'price-'+p.id">
+          <div x-show="planPrices[p.id]" class="border rounded-lg p-3">
+            <div class="flex items-center justify-between mb-2">
+              <span class="font-semibold" x-text="p.name"></span>
+              <button @click="savePrices(p.id)" class="px-3 py-1 bg-brand-600 text-white rounded-lg text-xs">Lưu giá</button>
+            </div>
+            <div class="grid grid-cols-3 gap-3">
+              <template x-for="m in [1,3,12]" :key="m">
+                <div>
+                  <label class="text-[11px] text-gray-500" x-text="({1:'1 tháng',3:'3 tháng',12:'12 tháng'})[m]"></label>
+                  <input type="number" min="0" step="1000" x-model.number="planPrices[p.id][m]" placeholder="Liên hệ" class="border rounded px-2 py-1 w-full">
+                  <label class="flex items-center gap-1 text-[11px] mt-1"><input type="checkbox" x-model="planPrices[p.id]['_'+m]">Active</label>
+                </div>
+              </template>
+            </div>
+          </div>
+        </template>
+      </div>
+
       <h2 class="font-semibold mb-1">Cấu hình dùng thử</h2>
       <p class="text-xs text-gray-500 mb-2">Áp dụng cho Organization mới đủ điều kiện dùng thử. Số ngày áp dụng cho Trial mới; giới hạn Page/Thành viên được đọc trực tiếp từ cấu hình này nên có hiệu lực ngay với cả các Trial đang chạy. Trial hiện có không tự động được gia hạn.</p>
       <div class="bg-white border border-gray-200 rounded-lg p-3 mb-5 flex flex-wrap items-end gap-4">
@@ -146,6 +167,65 @@
         </template></tbody></table></div>
       <div x-html="pager('subs','loadSubs')"></div>
     </section>
+
+    <!-- PAYMENTS -->
+    <section x-show="view==='payments'">
+      <h1 class="text-lg font-bold mb-3">Thanh toán</h1>
+      <div class="flex flex-wrap gap-2 mb-3 items-center">
+        <input x-model="pmf.q" @input.debounce.300ms="loadPayments(1)" placeholder="Mã đơn / Tổ chức" class="border rounded-lg px-3 py-1.5 w-64">
+        <select x-model="pmf.status" @change="loadPayments(1)" class="border rounded-lg px-2 py-1.5"><option value="">Status: tất cả</option><option>PENDING</option><option>PAID</option><option>EXPIRED</option><option>CANCELLED</option><option>FAILED</option></select>
+      </div>
+      <div class="bg-white border border-gray-200 rounded-lg overflow-x-auto"><table class="w-full">
+        <thead class="bg-gray-50 text-[11px] text-gray-500 uppercase"><tr><th>Mã đơn</th><th>Organization</th><th>Gói</th><th>Kỳ hạn</th><th>Số tiền</th><th>Status</th><th>Provider</th><th>Tạo</th><th>Thanh toán</th></tr></thead>
+        <tbody><template x-for="o in payments.items" :key="o.id">
+          <tr class="border-t cursor-pointer hover:bg-gray-50" @click="openPayment(o.id)">
+            <td class="font-medium font-mono text-xs" x-text="o.orderCode"></td>
+            <td x-text="o.organizationName"></td>
+            <td x-text="o.planNameSnapshot"></td>
+            <td x-text="periodLabel(o.billingMonths)"></td>
+            <td x-text="fmtVND(o.amount)"></td>
+            <td><span class="px-2 py-0.5 rounded-full text-[10px] font-semibold" :class="badge(o.status)" x-text="o.status"></span></td>
+            <td x-text="o.provider||'—'"></td>
+            <td x-text="d(o.createdAt)"></td>
+            <td x-text="d(o.paidAt)"></td></tr>
+        </template></tbody></table></div>
+      <div x-html="pager('payments','loadPayments')"></div>
+    </section>
+
+    <!-- PAYMENT DETAIL DRAWER -->
+    <div x-show="paymentDetail" class="fixed inset-0 z-50 flex justify-end bg-black/30" @click.self="paymentDetail=null">
+      <div class="w-full max-w-md bg-white h-full overflow-y-auto p-5">
+        <template x-if="paymentDetail"><div class="space-y-3">
+          <div class="flex items-start justify-between">
+            <div><h2 class="text-lg font-bold" x-text="paymentDetail.orderCode"></h2><p class="text-xs text-gray-500" x-text="'ID: '+paymentDetail.id"></p></div>
+            <button @click="paymentDetail=null" class="text-gray-400 hover:text-gray-600"><i class="ri-close-line text-2xl"></i></button>
+          </div>
+          <div class="border rounded-lg p-3 space-y-1 text-xs">
+            <p>Tổ chức: <b x-text="paymentDetail.organizationName"></b></p>
+            <p>Người tạo: <span x-text="(paymentDetail.createdByName||'')+' · '+(paymentDetail.createdByEmail||'')"></span></p>
+            <p>Gói: <b x-text="paymentDetail.planNameSnapshot+' ('+paymentDetail.planCodeSnapshot+')'"></b></p>
+            <p>Kỳ hạn: <b x-text="periodLabel(paymentDetail.billingMonths)"></b></p>
+            <p>Số tiền: <b x-text="fmtVND(paymentDetail.amount)+' '+paymentDetail.currency"></b></p>
+          </div>
+          <div class="border rounded-lg p-3 space-y-1 text-xs">
+            <p>Status: <span class="px-2 py-0.5 rounded-full text-[10px] font-semibold" :class="badge(paymentDetail.status)" x-text="paymentDetail.status"></span></p>
+            <p>Provider: <span x-text="paymentDetail.provider||'—'"></span></p>
+            <p x-show="paymentDetail.providerOrderId">Provider Order: <span x-text="paymentDetail.providerOrderId"></span></p>
+            <p x-show="paymentDetail.providerTransactionId">Provider TX: <span x-text="paymentDetail.providerTransactionId"></span></p>
+          </div>
+          <div class="border rounded-lg p-3 space-y-1 text-xs">
+            <p>Tạo: <span x-text="d(paymentDetail.createdAt)"></span></p>
+            <p>Hết hạn: <span x-text="d(paymentDetail.expiresAt)"></span></p>
+            <p>Thanh toán: <span x-text="d(paymentDetail.paidAt)"></span></p>
+            <p>Áp dụng: <span x-text="d(paymentDetail.appliedAt)"></span></p>
+          </div>
+          <div x-show="paymentDetail.events?.length" class="text-xs">
+            <p class="font-semibold mb-1">Events</p>
+            <template x-for="e in paymentDetail.events||[]" :key="e.id"><p class="text-gray-600" x-text="e.provider+' · '+e.eventType+' · '+e.externalEventId+' · '+d(e.createdAt)"></p></template>
+          </div>
+        </div></template>
+      </div>
+    </div>
 
     <!-- PAGES -->
     <section x-show="view==='pages'">
@@ -291,10 +371,11 @@
 <script>
 function adminApp(){ return {
   token: localStorage.getItem('mkt_token')||'', ready:false, denied:false, view:'overview', tab:'overview',
-  nav:[{id:'overview',label:'Tổng quan',icon:'ri-dashboard-line'},{id:'organizations',label:'Khách hàng',icon:'ri-building-line'},{id:'users',label:'Người dùng',icon:'ri-user-line'},{id:'plans',label:'Gói & Subscription',icon:'ri-vip-crown-line'},{id:'pages',label:'Pages',icon:'ri-pages-line'}],
+  nav:[{id:'overview',label:'Tổng quan',icon:'ri-dashboard-line'},{id:'organizations',label:'Khách hàng',icon:'ri-building-line'},{id:'users',label:'Người dùng',icon:'ri-user-line'},{id:'plans',label:'Gói & Subscription',icon:'ri-vip-crown-line'},{id:'payments',label:'Thanh toán',icon:'ri-money-dollar-circle-line'},{id:'pages',label:'Pages',icon:'ri-pages-line'}],
   overview:null, orgs:{items:[],total:0,page:1,pageSize:25}, users:{items:[],total:0,page:1,pageSize:25}, subs:{items:[],total:0,page:1,pageSize:25}, pages:{items:[],total:0,page:1,pageSize:25},
-  plans:[], trial:{trialEnabled:true,trialDays:7,trialMaxPages:2,trialMaxMembers:2},
-  of:{q:'',orgStatus:'',subStatus:'',plan:'',trial:'',overPages:'',overMembers:'',sort:'created',dir:'desc',pageSize:25}, uf:{q:''}, sf:{status:'',plan:'',trial:'',expired:'',expiresWithin:''}, pf:{q:'',status:''},
+  payments:{items:[],total:0,page:1,pageSize:25}, paymentDetail:null,
+  plans:[], planPrices:{}, trial:{trialEnabled:true,trialDays:7,trialMaxPages:2,trialMaxMembers:2},
+  of:{q:'',orgStatus:'',subStatus:'',plan:'',trial:'',overPages:'',overMembers:'',sort:'created',dir:'desc',pageSize:25}, uf:{q:''}, sf:{status:'',plan:'',trial:'',expired:'',expiresWithin:''}, pf:{q:'',status:''}, pmf:{q:'',status:'',planCode:''},
   org:null, userDetail:null, modal:'', form:{}, toast:'', toastErr:false,
 
   async api(path, opts={}){
@@ -314,7 +395,7 @@ function adminApp(){ return {
   },
   decoratePlan(p){ return {...p,_name:p.name,_maxPages:p.maxPages??'',_maxMembers:p.maxMembers??'',_isActive:p.isActive,_sortOrder:p.sortOrder}; },
   go(v,noPush){ if(!this.nav.find(n=>n.id===v)) v='overview'; this.view=v; if(!noPush) history.pushState({},'', v==='overview'?'/admin':'/admin/'+v);
-    ({overview:()=>this.loadOverview(),organizations:()=>this.loadOrgs(1),users:()=>this.loadUsers(1),plans:()=>{this.loadPlans();this.loadSubs(1)},pages:()=>this.loadPages(1)})[v](); },
+    ({overview:()=>this.loadOverview(),organizations:()=>this.loadOrgs(1),users:()=>this.loadUsers(1),plans:()=>{this.loadPlans();this.loadPlanPrices();this.loadSubs(1)},payments:()=>this.loadPayments(1),pages:()=>this.loadPages(1)})[v](); },
   async loadOverview(){ this.overview=await this.api('/overview'); },
   kpiList(){ const k=this.overview?.kpis||{}; return [['Organizations',k.organizations],['Users',k.users],['Connected Pages',k.connectedPages],['Active Subs',k.activeSubscriptions],['Trials',k.trials],['Expired',k.expiredSubscriptions],['Suspended',k.suspendedOrganizations]]; },
   async loadOrgs(p){ this.orgs=await this.api('/organizations'+this.qs(this.of,{page:p})); },
@@ -332,6 +413,14 @@ function adminApp(){ return {
 
   async savePlan(p){ try{ await this.api('/plans/'+p.id,{method:'PATCH',body:{name:p._name,maxPages:p._maxPages===''?null:Number(p._maxPages),maxMembers:p._maxMembers===''?null:Number(p._maxMembers),isActive:p._isActive,sortOrder:p._sortOrder}}); this.flash('Đã lưu gói'); this.loadPlans(); }catch(e){ this.flash(e.message,true); } },
   async saveTrial(){ try{ this.trial=await this.api('/trial-policy',{method:'PUT',body:this.trial}); this.flash('Đã lưu cấu hình dùng thử'); }catch(e){ this.flash(e.message,true); } },
+
+  async loadPlanPrices(){ try{ this.planPrices={}; const data=await this.api('/billing/prices'); for(const p of data){ this.planPrices[p.id]={1:'',3:'',12:'',_1:true,_3:true,_12:true}; for(const pr of (p.prices||[])){ this.planPrices[p.id][pr.billingMonths]=pr.amount; this.planPrices[p.id]['_'+pr.billingMonths]=pr.isActive; } } }catch(e){ this.flash(e.message,true); } },
+  async savePrices(planId){ try{ const pp=this.planPrices[planId]; const prices=[]; for(const m of [1,3,12]){ const amt=pp[m]; prices.push({billingMonths:m,amount:amt===''?null:Number(amt),isActive:pp['_'+m]!==false}); } await this.api('/billing/prices/'+planId,{method:'PUT',body:{prices}}); this.flash('Đã lưu giá'); this.loadPlanPrices(); }catch(e){ this.flash(e.message,true); } },
+
+  async loadPayments(p){ try{ this.payments=await this.api('/billing/payments'+this.qs(this.pmf,{page:p})); }catch(e){ this.flash(e.message,true); } },
+  async openPayment(id){ try{ this.paymentDetail=await this.api('/billing/payments/'+id); }catch(e){ this.flash(e.message,true); } },
+  fmtVND(v){ return v!=null?Number(v).toLocaleString('vi-VN')+'đ':'—'; },
+  periodLabel(m){ return ({1:'1 tháng',3:'3 tháng',12:'12 tháng'})[m]||(m+' tháng'); },
 
   async openOrg(id){ this.org=await this.api('/organizations/'+id); this.tab='overview'; },
   async refreshOrg(){ const id=this.org.organization.id; this.org=await this.api('/organizations/'+id); if(this.view==='organizations') this.loadOrgs(this.orgs.page); if(this.view==='plans') this.loadSubs(this.subs.page); },

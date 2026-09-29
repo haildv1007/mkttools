@@ -6,6 +6,7 @@ import {
 } from '../organization';
 import { getAccessiblePageIds } from '../access';
 import { logActivity } from '../../utils/activity';
+import { billingAdminRouter } from '../billing';
 
 const DAY_MS = 24 * 3600 * 1000;
 
@@ -457,5 +458,7 @@ router.get('/pages', async (req: AuthRequest, res: Response) => {
   res.json({ total, page, pageSize, items: pages.map((p) => ({ id: p.id, name: p.name, platform: p.platform, externalId: p.externalId,
     isActive: p.isActive, createdAt: p.createdAt, organizationId: p.organization.id, organizationName: p.organization.name })) });
 });
+
+router.use('/billing', billingAdminRouter);
 
 export { router as adminRouter };
