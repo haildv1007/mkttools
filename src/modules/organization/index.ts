@@ -226,18 +226,35 @@ router.get('/:id/members', async (req: AuthRequest, res: Response) => {
   if (!requester) return res.status(403).json({ error: 'FORBIDDEN' });
   const members = await prisma.organizationMember.findMany({
     where: { organizationId: id },
-    include: { user: { select: { id: true, email: true, name: true } } },
+    include: {
+      user: { select: { id: true, email: true, name: true } },
+      workspaceGrants: { select: { workspaceId: true } },
+      pageGrants: { select: { pageId: true } },
+    },
     orderBy: { createdAt: 'asc' },
-  });
-  res.json(members.map((m: any) => ({
-    id: m.id,
-    userId: m.userId,
-    email: m.user.email,
-    name: m.user.name,
-    role: m.role,
-    status: m.status,
-    createdAt: m.createdAt,
-  })));
+  }) as any[];
+  const { getAccessiblePageIds } = await import('../access');
+  const rows = await Promise.all(members.map(async (m: any) => {
+    const role = m.role as OrgRole;
+    const isAllAccess = role === 'OWNER' || role === 'ADMIN' || m.accessMode === 'ALL';
+    const ctx = { organizationId: id, userId: m.userId, role, accessMode: m.accessMode, memberId: m.id, isAllAccess };
+    const accessiblePages = isAllAccess ? null : await getAccessiblePageIds(ctx);
+    return {
+      id: m.id,
+      userId: m.userId,
+      email: m.user.email,
+      name: m.user.name,
+      role: m.role,
+      status: m.status,
+      accessMode: m.accessMode,
+      isAllAccess,
+      workspaceGrantCount: m.workspaceGrants.length,
+      pageGrantCount: m.pageGrants.length,
+      effectivePageCount: accessiblePages ? accessiblePages.length : null,
+      createdAt: m.createdAt,
+    };
+  }));
+  res.json(rows);
 });
 
 // Add existing user to organization by email
@@ -299,7 +316,17 @@ router.patch('/:id/members/:memberId', async (req: AuthRequest, res: Response) =
     return res.status(403).json({ error: 'OWNER_ONLY' });
   }
 
+  // If member is being promoted to OWNER/ADMIN, force accessMode=ALL so we
+  // never carry a stale RESTRICTED assignment for a privileged role.
+  if (role === 'OWNER' || role === 'ADMIN') {
+    (data as any).accessMode = 'ALL';
+  }
   const updated = await prisma.organizationMember.update({ where: { id: memberId }, data });
+  // Access rows for previous role are kept (spec: preserve for downgrade).
+  try {
+    const { emitMemberAccessChanged } = await import('../../realtime');
+    emitMemberAccessChanged(target.userId, id);
+  } catch { /* best-effort */ }
   res.json(updated);
 });
 
@@ -367,6 +394,115 @@ router.put('/:id/subscription', async (req: AuthRequest, res: Response) => {
 // Organizations are never hard-deleted in V1 (lifecycle is ACTIVE/SUSPENDED only)
 router.delete('/:id', (_req: AuthRequest, res: Response) => {
   res.status(405).json({ error: 'ORG_DELETE_DISABLED', message: 'Tổ chức không thể bị xoá.' });
+});
+
+// ---- Member access management ----
+
+// GET current effective access for the requesting member (used by frontend to
+// know whether to render restricted UI, etc.)
+router.get('/:id/access/me', async (req: AuthRequest, res: Response) => {
+  if (!req.userId) return res.status(401).json({ error: 'Unauthorized' });
+  const id = String(req.params.id);
+  const m = await prisma.organizationMember.findUnique({
+    where: { organizationId_userId: { organizationId: id, userId: req.userId } },
+    select: { id: true, role: true, accessMode: true, status: true },
+  });
+  if (!m || m.status !== 'ACTIVE') return res.status(403).json({ error: 'FORBIDDEN' });
+  const role = m.role as OrgRole;
+  const isAllAccess = role === 'OWNER' || role === 'ADMIN' || m.accessMode === 'ALL';
+  const { getAccessiblePageIds, getAccessibleWorkspaceIds } = await import('../access');
+  const ctx = { organizationId: id, userId: req.userId, role, accessMode: m.accessMode as 'ALL'|'RESTRICTED', memberId: m.id, isAllAccess };
+  const [pages, workspaces] = await Promise.all([
+    getAccessiblePageIds(ctx),
+    getAccessibleWorkspaceIds(ctx),
+  ]);
+  res.json({ role, accessMode: m.accessMode, isAllAccess, pageIds: pages, workspaceIds: workspaces });
+});
+
+// GET a specific member's access (admin+)
+router.get('/:id/members/:memberId/access', async (req: AuthRequest, res: Response) => {
+  if (!req.userId) return res.status(401).json({ error: 'Unauthorized' });
+  const id = String(req.params.id);
+  const memberId = String(req.params.memberId);
+  const requester = await prisma.organizationMember.findUnique({
+    where: { organizationId_userId: { organizationId: id, userId: req.userId } },
+  });
+  if (!requester || !roleAtLeast(requester.role as OrgRole, 'ADMIN')) return res.status(403).json({ error: 'FORBIDDEN' });
+  const target = await prisma.organizationMember.findUnique({
+    where: { id: memberId },
+    include: {
+      workspaceGrants: { select: { workspaceId: true } },
+      pageGrants: { select: { pageId: true } },
+    },
+  }) as any;
+  if (!target || target.organizationId !== id) return res.status(404).json({ error: 'NOT_FOUND' });
+  res.json({
+    memberId: target.id,
+    role: target.role,
+    accessMode: target.accessMode,
+    workspaceIds: target.workspaceGrants.map((g: any) => g.workspaceId),
+    pageIds: target.pageGrants.map((g: any) => g.pageId),
+  });
+});
+
+// PUT update a member's access (admin+). OWNER/ADMIN can never be RESTRICTED.
+router.put('/:id/members/:memberId/access', async (req: AuthRequest, res: Response) => {
+  if (!req.userId) return res.status(401).json({ error: 'Unauthorized' });
+  const id = String(req.params.id);
+  const memberId = String(req.params.memberId);
+  const requester = await prisma.organizationMember.findUnique({
+    where: { organizationId_userId: { organizationId: id, userId: req.userId } },
+  });
+  if (!requester || !roleAtLeast(requester.role as OrgRole, 'ADMIN')) return res.status(403).json({ error: 'FORBIDDEN' });
+  const target = await prisma.organizationMember.findUnique({ where: { id: memberId } });
+  if (!target || target.organizationId !== id) return res.status(404).json({ error: 'NOT_FOUND' });
+
+  const { accessMode, workspaceIds, pageIds } = req.body || {};
+  const wantedMode: 'ALL' | 'RESTRICTED' = accessMode === 'RESTRICTED' ? 'RESTRICTED' : 'ALL';
+
+  // OWNER/ADMIN are always ALL — reject attempts to restrict them.
+  if ((target.role === 'OWNER' || target.role === 'ADMIN') && wantedMode === 'RESTRICTED') {
+    return res.status(400).json({ error: 'CANNOT_RESTRICT_OWNER_ADMIN', message: 'Owner/Admin luôn có toàn quyền tổ chức.' });
+  }
+
+  const wsIds: string[] = Array.isArray(workspaceIds) ? workspaceIds.filter((x) => typeof x === 'string') : [];
+  const pgIds: string[] = Array.isArray(pageIds) ? pageIds.filter((x) => typeof x === 'string') : [];
+
+  // Validate all resources belong to this org.
+  if (wsIds.length) {
+    const wsCount = await prisma.workspace.count({ where: { id: { in: wsIds }, organizationId: id } });
+    if (wsCount !== wsIds.length) return res.status(400).json({ error: 'INVALID_WORKSPACES' });
+  }
+  if (pgIds.length) {
+    const pgCount = await prisma.page.count({ where: { id: { in: pgIds }, organizationId: id } });
+    if (pgCount !== pgIds.length) return res.status(400).json({ error: 'INVALID_PAGES' });
+  }
+
+  await prisma.$transaction(async (tx) => {
+    await tx.organizationMember.update({ where: { id: memberId }, data: { accessMode: wantedMode } });
+    await tx.organizationMemberWorkspace.deleteMany({ where: { organizationMemberId: memberId } });
+    await tx.organizationMemberPage.deleteMany({ where: { organizationMemberId: memberId } });
+    if (wantedMode === 'RESTRICTED') {
+      if (wsIds.length) {
+        await tx.organizationMemberWorkspace.createMany({
+          data: wsIds.map((wid) => ({ organizationMemberId: memberId, workspaceId: wid })),
+        });
+      }
+      if (pgIds.length) {
+        await tx.organizationMemberPage.createMany({
+          data: pgIds.map((pid) => ({ organizationMemberId: memberId, pageId: pid })),
+        });
+      }
+    }
+  });
+
+  // Notify the affected member via realtime so their client can reconcile scope.
+  try {
+    const { emitMemberAccessChanged } = await import('../../realtime');
+    emitMemberAccessChanged(target.userId, id);
+  } catch { /* best-effort */ }
+
+  res.json({ success: true, memberId, accessMode: wantedMode, workspaceIds: wsIds, pageIds: pgIds });
 });
 
 // Page usage endpoint (any member)

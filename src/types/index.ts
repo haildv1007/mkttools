@@ -27,6 +27,17 @@ export interface GeneratedImage {
   localPath?: string;
 }
 
+export interface CredentialContext {
+  organizationId: string;
+  actorUserId?: string;
+  /** Optional explicit provider override, otherwise the module default is used. */
+  provider?: string;
+  /** Optional resolved credential injected by the resolver — the provider must
+   *  use this apiKey/model rather than reading global settings. */
+  apiKey?: string;
+  model?: string;
+}
+
 export interface TextGeneratorOptions {
   topic: string;
   pageName: string;
@@ -36,6 +47,7 @@ export interface TextGeneratorOptions {
   tone?: string;
   language?: string;
   previousFeedback?: string;
+  credential?: CredentialContext;
 }
 
 export interface ImageGeneratorOptions {
@@ -43,6 +55,7 @@ export interface ImageGeneratorOptions {
   style?: string;
   width?: number;
   height?: number;
+  credential?: CredentialContext;
 }
 
 export interface TextProvider {

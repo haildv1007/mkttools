@@ -4,15 +4,14 @@ import type { TextProvider, TextGeneratorOptions, GeneratedContent } from '../..
 
 export class OpenAITextProvider implements TextProvider {
   name = 'openai';
-  private client: OpenAI;
-
-  constructor() {
-    this.client = new OpenAI({ apiKey: config.ai.text.openaiApiKey });
-  }
 
   async generate(options: TextGeneratorOptions): Promise<GeneratedContent> {
-    const response = await this.client.chat.completions.create({
-      model: config.ai.text.defaultModel.startsWith('gpt') ? config.ai.text.defaultModel : 'gpt-5-mini',
+    const apiKey = options.credential?.apiKey;
+    if (!apiKey) throw new Error('AI_PROVIDER_NOT_CONFIGURED');
+    const client = new OpenAI({ apiKey });
+    const requestedModel = options.credential?.model || config.ai.text.defaultModel;
+    const response = await client.chat.completions.create({
+      model: requestedModel.startsWith('gpt') ? requestedModel : 'gpt-5-mini',
       messages: [
         {
           role: 'system',
@@ -33,10 +32,11 @@ Chỉ trả về JSON, không thêm gì khác.`,
     return this.parseResponse(raw);
   }
 
-  async testConnection(): Promise<{ ok: boolean; error?: string }> {
+  async testConnection(cred?: { apiKey: string }): Promise<{ ok: boolean; error?: string }> {
     try {
-      if (!config.ai.text.openaiApiKey) return { ok: false, error: 'OPENAI_API_KEY chưa được cấu hình' };
-      await this.client.models.list();
+      if (!cred?.apiKey) return { ok: false, error: 'Chưa có API key' };
+      const client = new OpenAI({ apiKey: cred.apiKey });
+      await client.models.list();
       return { ok: true };
     } catch (e) {
       return { ok: false, error: e instanceof Error ? e.message : 'Unknown error' };

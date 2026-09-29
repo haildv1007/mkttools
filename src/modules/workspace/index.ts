@@ -1,6 +1,7 @@
 import { Router, Response } from 'express';
 import { prisma } from '../../utils/db';
 import { AuthRequest } from '../../middleware/auth';
+import { getAccessContext, getAccessibleWorkspaceIds, getAccessiblePageIds, canAccessWorkspace, canAccessPage } from '../access';
 
 const router = Router();
 
@@ -47,12 +48,29 @@ function formatWorkspace(w: any) {
 }
 
 router.get('/', async (req: AuthRequest, res: Response) => {
+  const where: Record<string, unknown> = { organizationId: req.organizationId };
+  if (!req.isAllAccess && req.userId) {
+    const ctx = await getAccessContext(req.organizationId!, req.userId);
+    const ids = ctx ? await getAccessibleWorkspaceIds(ctx) : [];
+    where.id = { in: ids };
+  }
   const workspaces = await prisma.workspace.findMany({
-    where: { organizationId: req.organizationId },
+    where,
     include: pageInclude,
     orderBy: { createdAt: 'desc' },
   });
-  res.json(workspaces.map(formatWorkspace));
+  // For restricted members, hide inaccessible pages inside the workspace payload.
+  let accessible: string[] | null = null;
+  if (!req.isAllAccess && req.userId) {
+    const ctx = await getAccessContext(req.organizationId!, req.userId);
+    accessible = ctx ? await getAccessiblePageIds(ctx) : [];
+  }
+  res.json(workspaces.map((w) => {
+    if (accessible) {
+      w = { ...w, workspacePages: w.workspacePages.filter((wp: any) => accessible!.includes(wp.pageId)) };
+    }
+    return formatWorkspace(w);
+  }));
 });
 
 router.get('/resolve-scope', async (req: AuthRequest, res: Response) => {
@@ -74,6 +92,10 @@ router.get('/:id', async (req: AuthRequest, res: Response) => {
   if (!workspace || workspace.organizationId !== req.organizationId) {
     return res.status(404).json({ error: 'Workspace not found' });
   }
+  if (!req.isAllAccess && req.userId) {
+    const ctx = await getAccessContext(req.organizationId!, req.userId);
+    if (!ctx || !(await canAccessWorkspace(ctx, id))) return res.status(404).json({ error: 'Workspace not found' });
+  }
   res.json(formatWorkspace(workspace));
 });
 
@@ -86,8 +108,17 @@ async function filterOrgPageIds(orgId: string, pageIds: string[]): Promise<strin
   return pages.map((p) => p.id);
 }
 
+function requireAdminOrOwner(req: AuthRequest, res: Response): boolean {
+  if (!['OWNER', 'ADMIN'].includes(req.organizationRole || '')) {
+    res.status(403).json({ error: 'FORBIDDEN', message: 'Chỉ Owner/Admin được quản lý Workspace.' });
+    return false;
+  }
+  return true;
+}
+
 router.post('/', async (req: AuthRequest, res: Response) => {
   try {
+    if (!requireAdminOrOwner(req, res)) return;
     const { name, description, color, icon, pageIds } = req.body;
     if (!name) return res.status(400).json({ error: 'Tên workspace là bắt buộc' });
 
@@ -123,6 +154,7 @@ router.post('/', async (req: AuthRequest, res: Response) => {
 
 router.put('/:id', async (req: AuthRequest, res: Response) => {
   try {
+    if (!requireAdminOrOwner(req, res)) return;
     const id = req.params.id as string;
     const existing = await prisma.workspace.findUnique({ where: { id } });
     if (!existing || existing.organizationId !== req.organizationId) {
@@ -160,6 +192,7 @@ router.put('/:id', async (req: AuthRequest, res: Response) => {
 
 router.delete('/:id', async (req: AuthRequest, res: Response) => {
   try {
+    if (!requireAdminOrOwner(req, res)) return;
     const id = req.params.id as string;
     const existing = await prisma.workspace.findUnique({ where: { id } });
     if (!existing || existing.organizationId !== req.organizationId) {

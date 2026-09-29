@@ -80,7 +80,7 @@ export function initSocketIO(server: HttpServer): Server {
         if (!orgId || typeof orgId !== 'string') return;
         const m = await prisma.organizationMember.findUnique({
           where: { organizationId_userId: { organizationId: orgId, userId } },
-          select: { status: true },
+          select: { status: true, role: true, accessMode: true },
         });
         if (!m || m.status !== 'ACTIVE') {
           socket.emit('org:denied', { organizationId: orgId });
@@ -88,10 +88,13 @@ export function initSocketIO(server: HttpServer): Server {
         }
         // Leave any prior org rooms first — one active org per socket.
         for (const room of socket.rooms) {
-          if (room.startsWith('org:')) socket.leave(room);
+          if (room.startsWith('org:') || room.startsWith('page:')) socket.leave(room);
         }
-        socket.join(`org:${orgId}`);
         (socket as any).organizationId = orgId;
+        const isAllAccess = m.role === 'OWNER' || m.role === 'ADMIN' || m.accessMode === 'ALL';
+        // Only ALL-access members receive org-wide broadcasts. Restricted
+        // members rely on page rooms so we never leak inaccessible content.
+        if (isAllAccess) socket.join(`org:${orgId}`);
       } catch (e) {
         logger.warn({ err: e }, 'joinOrg failed');
       }
@@ -111,13 +114,31 @@ export function initSocketIO(server: HttpServer): Server {
 
     socket.on('subscribe:org', (orgId: string) => joinOrg(orgId));
 
+    async function canJoinPage(pageId: string): Promise<boolean> {
+      const currentOrg = (socket as any).organizationId as string | undefined;
+      if (!currentOrg) return false;
+      const page = await prisma.page.findUnique({ where: { id: pageId }, select: { organizationId: true } });
+      if (!page || page.organizationId !== currentOrg) return false;
+      // Restricted members: enforce access before allowing a page room join.
+      const m = await prisma.organizationMember.findUnique({
+        where: { organizationId_userId: { organizationId: currentOrg, userId } },
+        select: { id: true, role: true, accessMode: true, status: true },
+      });
+      if (!m || m.status !== 'ACTIVE') return false;
+      const isAllAccess = m.role === 'OWNER' || m.role === 'ADMIN' || m.accessMode === 'ALL';
+      if (isAllAccess) return true;
+      const { getAccessiblePageIds } = await import('../modules/access');
+      const ids = await getAccessiblePageIds({
+        organizationId: currentOrg, userId, role: m.role as any, accessMode: m.accessMode as any,
+        memberId: m.id, isAllAccess: false,
+      });
+      return ids.includes(pageId);
+    }
+
     socket.on('subscribe:page', async (pageId: string) => {
       if (typeof pageId !== 'string' || pageId.length >= 100) return;
-      const currentOrg = (socket as any).organizationId;
-      if (!currentOrg) return;
-      const page = await prisma.page.findUnique({ where: { id: pageId }, select: { organizationId: true } });
-      if (!page || page.organizationId !== currentOrg) return;
-      socket.join(`page:${pageId}`);
+      if (await canJoinPage(pageId)) socket.join(`page:${pageId}`);
+      else socket.emit('page:denied', { pageId });
     });
 
     socket.on('unsubscribe:page', (pageId: string) => {
@@ -125,14 +146,11 @@ export function initSocketIO(server: HttpServer): Server {
     });
 
     socket.on('subscribe:scope', async (data: { type: string; pageIds: string[] }) => {
-      const currentOrg = (socket as any).organizationId;
-      if (!currentOrg || !data?.pageIds?.length) return;
+      if (!data?.pageIds?.length) return;
       const wanted = data.pageIds.slice(0, 500);
-      const pages = await prisma.page.findMany({
-        where: { id: { in: wanted }, organizationId: currentOrg },
-        select: { id: true },
-      });
-      for (const p of pages) socket.join(`page:${p.id}`);
+      for (const pid of wanted) {
+        if (await canJoinPage(pid)) socket.join(`page:${pid}`);
+      }
     });
 
     socket.on('disconnect', () => {
@@ -169,4 +187,9 @@ export function emitContentUpdate(event: ContentEvent) {
 export function emitStatusCounts(pageId: string, counts: Record<string, number>) {
   if (!io) return;
   io.to(`page:${pageId}`).emit('content:counts', { pageId, counts });
+}
+
+export function emitMemberAccessChanged(userId: string, organizationId: string) {
+  if (!io) return;
+  io.to(`user:${userId}`).emit('member:access-changed', { organizationId, at: new Date().toISOString() });
 }

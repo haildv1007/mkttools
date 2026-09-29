@@ -182,7 +182,7 @@ export async function submitFeedbackAndExecute(params: SubmitFeedbackParams) {
   }
 
   // Execute revision
-  await executeRevision(session.id, session.contentItem, session.revisionType, session.selectedMediaIds as number[] | null, params.feedbackText);
+  await executeRevision(session.id, session.contentItem, session.revisionType, session.selectedMediaIds as number[] | null, params.feedbackText, params.userId);
 
   return session;
 }
@@ -193,7 +193,9 @@ async function executeRevision(
   revisionType: RevisionType,
   selectedMediaIds: number[] | null,
   feedback: string,
+  actorUserId?: string,
 ) {
+  const params = { userId: actorUserId };
   const cid = item.id;
   const label = item.topic?.slice(0, 80) || cid;
 
@@ -256,6 +258,7 @@ async function executeRevision(
         version: nextVer(),
       });
 
+      const credentialCtx = { organizationId: item.organizationId, actorUserId: params.userId };
       const result = await generateText({
         topic: item.topic,
         pageName: item.page.name,
@@ -263,6 +266,7 @@ async function executeRevision(
         contentType: item.contentType,
         notes: item.notes || undefined,
         previousFeedback: feedback,
+        credential: credentialCtx,
       });
 
       newText = result.text +
@@ -304,7 +308,7 @@ async function executeRevision(
             });
 
             try {
-              const imgResult = await generateImage({ prompt: enhancedPrompt });
+              const imgResult = await generateImage({ prompt: enhancedPrompt, credential: { organizationId: item.organizationId, actorUserId: params.userId } });
               newImages[idx] = {
                 url: imgResult.url,
                 localPath: imgResult.localPath,
@@ -336,7 +340,7 @@ async function executeRevision(
             for (let i = 0; i < descriptions.length; i++) {
               const enhancedPrompt = `${descriptions[i]}\n\nFeedback chỉnh sửa: ${feedback}`;
               try {
-                const imgResult = await generateImage({ prompt: enhancedPrompt });
+                const imgResult = await generateImage({ prompt: enhancedPrompt, credential: { organizationId: item.organizationId, actorUserId: params.userId } });
                 regenImages.push({ url: imgResult.url, localPath: imgResult.localPath, description: descriptions[i] });
 
                 emitContentUpdate({
@@ -365,7 +369,7 @@ async function executeRevision(
             const origDesc = descriptions[0] || `Social media post image for: ${item.topic}`;
             const enhancedPrompt = `${origDesc}\n\nFeedback chỉnh sửa: ${feedback}`;
             try {
-              const imgResult = await generateImage({ prompt: enhancedPrompt });
+              const imgResult = await generateImage({ prompt: enhancedPrompt, credential: { organizationId: item.organizationId, actorUserId: params.userId } });
               newImageUrl = imgResult.url;
             } catch (err) {
               logger.error({ err }, 'Revision single image generation failed');
@@ -394,7 +398,7 @@ async function executeRevision(
         const desc = item.imageDescriptions.split('|')[0]?.trim() || `Video for: ${item.topic}`;
         const enhancedPrompt = `${desc}\n\nFeedback chỉnh sửa: ${feedback}`;
         try {
-          const imgResult = await generateImage({ prompt: enhancedPrompt });
+          const imgResult = await generateImage({ prompt: enhancedPrompt, credential: { organizationId: item.organizationId, actorUserId: params.userId } });
           newImageUrl = imgResult.url;
         } catch (err) {
           logger.error({ err }, 'Revision video generation failed');

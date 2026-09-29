@@ -3032,8 +3032,13 @@
               <div class="w-8 h-8 rounded-full bg-brand-100 flex items-center justify-center text-brand-600 text-sm font-semibold" x-text="(m.name||m.email||'?').charAt(0).toUpperCase()"></div>
               <div class="flex-1 min-w-0">
                 <p class="text-sm font-medium truncate" x-text="m.name"></p>
-                <p class="text-xs text-gray-400 truncate" x-text="m.email"></p>
+                <p class="text-xs text-gray-400 truncate">
+                  <span x-text="m.email"></span>
+                  <span class="ml-1" x-text="m.isAllAccess ? '· Toàn bộ Organization' : ('· ' + (m.workspaceGrantCount||0) + ' Workspace · ' + (m.effectivePageCount||0) + ' Page')"></span>
+                </p>
               </div>
+              <button x-show="(currentOrganization?.role==='OWNER'||currentOrganization?.role==='ADMIN') && !['OWNER','ADMIN'].includes(m.role)"
+                @click="openAccessDrawer(m)" class="text-xs text-brand-600 hover:underline">Quản lý quyền</button>
               <select x-show="currentOrganization?.role==='OWNER' || (currentOrganization?.role==='ADMIN' && m.role!=='OWNER')"
                 @change="updateOrgMemberRole(m.id, $event.target.value)"
                 class="text-xs border border-gray-200 rounded px-2 py-1">
@@ -3062,6 +3067,125 @@
           <button @click="addOrgMember()" class="px-4 py-2 text-sm bg-brand-600 text-white rounded-lg hover:bg-brand-700">Thêm</button>
         </div>
         <p x-show="orgMemberError" x-text="orgMemberError" class="text-xs text-red-600 mt-2"></p>
+      </div>
+
+      <!-- AI Providers -->
+      <div class="mt-6 p-4 border border-gray-200 rounded-xl">
+        <h4 class="font-semibold text-sm mb-3">AI Providers</h4>
+        <p x-show="!(currentOrganization?.role==='OWNER'||currentOrganization?.role==='ADMIN')" class="text-xs text-gray-500">
+          Chỉ Owner/Admin xem/quản lý API Key.
+        </p>
+        <template x-if="currentOrganization?.role==='OWNER'||currentOrganization?.role==='ADMIN'">
+          <div>
+            <div class="space-y-2 mb-3">
+              <template x-for="p in (orgAiCreds?.supportedProviders || ['gemini','openai','claude'])" :key="p">
+                <div class="flex items-center gap-3 py-2 border-b border-gray-100 last:border-0">
+                  <div class="w-8 h-8 rounded bg-gray-100 flex items-center justify-center text-xs font-semibold text-gray-600" x-text="p.slice(0,2).toUpperCase()"></div>
+                  <div class="flex-1 min-w-0">
+                    <p class="text-sm font-medium capitalize" x-text="p"></p>
+                    <template x-if="(orgAiCreds?.credentials || []).find(c=>c.provider===p)">
+                      <p class="text-xs text-gray-500">
+                        <span x-text="(orgAiCreds.credentials.find(c=>c.provider===p) || {}).maskedKey"></span>
+                        <span class="ml-2 text-[10px] px-1.5 py-0.5 rounded"
+                          :class="{
+                            'bg-green-100 text-green-700': (orgAiCreds.credentials.find(c=>c.provider===p)||{}).validationStatus==='CONNECTED',
+                            'bg-red-100 text-red-700':   (orgAiCreds.credentials.find(c=>c.provider===p)||{}).validationStatus==='INVALID',
+                            'bg-gray-100 text-gray-600': !['CONNECTED','INVALID'].includes(((orgAiCreds.credentials.find(c=>c.provider===p)||{}).validationStatus||'')),
+                          }"
+                          x-text="(orgAiCreds.credentials.find(c=>c.provider===p)||{}).validationStatus || 'UNTESTED'"></span>
+                      </p>
+                    </template>
+                    <template x-if="!(orgAiCreds?.credentials || []).find(c=>c.provider===p)">
+                      <p class="text-xs text-gray-400">Chưa cấu hình</p>
+                    </template>
+                  </div>
+                  <template x-if="(orgAiCreds?.credentials || []).find(c=>c.provider===p)">
+                    <div class="flex gap-1">
+                      <button @click="testAiCredential(p)" class="text-xs text-brand-600 hover:underline">Kiểm tra</button>
+                      <button @click="removeAiCredential(p)" class="text-xs text-red-500 hover:underline">Xoá</button>
+                    </div>
+                  </template>
+                </div>
+              </template>
+            </div>
+            <div class="flex flex-wrap gap-2 items-center pt-3 border-t border-gray-100">
+              <select x-model="orgAiForm.provider" class="text-xs border border-gray-200 rounded px-2 py-1.5">
+                <template x-for="p in (orgAiCreds?.supportedProviders || ['gemini','openai','claude'])" :key="p">
+                  <option :value="p" x-text="p"></option>
+                </template>
+              </select>
+              <input x-model="orgAiForm.apiKey" type="password" placeholder="API Key" class="flex-1 min-w-[200px] text-xs border border-gray-200 rounded px-2 py-1.5">
+              <input x-model="orgAiForm.defaultModel" type="text" placeholder="Model mặc định (tuỳ chọn)" class="text-xs border border-gray-200 rounded px-2 py-1.5">
+              <button @click="saveAiCredential()" class="text-xs bg-brand-600 text-white px-3 py-1.5 rounded hover:bg-brand-700">Lưu key</button>
+            </div>
+            <p x-show="orgAiError" x-text="orgAiError" class="text-xs text-red-600 mt-2"></p>
+          </div>
+        </template>
+      </div>
+    </div>
+  </div>
+
+  <!-- Access management drawer -->
+  <div x-show="accessDrawerOpen" x-cloak class="fixed inset-0 bg-black/50 z-[60] flex items-center justify-center p-4" @click.self="accessDrawerOpen=false">
+    <div class="bg-white rounded-2xl shadow-xl w-full max-w-3xl max-h-[85vh] overflow-y-auto p-6 fade-in">
+      <div class="flex items-center justify-between mb-4">
+        <div>
+          <h3 class="text-lg font-bold">Quản lý quyền truy cập</h3>
+          <p class="text-xs text-gray-500" x-text="accessTarget?.name + ' (' + accessTarget?.email + ')'"></p>
+        </div>
+        <button @click="accessDrawerOpen=false" class="text-gray-400 hover:text-gray-600"><i class="ri-close-line text-2xl"></i></button>
+      </div>
+
+      <div class="mb-4">
+        <label class="flex items-center gap-2 mb-2">
+          <input type="radio" value="ALL" x-model="accessForm.accessMode">
+          <span class="text-sm">Toàn bộ Organization</span>
+        </label>
+        <label class="flex items-center gap-2">
+          <input type="radio" value="RESTRICTED" x-model="accessForm.accessMode">
+          <span class="text-sm">Giới hạn phạm vi</span>
+        </label>
+      </div>
+
+      <template x-if="accessForm.accessMode==='RESTRICTED'">
+        <div class="space-y-4">
+          <div>
+            <p class="text-xs uppercase tracking-wider text-gray-500 mb-2">Workspaces</p>
+            <div class="max-h-40 overflow-y-auto border border-gray-200 rounded p-2 space-y-1">
+              <template x-for="w in accessOrgWorkspaces" :key="w.id">
+                <label class="flex items-center gap-2 text-sm">
+                  <input type="checkbox" :checked="accessForm.workspaceIds.includes(w.id)" @change="toggleAccessWs(w.id)">
+                  <span x-text="w.name"></span>
+                  <span class="text-xs text-gray-400" x-text="'· ' + (w.pageCount||0) + ' Pages'"></span>
+                </label>
+              </template>
+              <p x-show="!accessOrgWorkspaces.length" class="text-xs text-gray-400">Chưa có workspace.</p>
+            </div>
+          </div>
+          <div>
+            <p class="text-xs uppercase tracking-wider text-gray-500 mb-2">Pages được cấp riêng</p>
+            <div class="max-h-52 overflow-y-auto border border-gray-200 rounded p-2 space-y-1">
+              <template x-for="p in accessOrgPages" :key="p.id">
+                <label class="flex items-center gap-2 text-sm" :class="accessInheritedPageIds().has(p.id) && 'opacity-60'">
+                  <input type="checkbox"
+                    :disabled="accessInheritedPageIds().has(p.id)"
+                    :checked="accessForm.pageIds.includes(p.id) || accessInheritedPageIds().has(p.id)"
+                    @change="toggleAccessPage(p.id)">
+                  <span x-text="p.name"></span>
+                  <span x-show="accessInheritedPageIds().has(p.id)" class="text-xs text-brand-600">(qua Workspace)</span>
+                </label>
+              </template>
+            </div>
+          </div>
+          <p class="text-xs text-gray-500">
+            Quyền truy cập hiệu lực: <span class="font-semibold" x-text="accessEffectivePageCount()"></span> Pages
+          </p>
+        </div>
+      </template>
+
+      <div class="flex justify-end gap-2 mt-6">
+        <button @click="accessDrawerOpen=false" class="px-3 py-2 text-sm border border-gray-200 rounded hover:bg-gray-50">Huỷ</button>
+        <button @click="saveMemberAccess()" class="px-4 py-2 text-sm bg-brand-600 text-white rounded hover:bg-brand-700">Lưu quyền</button>
       </div>
     </div>
   </div>
@@ -3143,6 +3267,14 @@ function app() {
     orgMembers: [],
     orgMemberForm: { email: '', role: 'MEMBER' },
     orgMemberError: '',
+    orgAiCreds: null,
+    orgAiForm: { provider: 'gemini', apiKey: '', defaultModel: '' },
+    orgAiError: '',
+    accessDrawerOpen: false,
+    accessTarget: null,
+    accessForm: { accessMode: 'ALL', workspaceIds: [], pageIds: [] },
+    accessOrgPages: [],
+    accessOrgWorkspaces: [],
     scopeDropdownOpen: false,
     scopeSearch: '',
     dbPageDrop: false,
@@ -5048,6 +5180,14 @@ function app() {
 
       s.on('content:update', (evt) => this.handleContentEvent(evt));
       s.on('content:update:global', (evt) => this.handleContentEvent(evt));
+      s.on('member:access-changed', () => { this.reconcileMemberAccess(); });
+      s.on('org:denied', () => {
+        // Stored org is invalid — clear and reload memberships/scope.
+        localStorage.removeItem('mkt_current_org');
+        this.currentOrganization = null;
+        this.loadOrganizations();
+      });
+      s.on('page:denied', () => { /* silently ignored — access enforced server-side */ });
     },
 
     handleContentEvent(evt) {
@@ -5271,7 +5411,104 @@ function app() {
       this.orgSettingsOpen = true;
       try {
         this.orgMembers = await this.api(`/organizations/${this.currentOrganization.id}/members`);
+        this.orgAiCreds = await this.api('/ai-credentials');
       } catch (e) { console.warn('org settings load failed', e); }
+    },
+    async openAccessDrawer(member) {
+      if (!this.currentOrganization) return;
+      this.accessTarget = member;
+      try {
+        const [orgPages, orgWs, existing] = await Promise.all([
+          this.api('/dashboard/pages?all=true'),
+          this.api('/workspaces'),
+          this.api(`/organizations/${this.currentOrganization.id}/members/${member.id}/access`),
+        ]);
+        this.accessOrgPages = orgPages || [];
+        this.accessOrgWorkspaces = orgWs || [];
+        this.accessForm = {
+          accessMode: existing.accessMode || 'ALL',
+          workspaceIds: existing.workspaceIds || [],
+          pageIds: existing.pageIds || [],
+        };
+        this.accessDrawerOpen = true;
+      } catch (e) { alert(e.message); }
+    },
+    toggleAccessWs(id) {
+      const s = new Set(this.accessForm.workspaceIds);
+      s.has(id) ? s.delete(id) : s.add(id);
+      this.accessForm.workspaceIds = [...s];
+    },
+    toggleAccessPage(id) {
+      const s = new Set(this.accessForm.pageIds);
+      s.has(id) ? s.delete(id) : s.add(id);
+      this.accessForm.pageIds = [...s];
+    },
+    accessInheritedPageIds() {
+      const wsIds = new Set(this.accessForm.workspaceIds);
+      const ids = new Set();
+      for (const w of this.accessOrgWorkspaces) {
+        if (!wsIds.has(w.id)) continue;
+        for (const p of (w.pages || [])) ids.add(p.id);
+      }
+      return ids;
+    },
+    accessEffectivePageCount() {
+      if (this.accessForm.accessMode === 'ALL') return this.accessOrgPages.length;
+      const s = new Set();
+      for (const id of this.accessInheritedPageIds()) s.add(id);
+      for (const id of this.accessForm.pageIds) s.add(id);
+      return s.size;
+    },
+    async saveMemberAccess() {
+      if (!this.currentOrganization || !this.accessTarget) return;
+      try {
+        await this.api(`/organizations/${this.currentOrganization.id}/members/${this.accessTarget.id}/access`, {
+          method: 'PUT',
+          body: JSON.stringify(this.accessForm),
+        });
+        this.accessDrawerOpen = false;
+        this.accessTarget = null;
+        this.orgMembers = await this.api(`/organizations/${this.currentOrganization.id}/members`);
+      } catch (e) { alert(e.message); }
+    },
+    async saveAiCredential() {
+      this.orgAiError = '';
+      if (!this.orgAiForm.apiKey || this.orgAiForm.apiKey.length < 6) {
+        this.orgAiError = 'API key không hợp lệ.';
+        return;
+      }
+      try {
+        await this.api(`/ai-credentials/${this.orgAiForm.provider}`, {
+          method: 'PUT',
+          body: JSON.stringify({
+            apiKey: this.orgAiForm.apiKey,
+            defaultModel: this.orgAiForm.defaultModel || null,
+          }),
+        });
+        this.orgAiForm.apiKey = '';
+        this.orgAiCreds = await this.api('/ai-credentials');
+      } catch (e) { this.orgAiError = e.message; }
+    },
+    async testAiCredential(provider) {
+      try {
+        const r = await this.api(`/ai-credentials/${provider}/test`, { method: 'POST' });
+        alert(`${provider}: ${r.status} — ${r.message}`);
+        this.orgAiCreds = await this.api('/ai-credentials');
+      } catch (e) { alert(e.message); }
+    },
+    async removeAiCredential(provider) {
+      if (!confirm(`Xoá API key ${provider}?`)) return;
+      try {
+        await this.api(`/ai-credentials/${provider}`, { method: 'DELETE' });
+        this.orgAiCreds = await this.api('/ai-credentials');
+      } catch (e) { alert(e.message); }
+    },
+    async reconcileMemberAccess() {
+      await this.loadPages();
+      await this.loadWorkspaces();
+      await this.validateScope();
+      await this.loadScopePages();
+      await this.loadDashboard();
     },
     async addOrgMember() {
       this.orgMemberError = '';

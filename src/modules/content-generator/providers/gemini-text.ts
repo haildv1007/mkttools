@@ -11,8 +11,10 @@ Trả về JSON với format: {"text": "nội dung bài đăng", "hashtags": ["t
 
     const userPrompt = this.buildPrompt(options);
 
-    const model = config.ai.text.defaultModel || 'gemini-3.8-flash';
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${config.ai.text.geminiApiKey}`;
+    const apiKey = options.credential?.apiKey;
+    if (!apiKey) throw new Error('AI_PROVIDER_NOT_CONFIGURED');
+    const model = options.credential?.model || config.ai.text.defaultModel || 'gemini-3.8-flash';
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
 
     const response = await fetch(url, {
       method: 'POST',
@@ -39,10 +41,10 @@ Trả về JSON với format: {"text": "nội dung bài đăng", "hashtags": ["t
     return this.parseResponse(raw);
   }
 
-  async testConnection(): Promise<{ ok: boolean; error?: string }> {
+  async testConnection(cred?: { apiKey: string }): Promise<{ ok: boolean; error?: string }> {
     try {
-      const apiKey = config.ai.text.geminiApiKey;
-      if (!apiKey) return { ok: false, error: 'GEMINI_API_KEY chưa được cấu hình' };
+      const apiKey = cred?.apiKey;
+      if (!apiKey) return { ok: false, error: 'Chưa có API key' };
       const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${apiKey}`);
       if (!res.ok) return { ok: false, error: `Gemini API lỗi: ${res.status}` };
       return { ok: true };

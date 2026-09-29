@@ -11,10 +11,10 @@ const UPLOAD_DIR = path.join(process.cwd(), 'public', 'uploads');
 export class DalleImageProvider implements ImageProvider {
   name = 'dalle';
 
-  async testConnection(): Promise<{ ok: boolean; error?: string }> {
+  async testConnection(cred?: { apiKey: string }): Promise<{ ok: boolean; error?: string }> {
     try {
-      const apiKey = (await getSetting('OPENAI_API_KEY')) || config.ai.image.openaiApiKey;
-      if (!apiKey) return { ok: false, error: 'OPENAI_API_KEY chưa được cấu hình' };
+      const apiKey = cred?.apiKey;
+      if (!apiKey) return { ok: false, error: 'Chưa có API key' };
       const client = new OpenAI({ apiKey });
       await client.models.list();
       return { ok: true };
@@ -24,11 +24,11 @@ export class DalleImageProvider implements ImageProvider {
   }
 
   async generate(options: ImageGeneratorOptions): Promise<GeneratedImage> {
-    const apiKey = (await getSetting('OPENAI_API_KEY')) || config.ai.image.openaiApiKey;
-    if (!apiKey) throw new Error('OPENAI_API_KEY chưa được cấu hình');
+    const apiKey = options.credential?.apiKey;
+    if (!apiKey) throw new Error('AI_PROVIDER_NOT_CONFIGURED');
 
     const client = new OpenAI({ apiKey });
-    const dbModel = await getSetting('AI_IMAGE_MODEL');
+    const dbModel = options.credential?.model || (await getSetting('AI_IMAGE_MODEL'));
     const model = (dbModel && (dbModel.startsWith('dall-e') || dbModel.startsWith('gpt-image'))) ? dbModel : 'gpt-image-2.5-flare';
 
     const isGptImage = model.startsWith('gpt-image');

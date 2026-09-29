@@ -6,12 +6,22 @@ import { parseExcelToSchedule } from './excel-parser';
 import { resolvePageIds } from '../workspace';
 import { AuthRequest } from '../../middleware/auth';
 
-async function assertPageInOrg(pageId: string, orgId: string) {
+import { getAccessContext, canAccessPage } from '../access';
+
+async function assertPageInOrg(pageId: string, orgId: string, req?: AuthRequest) {
   const page = await prisma.page.findUnique({ where: { id: pageId }, select: { organizationId: true } });
   if (!page || page.organizationId !== orgId) {
     const err = new Error('Page not found') as Error & { status?: number };
     err.status = 404;
     throw err;
+  }
+  if (req && !req.isAllAccess && req.userId) {
+    const ctx = await getAccessContext(orgId, req.userId);
+    if (!ctx || !(await canAccessPage(ctx, pageId))) {
+      const err = new Error('RESOURCE_ACCESS_DENIED') as Error & { status?: number };
+      err.status = 403;
+      throw err;
+    }
   }
 }
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } });
@@ -61,7 +71,7 @@ router.post('/import', upload.single('file'), async (req: AuthRequest, res: Resp
     if (!pageId || !userId) {
       return res.status(400).json({ error: 'pageId and userId required' });
     }
-    await assertPageInOrg(pageId, req.organizationId!);
+    await assertPageInOrg(pageId, req.organizationId!, req);
 
     const rows = parseExcelToSchedule(req.file.buffer);
     if (rows.length === 0) return res.status(400).json({ error: 'No valid rows in file' });
@@ -126,11 +136,23 @@ router.get('/', async (req: AuthRequest, res: Response) => {
 
   const where: Record<string, unknown> = { organizationId: req.organizationId };
 
+  let accessible: string[] | null = null;
+  if (!req.isAllAccess && req.userId) {
+    const ctx = await getAccessContext(req.organizationId!, req.userId);
+    const { getAccessiblePageIds } = await import('../access');
+    accessible = ctx ? await getAccessiblePageIds(ctx) : [];
+  }
+
   if (pageId) {
-    where.pageId = String(pageId);
+    const pid = String(pageId);
+    if (accessible && !accessible.includes(pid)) return res.json([]);
+    where.pageId = pid;
   } else if (scopeType && scopeType !== 'all') {
-    const scopePageIds = await resolvePageIds(String(scopeType), scopeId ? String(scopeId) : undefined, req.organizationId!);
+    let scopePageIds = await resolvePageIds(String(scopeType), scopeId ? String(scopeId) : undefined, req.organizationId!);
+    if (accessible) scopePageIds = scopePageIds.filter((p) => accessible!.includes(p));
     where.pageId = { in: scopePageIds.length ? scopePageIds : ['__none__'] };
+  } else if (accessible) {
+    where.pageId = { in: accessible.length ? accessible : ['__none__'] };
   }
 
   const campaigns = await prisma.campaign.findMany({
@@ -149,7 +171,7 @@ router.post('/', async (req: AuthRequest, res: Response) => {
     const { name, description, pageId, startDate, endDate, genLeadTime, autoApprove } = req.body;
     const userId = req.body.userId || req.userId;
     if (!name || !pageId) return res.status(400).json({ error: 'name and pageId required' });
-    await assertPageInOrg(pageId, req.organizationId!);
+    await assertPageInOrg(pageId, req.organizationId!, req);
     const campaign = await prisma.campaign.create({
       data: {
         organizationId: req.organizationId!,
@@ -185,6 +207,10 @@ router.get('/:id', async (req: AuthRequest, res: Response) => {
     },
   });
   if (!campaign || campaign.organizationId !== req.organizationId) return res.status(404).json({ error: 'Campaign not found' });
+  if (!req.isAllAccess && req.userId) {
+    const ctx = await getAccessContext(req.organizationId!, req.userId);
+    if (!ctx || !(await canAccessPage(ctx, campaign.pageId))) return res.status(404).json({ error: 'Campaign not found' });
+  }
   res.json(campaign);
 });
 

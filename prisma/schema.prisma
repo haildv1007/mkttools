@@ -73,6 +73,24 @@ enum SubscriptionStatus {
   CANCELLED
 }
 
+enum MemberAccessMode {
+  ALL
+  RESTRICTED
+}
+
+enum AiCredentialSource {
+  ORGANIZATION_KEY
+  PERSONAL_KEY
+  PLATFORM_API
+}
+
+enum AiCredentialValidation {
+  UNTESTED
+  CONNECTED
+  INVALID
+  ERROR
+}
+
 model User {
   id             String   @id @default(cuid())
   email          String   @unique
@@ -110,25 +128,78 @@ model Organization {
   campaigns    Campaign[]
   contentItems ContentItem[]
   subscriptions OrganizationSubscription[]
+  aiCredentials OrganizationAiCredential[]
 
   @@map("organizations")
 }
 
 model OrganizationMember {
-  id             String          @id @default(cuid())
-  organizationId String          @map("organization_id")
-  userId         String          @map("user_id")
-  role           OrgMemberRole   @default(MEMBER)
-  status         OrgMemberStatus @default(ACTIVE)
-  createdAt      DateTime        @default(now()) @map("created_at")
-  updatedAt      DateTime        @updatedAt @map("updated_at")
+  id             String            @id @default(cuid())
+  organizationId String            @map("organization_id")
+  userId         String            @map("user_id")
+  role           OrgMemberRole     @default(MEMBER)
+  status         OrgMemberStatus   @default(ACTIVE)
+  accessMode     MemberAccessMode  @default(ALL) @map("access_mode")
+  createdAt      DateTime          @default(now()) @map("created_at")
+  updatedAt      DateTime          @updatedAt @map("updated_at")
 
-  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  organization    Organization                    @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user            User                            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  workspaceGrants OrganizationMemberWorkspace[]
+  pageGrants      OrganizationMemberPage[]
 
   @@unique([organizationId, userId])
   @@index([userId])
   @@map("organization_members")
+}
+
+model OrganizationMemberWorkspace {
+  id                   String   @id @default(cuid())
+  organizationMemberId String   @map("organization_member_id")
+  workspaceId          String   @map("workspace_id")
+  createdAt            DateTime @default(now()) @map("created_at")
+
+  member    OrganizationMember @relation(fields: [organizationMemberId], references: [id], onDelete: Cascade)
+  workspace Workspace          @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationMemberId, workspaceId])
+  @@index([workspaceId])
+  @@map("organization_member_workspaces")
+}
+
+model OrganizationMemberPage {
+  id                   String   @id @default(cuid())
+  organizationMemberId String   @map("organization_member_id")
+  pageId               String   @map("page_id")
+  createdAt            DateTime @default(now()) @map("created_at")
+
+  member OrganizationMember @relation(fields: [organizationMemberId], references: [id], onDelete: Cascade)
+  page   Page               @relation(fields: [pageId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationMemberId, pageId])
+  @@index([pageId])
+  @@map("organization_member_pages")
+}
+
+model OrganizationAiCredential {
+  id                String                 @id @default(cuid())
+  organizationId    String                 @map("organization_id")
+  provider          String
+  source            AiCredentialSource     @default(ORGANIZATION_KEY)
+  encryptedApiKey   String                 @map("encrypted_api_key")
+  defaultModel      String?                @map("default_model")
+  config            Json?
+  isActive          Boolean                @default(true) @map("is_active")
+  validationStatus  AiCredentialValidation @default(UNTESTED) @map("validation_status")
+  validationMessage String?                @map("validation_message")
+  lastValidatedAt   DateTime?              @map("last_validated_at")
+  createdAt         DateTime               @default(now()) @map("created_at")
+  updatedAt         DateTime               @updatedAt @map("updated_at")
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, provider])
+  @@map("organization_ai_credentials")
 }
 
 model SubscriptionPlan {
@@ -184,6 +255,7 @@ model Page {
   campaigns      Campaign[]
   contentItems   ContentItem[]
   workspacePages WorkspacePage[]
+  memberGrants   OrganizationMemberPage[]
 
   @@unique([organizationId, platform, externalId])
   @@index([organizationId, isActive])
@@ -284,6 +356,7 @@ model Workspace {
 
   organization   Organization    @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   workspacePages WorkspacePage[]
+  memberGrants   OrganizationMemberWorkspace[]
 
   @@index([organizationId])
   @@map("workspaces")

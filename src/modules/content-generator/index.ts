@@ -1,11 +1,12 @@
 import { config } from '../../config';
 import { getSetting } from '../settings';
-import type { TextProvider, ImageProvider, TextGeneratorOptions, ImageGeneratorOptions, GeneratedContent, GeneratedImage } from '../../types';
+import type { TextProvider, ImageProvider, TextGeneratorOptions, ImageGeneratorOptions, GeneratedContent, GeneratedImage, CredentialContext } from '../../types';
 import { ClaudeTextProvider } from './providers/claude';
 import { OpenAITextProvider } from './providers/openai-text';
 import { GeminiTextProvider } from './providers/gemini-text';
 import { DalleImageProvider } from './providers/dalle-image';
 import { GeminiImageProvider } from './providers/gemini-image';
+import { resolveCredential, tryResolveCredential, AiProviderNotConfiguredError } from '../ai-credentials';
 
 const textProviders: Record<string, () => TextProvider> = {
   claude: () => new ClaudeTextProvider(),
@@ -18,81 +19,105 @@ const imageProviders: Record<string, () => ImageProvider> = {
   gemini: () => new GeminiImageProvider(),
 };
 
-let activeTextProvider: TextProvider | null = null;
-let activeTextProviderName: string | null = null;
-let activeImageProvider: ImageProvider | null = null;
-let activeImageProviderName: string | null = null;
+// Providers are now stateless factories; there is no cached "active provider"
+// because credentials are per-organization and resolved at call time.
 
-async function getTextProvider(): Promise<TextProvider> {
-  const dbProvider = await getSetting('AI_TEXT_PROVIDER');
-  const providerName = dbProvider || config.ai.text.provider;
-  if (!activeTextProvider || activeTextProviderName !== providerName) {
-    const factory = textProviders[providerName];
-    if (!factory) throw new Error(`Unknown text provider: ${providerName}`);
-    activeTextProvider = factory();
-    activeTextProviderName = providerName;
-  }
-  return activeTextProvider;
+async function getTextProviderName(): Promise<string> {
+  return (await getSetting('AI_TEXT_PROVIDER')) || config.ai.text.provider;
+}
+async function getImageProviderName(): Promise<string> {
+  return (await getSetting('AI_IMAGE_PROVIDER')) || config.ai.image.provider;
+}
+async function getTextModelName(): Promise<string | null> {
+  return (await getSetting('AI_TEXT_MODEL')) || config.ai.text.defaultModel || null;
+}
+async function getImageModelName(): Promise<string | null> {
+  return (await getSetting('AI_IMAGE_MODEL')) || config.ai.image.defaultModel || null;
 }
 
-async function getImageProvider(): Promise<ImageProvider> {
-  const dbProvider = await getSetting('AI_IMAGE_PROVIDER');
-  const providerName = dbProvider || config.ai.image.provider;
-  if (!activeImageProvider || activeImageProviderName !== providerName) {
-    const factory = imageProviders[providerName];
-    if (!factory) throw new Error(`Unknown image provider: ${providerName}`);
-    activeImageProvider = factory();
-    activeImageProviderName = providerName;
-  }
-  return activeImageProvider;
+async function makeTextProvider(name: string): Promise<TextProvider> {
+  const f = textProviders[name];
+  if (!f) throw new Error(`Unknown text provider: ${name}`);
+  return f();
+}
+async function makeImageProvider(name: string): Promise<ImageProvider> {
+  const f = imageProviders[name];
+  if (!f) throw new Error(`Unknown image provider: ${name}`);
+  return f();
 }
 
-export function setTextProvider(name: string): void {
-  const factory = textProviders[name];
-  if (!factory) throw new Error(`Unknown text provider: ${name}. Available: ${Object.keys(textProviders).join(', ')}`);
-  activeTextProvider = factory();
-  activeTextProviderName = name;
-}
-
-export function setImageProvider(name: string): void {
-  const factory = imageProviders[name];
-  if (!factory) throw new Error(`Unknown image provider: ${name}. Available: ${Object.keys(imageProviders).join(', ')}`);
-  activeImageProvider = factory();
-  activeImageProviderName = name;
-}
+/** No-op setters kept for backwards-compatible callers. */
+export function setTextProvider(_name: string): void { /* stateless now */ }
+export function setImageProvider(_name: string): void { /* stateless now */ }
 
 export async function listProviders() {
   return {
     text: Object.keys(textProviders),
     image: Object.keys(imageProviders),
-    activeText: (await getTextProvider()).name,
-    activeImage: (await getImageProvider()).name,
+    activeText: await getTextProviderName(),
+    activeImage: await getImageProviderName(),
   };
 }
 
+async function attachCredential(opts: { credential?: CredentialContext } | undefined, providerName: string, defaultModel: string | null): Promise<CredentialContext> {
+  const ctx: CredentialContext = { ...(opts?.credential ?? { organizationId: '' }) };
+  if (!ctx.organizationId) {
+    throw new AiProviderNotConfiguredError(providerName);
+  }
+  if (!ctx.apiKey) {
+    const resolved = await resolveCredential({
+      organizationId: ctx.organizationId,
+      provider: providerName,
+      actorUserId: ctx.actorUserId,
+    });
+    ctx.apiKey = resolved.apiKey;
+    ctx.model = ctx.model || resolved.defaultModel || defaultModel || undefined;
+    ctx.provider = providerName;
+  } else {
+    ctx.provider = providerName;
+    ctx.model = ctx.model || defaultModel || undefined;
+  }
+  return ctx;
+}
+
 export async function generateText(options: TextGeneratorOptions): Promise<GeneratedContent> {
-  return (await getTextProvider()).generate(options);
+  const providerName = options.credential?.provider || (await getTextProviderName());
+  const defaultModel = await getTextModelName();
+  const credential = await attachCredential(options, providerName, defaultModel);
+  const provider = await makeTextProvider(providerName);
+  return provider.generate({ ...options, credential });
 }
 
 export async function generateImage(options: ImageGeneratorOptions): Promise<GeneratedImage> {
-  return (await getImageProvider()).generate(options);
+  const providerName = options.credential?.provider || (await getImageProviderName());
+  const defaultModel = await getImageModelName();
+  const credential = await attachCredential(options, providerName, defaultModel);
+  const provider = await makeImageProvider(providerName);
+  return provider.generate({ ...options, credential });
 }
 
 export function registerTextProvider(name: string, factory: () => TextProvider): void {
   textProviders[name] = factory;
 }
-
 export function registerImageProvider(name: string, factory: () => ImageProvider): void {
   imageProviders[name] = factory;
 }
 
-export async function testConnection(type: 'text' | 'image'): Promise<{ ok: boolean; error?: string }> {
+/**
+ * Legacy admin "test connection" from the global settings page. It's fine
+ * to keep this using the default text/image provider name — the resolver
+ * still needs an organizationId, which the caller must supply.
+ */
+export async function testConnection(type: 'text' | 'image', organizationId?: string): Promise<{ ok: boolean; error?: string }> {
   try {
-    let provider: { testConnection?(): Promise<{ ok: boolean; error?: string }> };
-    if (type === 'text') provider = await getTextProvider();
-    else provider = await getImageProvider();
+    const name = type === 'text' ? await getTextProviderName() : await getImageProviderName();
+    if (!organizationId) return { ok: false, error: 'Cần Organization context' };
+    const cred = await tryResolveCredential({ organizationId, provider: name });
+    if (!cred) return { ok: false, error: `Chưa cấu hình API ${name}` };
+    const provider: { testConnection?(cred: { apiKey: string }): Promise<{ ok: boolean; error?: string }> } =
+      type === 'text' ? await makeTextProvider(name) : await makeImageProvider(name);
     if (!provider.testConnection) return { ok: true };
-    return await provider.testConnection();
+    return await provider.testConnection({ apiKey: cred.apiKey });
   } catch (e) {
     return { ok: false, error: e instanceof Error ? e.message : 'Unknown error' };
   }

@@ -14,6 +14,9 @@ export interface AuthRequest extends Request {
   userRole?: string;
   organizationId?: string;
   organizationRole?: 'OWNER' | 'ADMIN' | 'MANAGER' | 'MEMBER';
+  organizationMemberId?: string;
+  accessMode?: 'ALL' | 'RESTRICTED';
+  isAllAccess?: boolean;
 }
 
 export function authMiddleware(req: AuthRequest, res: Response, next: NextFunction) {
@@ -48,6 +51,14 @@ export async function attachOrganization(req: AuthRequest, res: Response, next: 
     if (!current) return next();
     req.organizationId = current.organizationId;
     req.organizationRole = current.role as AuthRequest['organizationRole'];
+    // Include access mode + memberId so downstream can decide RESTRICTED vs ALL.
+    const m = await prisma.organizationMember.findUnique({
+      where: { organizationId_userId: { organizationId: current.organizationId, userId: req.userId } },
+      select: { id: true, accessMode: true },
+    });
+    req.organizationMemberId = m?.id;
+    req.accessMode = (m?.accessMode as 'ALL' | 'RESTRICTED') ?? 'ALL';
+    req.isAllAccess = req.organizationRole === 'OWNER' || req.organizationRole === 'ADMIN' || req.accessMode === 'ALL';
     next();
   } catch (err) {
     next(err);

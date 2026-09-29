@@ -10,6 +10,8 @@ import { getSetting, getSettings, setSettings } from '../settings';
 import { resolvePageIds } from '../workspace';
 import { AuthRequest } from '../../middleware/auth';
 import { OrganizationQuota } from '../organization';
+import { tryResolveCredential } from '../ai-credentials';
+import { getAccessContext, getAccessiblePageIds, getAccessibleWorkspaceIds, canAccessPage, intersectPageIds } from '../access';
 import { logActivity, updateActivity, sanitizeError } from '../../utils/activity';
 import { emitActivity, emitContentUpdate } from '../../realtime';
 import { createRevisionSession, submitFeedbackAndExecute, cancelRevision, getActiveRevisionSession } from '../revision';
@@ -48,11 +50,16 @@ const imageUpload = multer({
 
 const router = Router();
 
-// Tenant guard: fetches contentItem and asserts organizationId matches request.
-async function loadContentInOrg(id: string, orgId: string | undefined) {
+// Tenant guard: fetches contentItem, asserts org match, and (if the caller is
+// a restricted member) that the caller has access to the content's page.
+async function loadContentInOrg(id: string, orgId: string | undefined, req?: AuthRequest) {
   if (!orgId) return null;
   const item = await prisma.contentItem.findUnique({ where: { id } });
   if (!item || item.organizationId !== orgId) return null;
+  if (req && !req.isAllAccess && req.userId) {
+    const ctx = await getAccessContext(orgId, req.userId);
+    if (!ctx || !(await canAccessPage(ctx, item.pageId))) return null;
+  }
   return item;
 }
 
@@ -525,8 +532,13 @@ router.get('/stats/timeline', async (req: Request, res: Response) => {
 
 router.get('/stats/campaigns', async (req: AuthRequest, res: Response) => {
   try {
+    const where: Record<string, unknown> = { organizationId: req.organizationId, isActive: true };
+    if (!req.isAllAccess && req.userId) {
+      const ctx = await getAccessContext(req.organizationId!, req.userId);
+      where.pageId = { in: ctx ? await getAccessiblePageIds(ctx) : [] };
+    }
     const campaigns = await prisma.campaign.findMany({
-      where: { organizationId: req.organizationId, isActive: true },
+      where,
       include: {
         contentItems: {
           select: { status: true, pageId: true },
@@ -582,8 +594,13 @@ router.get('/stats/campaigns', async (req: AuthRequest, res: Response) => {
 
 router.get('/stats/pages', async (req: AuthRequest, res: Response) => {
   try {
+    const where: Record<string, unknown> = { organizationId: req.organizationId, isActive: true };
+    if (!req.isAllAccess && req.userId) {
+      const ctx = await getAccessContext(req.organizationId!, req.userId);
+      where.id = { in: ctx ? await getAccessiblePageIds(ctx) : [] };
+    }
     const pages = await prisma.page.findMany({
-      where: { organizationId: req.organizationId, isActive: true },
+      where,
       include: {
         _count: { select: { contentItems: true } },
         contentItems: {
@@ -885,11 +902,17 @@ router.get('/calendar', async (req: AuthRequest, res: Response) => {
   const sType = String(scopeType || 'all');
   const sId = scopeId ? String(scopeId) : undefined;
   const scopePageIds = sType !== 'all' ? await resolvePageIds(sType, sId, req.organizationId!) : null;
+  const accessCtx = await getAccessContext(req.organizationId!, req.userId!);
+  const accessible = accessCtx && !accessCtx.isAllAccess ? await getAccessiblePageIds(accessCtx) : null;
 
   if (pageId) {
-    where.pageId = String(pageId);
+    const pid = String(pageId);
+    if (accessible && !accessible.includes(pid)) return res.json([]);
+    where.pageId = pid;
   } else if (scopePageIds) {
-    where.pageId = { in: scopePageIds };
+    where.pageId = { in: accessible ? scopePageIds.filter((p) => accessible.includes(p)) : scopePageIds };
+  } else if (accessible) {
+    where.pageId = { in: accessible };
   }
 
   const items = await prisma.contentItem.findMany({
@@ -901,11 +924,17 @@ router.get('/calendar', async (req: AuthRequest, res: Response) => {
   res.json(items);
 });
 
-// Pages CRUD (tenant scoped)
+// Pages CRUD (tenant + access scoped)
 router.get('/pages', async (req: AuthRequest, res: Response) => {
   const showAll = req.query.all === 'true';
+  const where: Record<string, unknown> = { organizationId: req.organizationId, ...(showAll ? {} : { isActive: true }) };
+  if (!req.isAllAccess && req.userId) {
+    const ctx = await getAccessContext(req.organizationId!, req.userId);
+    const ids = ctx ? await getAccessiblePageIds(ctx) : [];
+    where.id = { in: ids };
+  }
   const pages = await prisma.page.findMany({
-    where: { organizationId: req.organizationId, ...(showAll ? {} : { isActive: true }) },
+    where,
     include: { _count: { select: { contentItems: true } } },
     orderBy: { createdAt: 'desc' },
   });
@@ -919,6 +948,9 @@ router.get('/pages', async (req: AuthRequest, res: Response) => {
 
 router.post('/pages', async (req: AuthRequest, res: Response) => {
   try {
+    if (!['OWNER', 'ADMIN'].includes(req.organizationRole || '')) {
+      return res.status(403).json({ error: 'FORBIDDEN', message: 'Chỉ Owner/Admin được kết nối Page.' });
+    }
     // Enforce quota before creation
     const check = await OrganizationQuota.canAddPage(req.organizationId!);
     if (!check.ok) {
@@ -1089,24 +1121,29 @@ router.get('/content', async (req: AuthRequest, res: Response) => {
   // Build base where (without status, so we can count per-status) — always tenant scoped
   const baseWhere: Record<string, unknown> = { organizationId: req.organizationId };
 
+  const accessCtx = await getAccessContext(req.organizationId!, req.userId!);
+  // Restricted members: intersect every query with accessible page ids up front.
+  const accessible = accessCtx && !accessCtx.isAllAccess ? await getAccessiblePageIds(accessCtx) : null;
+
   const sType = String(scopeType || 'all');
   const sId = scopeId ? String(scopeId) : undefined;
-  const scopePageIds = sType !== 'all' ? await resolvePageIds(sType, sId, req.organizationId!) : null;
+  const scopePageIdsRaw = sType !== 'all' ? await resolvePageIds(sType, sId, req.organizationId!) : null;
+  const scopePageIds = scopePageIdsRaw && accessible ? scopePageIdsRaw.filter((p) => accessible.includes(p)) : scopePageIdsRaw;
 
   const pageIdFilter = buildInFilter(pageIds, pageId);
   if (pageIdFilter !== undefined) {
-    if (scopePageIds) {
-      const requested = typeof pageIdFilter === 'string' ? [pageIdFilter] : pageIdFilter.in;
-      const allowed = requested.filter((pid) => scopePageIds.includes(pid));
-      if (!allowed.length) {
-        return res.json({ items: [], total: 0, statusCounts: {} });
-      }
-      baseWhere.pageId = allowed.length === 1 ? allowed[0] : { in: allowed };
-    } else {
-      baseWhere.pageId = pageIdFilter;
+    const requested = typeof pageIdFilter === 'string' ? [pageIdFilter] : pageIdFilter.in;
+    let allowed = requested;
+    if (scopePageIds) allowed = allowed.filter((pid) => scopePageIds.includes(pid));
+    if (accessible) allowed = allowed.filter((pid) => accessible.includes(pid));
+    if (!allowed.length) {
+      return res.json({ items: [], total: 0, statusCounts: {} });
     }
+    baseWhere.pageId = allowed.length === 1 ? allowed[0] : { in: allowed };
   } else if (scopePageIds) {
     baseWhere.pageId = { in: scopePageIds };
+  } else if (accessible) {
+    baseWhere.pageId = { in: accessible };
   }
 
   const sourceFilter = buildInFilter(sources, source);
@@ -1262,7 +1299,7 @@ router.post('/content/generate-all-drafts', async (req: AuthRequest, res: Respon
 
 router.post('/content/:id/regenerate', async (req: AuthRequest, res: Response) => {
   const id = req.params.id as string;
-  const owned = await loadContentInOrg(id, req.organizationId);
+  const owned = await loadContentInOrg(id, req.organizationId, req);
   if (!owned) return res.status(404).json({ error: 'Content not found' });
   await prisma.contentItem.update({ where: { id }, data: { status: 'QUEUED' } });
   await contentQueue.add('generate', { contentItemId: id, organizationId: req.organizationId, actorUserId: req.userId }, {
@@ -1275,7 +1312,7 @@ router.post('/content/:id/regenerate', async (req: AuthRequest, res: Response) =
 
 router.post('/content/:id/publish-now', async (req: AuthRequest, res: Response) => {
   const id = req.params.id as string;
-  const owned = await loadContentInOrg(id, req.organizationId);
+  const owned = await loadContentInOrg(id, req.organizationId, req);
   if (!owned) return res.status(404).json({ success: false, error: 'Not found' });
   const item = await prisma.contentItem.findUnique({ where: { id }, select: { generatedText: true, status: true } });
   if (!item) return res.status(404).json({ success: false, error: 'Not found' });
@@ -1310,6 +1347,10 @@ router.get('/content/:id', async (req: AuthRequest, res: Response) => {
       },
     });
     if (!item || item.organizationId !== req.organizationId) return res.status(404).json({ error: 'Content not found' });
+    if (!req.isAllAccess && req.userId) {
+      const ctx = await getAccessContext(req.organizationId!, req.userId);
+      if (!ctx || !(await canAccessPage(ctx, item.pageId))) return res.status(404).json({ error: 'Content not found' });
+    }
     res.json(item);
   } catch (err) {
     res.status(500).json({ error: err instanceof Error ? err.message : 'Failed to load content' });
@@ -1382,7 +1423,7 @@ router.post('/content/:id/sync-metrics', async (req: AuthRequest, res: Response)
 router.delete('/content/:id', async (req: AuthRequest, res: Response) => {
   try {
     const id = req.params.id as string;
-    const owned = await loadContentInOrg(id, req.organizationId);
+    const owned = await loadContentInOrg(id, req.organizationId, req);
     if (!owned) return res.status(404).json({ error: 'Content not found' });
     await prisma.approvalLog.deleteMany({ where: { contentItemId: id } });
     await prisma.contentItem.delete({ where: { id } });
@@ -1507,7 +1548,7 @@ router.post('/content/bulk/delete', async (req: AuthRequest, res: Response) => {
 
 router.patch('/content/:id', async (req: AuthRequest, res: Response) => {
   const id = req.params.id as string;
-  const owned = await loadContentInOrg(id, req.organizationId);
+  const owned = await loadContentInOrg(id, req.organizationId, req);
   if (!owned) return res.status(404).json({ error: 'Content not found' });
   const { scheduledAt, status, topic, notes, contentType, imageDescriptions, generatedText, imageUrl, videoUrl } = req.body;
   const data: Record<string, unknown> = {};
@@ -1576,7 +1617,7 @@ router.post('/content', async (req: AuthRequest, res: Response) => {
 router.post('/content/:id/approve', async (req: AuthRequest, res: Response) => {
   try {
     const id = req.params.id as string;
-    const owned = await loadContentInOrg(id, req.organizationId);
+    const owned = await loadContentInOrg(id, req.organizationId, req);
     if (!owned) return res.status(404).json({ error: 'Content not found' });
     const item = await prisma.contentItem.update({
       where: { id },
@@ -1595,7 +1636,7 @@ router.post('/content/:id/approve', async (req: AuthRequest, res: Response) => {
 router.post('/content/:id/reject', async (req: AuthRequest, res: Response) => {
   try {
     const id = req.params.id as string;
-    const owned = await loadContentInOrg(id, req.organizationId);
+    const owned = await loadContentInOrg(id, req.organizationId, req);
     if (!owned) return res.status(404).json({ error: 'Content not found' });
     const item = await prisma.contentItem.update({
       where: { id },
@@ -1614,7 +1655,7 @@ router.post('/content/:id/reject', async (req: AuthRequest, res: Response) => {
 router.post('/content/:id/request-edit', async (req: AuthRequest, res: Response) => {
   try {
     const id = req.params.id as string;
-    const owned = await loadContentInOrg(id, req.organizationId);
+    const owned = await loadContentInOrg(id, req.organizationId, req);
     if (!owned) return res.status(404).json({ error: 'Content not found' });
     const item = await prisma.contentItem.update({
       where: { id },
@@ -1635,7 +1676,7 @@ router.post('/content/:id/request-edit', async (req: AuthRequest, res: Response)
 router.post('/content/:id/upload-image', imageUpload.single('image'), async (req: AuthRequest, res: Response) => {
   try {
     const id = req.params.id as string;
-    const owned = await loadContentInOrg(id, req.organizationId);
+    const owned = await loadContentInOrg(id, req.organizationId, req);
     if (!owned) return res.status(404).json({ error: 'Content not found' });
     if (!req.file) return res.status(400).json({ error: 'Không có file ảnh' });
 
@@ -1655,7 +1696,7 @@ router.post('/content/:id/upload-image', imageUpload.single('image'), async (req
 router.post('/content/:id/upload-images', imageUpload.array('images', 10), async (req: AuthRequest, res: Response) => {
   try {
     const id = req.params.id as string;
-    const owned = await loadContentInOrg(id, req.organizationId);
+    const owned = await loadContentInOrg(id, req.organizationId, req);
     if (!owned) return res.status(404).json({ error: 'Content not found' });
     const files = req.files as Express.Multer.File[];
     if (!files || files.length === 0) return res.status(400).json({ error: 'Không có file ảnh' });
@@ -1682,7 +1723,7 @@ router.post('/content/:id/upload-images', imageUpload.array('images', 10), async
 router.post('/content/:id/upload-video', videoUpload.single('video'), async (req: AuthRequest, res: Response) => {
   try {
     const id = req.params.id as string;
-    const owned = await loadContentInOrg(id, req.organizationId);
+    const owned = await loadContentInOrg(id, req.organizationId, req);
     if (!owned) return res.status(404).json({ error: 'Content not found' });
     if (!req.file) return res.status(400).json({ error: 'Không có file video' });
 
@@ -1702,7 +1743,7 @@ router.post('/content/:id/upload-video', videoUpload.single('video'), async (req
 router.delete('/content/:id/video', async (req: AuthRequest, res: Response) => {
   try {
     const id = req.params.id as string;
-    const owned = await loadContentInOrg(id, req.organizationId);
+    const owned = await loadContentInOrg(id, req.organizationId, req);
     if (!owned) return res.status(404).json({ error: 'Content not found' });
     const item = await prisma.contentItem.findUnique({ where: { id }, select: { generatedVideoUrl: true } });
     if (item?.generatedVideoUrl?.includes('/uploads/videos/')) {
@@ -1744,13 +1785,14 @@ router.put('/providers/image', async (req: Request, res: Response) => {
 });
 
 // Test AI generation
-router.post('/test-generate', async (req: Request, res: Response) => {
+router.post('/test-generate', async (req: AuthRequest, res: Response) => {
   try {
     const { topic, pageName, contentType } = req.body;
     const result = await generateText({
       topic: topic || 'Khuyến mãi cuối tuần',
       pageName: pageName || 'Test Page',
       contentType: contentType || 'post',
+      credential: { organizationId: req.organizationId!, actorUserId: req.userId },
     });
     res.json({ success: true, result });
   } catch (err) {
@@ -1793,13 +1835,13 @@ router.get('/gemini-image-models', async (_req: Request, res: Response) => {
   }
 });
 
-router.post('/test-image-model', async (req: Request, res: Response) => {
+router.post('/test-image-model', async (req: AuthRequest, res: Response) => {
   try {
     const { model } = req.body;
     if (!model) return res.status(400).json({ error: 'Chưa chọn model' });
-
-    const apiKey = (await getSetting('GEMINI_API_KEY')) || process.env.GEMINI_API_KEY;
-    if (!apiKey) return res.status(400).json({ error: 'GEMINI_API_KEY chưa được cấu hình' });
+    const cred = await tryResolveCredential({ organizationId: req.organizationId!, provider: 'gemini' });
+    const apiKey = cred?.apiKey;
+    if (!apiKey) return res.status(400).json({ error: 'Chưa cấu hình Gemini cho tổ chức' });
 
     const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
     const r = await fetch(url, {
@@ -1829,10 +1871,10 @@ router.post('/test-image-model', async (req: Request, res: Response) => {
 });
 
 // OpenAI image models
-router.get('/openai-image-models', async (_req: Request, res: Response) => {
+router.get('/openai-image-models', async (req: AuthRequest, res: Response) => {
   try {
-    const apiKey = (await getSetting('OPENAI_API_KEY')) || process.env.OPENAI_API_KEY;
-    if (!apiKey) return res.status(400).json({ error: 'OPENAI_API_KEY chưa được cấu hình' });
+    const cred = await tryResolveCredential({ organizationId: req.organizationId!, provider: 'openai' });
+    if (!cred?.apiKey) return res.status(400).json({ error: 'Chưa cấu hình OpenAI cho tổ chức' });
 
     const models = [
       { id: 'gpt-image-2.5-sunburst', name: 'GPT Image 2.5 Sunburst', description: '#1 — editing chính xác, chi tiết sắc nét (9/2026)' },
@@ -1847,13 +1889,13 @@ router.get('/openai-image-models', async (_req: Request, res: Response) => {
   }
 });
 
-router.post('/test-openai-image-model', async (req: Request, res: Response) => {
+router.post('/test-openai-image-model', async (req: AuthRequest, res: Response) => {
   try {
     const { model } = req.body;
     if (!model) return res.status(400).json({ error: 'Chưa chọn model' });
-
-    const apiKey = (await getSetting('OPENAI_API_KEY')) || process.env.OPENAI_API_KEY;
-    if (!apiKey) return res.status(400).json({ error: 'OPENAI_API_KEY chưa được cấu hình' });
+    const cred = await tryResolveCredential({ organizationId: req.organizationId!, provider: 'openai' });
+    const apiKey = cred?.apiKey;
+    if (!apiKey) return res.status(400).json({ error: 'Chưa cấu hình OpenAI cho tổ chức' });
 
     const OpenAI = (await import('openai')).default;
     const client = new OpenAI({ apiKey });
@@ -1880,13 +1922,13 @@ router.post('/test-openai-image-model', async (req: Request, res: Response) => {
   }
 });
 
-router.post('/test-connection', async (req: Request, res: Response) => {
+router.post('/test-connection', async (req: AuthRequest, res: Response) => {
   try {
     const { type } = req.body;
     if (!['text', 'image'].includes(type)) {
       return res.status(400).json({ ok: false, error: 'Type phải là text hoặc image' });
     }
-    const result = await testConnection(type);
+    const result = await testConnection(type, req.organizationId);
     res.json(result);
   } catch (err) {
     res.status(500).json({ ok: false, error: err instanceof Error ? err.message : 'Failed' });
@@ -2189,6 +2231,19 @@ router.get('/activity', async (req: AuthRequest, res: Response) => {
     const take = Math.min(Math.max(1, Number(limitParam) || 30), 100);
 
     const where: Record<string, unknown> = { organizationId: req.organizationId };
+    // Restricted members: only see activity tied to content they can access.
+    if (!req.isAllAccess && req.userId) {
+      const ctx = await getAccessContext(req.organizationId!, req.userId);
+      const pageIds = ctx ? await getAccessiblePageIds(ctx) : [];
+      const accessibleContent = pageIds.length
+        ? await prisma.contentItem.findMany({
+            where: { organizationId: req.organizationId, pageId: { in: pageIds } },
+            select: { id: true },
+          })
+        : [];
+      where.entityType = 'content';
+      where.entityId = { in: accessibleContent.map((c) => c.id) };
+    }
     if (category && category !== 'all') where.category = String(category);
     if (cursor) where.createdAt = { lt: new Date(String(cursor)) };
 
@@ -2219,8 +2274,13 @@ router.get('/activity', async (req: AuthRequest, res: Response) => {
 
 router.get('/content/active', async (req: AuthRequest, res: Response) => {
   try {
+    const where: Record<string, unknown> = { organizationId: req.organizationId, status: { in: ['QUEUED', 'GENERATING', 'PUBLISHING'] } };
+    if (!req.isAllAccess && req.userId) {
+      const ctx = await getAccessContext(req.organizationId!, req.userId);
+      where.pageId = { in: ctx ? await getAccessiblePageIds(ctx) : [] };
+    }
     const items = await prisma.contentItem.findMany({
-      where: { organizationId: req.organizationId, status: { in: ['QUEUED', 'GENERATING', 'PUBLISHING'] } },
+      where,
       select: {
         id: true,
         topic: true,
@@ -2260,7 +2320,7 @@ router.get('/content/active', async (req: AuthRequest, res: Response) => {
 router.post('/content/:id/revision', async (req: AuthRequest, res: Response) => {
   try {
     const id = req.params.id as string;
-    const owned = await loadContentInOrg(id, req.organizationId);
+    const owned = await loadContentInOrg(id, req.organizationId, req);
     if (!owned) return res.status(404).json({ error: 'Content not found' });
     const { revisionType, selectedMediaIds, feedbackText, userId } = req.body;
     if (!revisionType) return res.status(400).json({ error: 'revisionType required' });
@@ -2290,7 +2350,7 @@ router.post('/content/:id/revision', async (req: AuthRequest, res: Response) => 
 router.get('/content/:id/revisions', async (req: AuthRequest, res: Response) => {
   try {
     const id = req.params.id as string;
-    const owned = await loadContentInOrg(id, req.organizationId);
+    const owned = await loadContentInOrg(id, req.organizationId, req);
     if (!owned) return res.status(404).json({ error: 'Content not found' });
     const revisions = await prisma.contentRevision.findMany({
       where: { contentItemId: id },

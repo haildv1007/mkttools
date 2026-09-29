@@ -4,13 +4,12 @@ import type { TextProvider, TextGeneratorOptions, GeneratedContent } from '../..
 
 export class ClaudeTextProvider implements TextProvider {
   name = 'claude';
-  private client: Anthropic;
-
-  constructor() {
-    this.client = new Anthropic({ apiKey: config.ai.text.anthropicApiKey });
-  }
 
   async generate(options: TextGeneratorOptions): Promise<GeneratedContent> {
+    const apiKey = options.credential?.apiKey;
+    if (!apiKey) throw new Error('AI_PROVIDER_NOT_CONFIGURED');
+    const client = new Anthropic({ apiKey });
+
     const systemPrompt = `Bạn là chuyên gia content marketing mạng xã hội tại Việt Nam.
 Viết content hấp dẫn, tự nhiên, phù hợp với nền tảng mạng xã hội.
 Luôn trả về JSON với format: {"text": "...", "hashtags": ["..."], "cta": "..."}
@@ -18,8 +17,8 @@ Chỉ trả về JSON, không thêm gì khác.`;
 
     const userPrompt = this.buildPrompt(options);
 
-    const response = await this.client.messages.create({
-      model: config.ai.text.defaultModel,
+    const response = await client.messages.create({
+      model: options.credential?.model || config.ai.text.defaultModel,
       max_tokens: 1024,
       system: systemPrompt,
       messages: [{ role: 'user', content: userPrompt }],
@@ -29,10 +28,11 @@ Chỉ trả về JSON, không thêm gì khác.`;
     return this.parseResponse(text);
   }
 
-  async testConnection(): Promise<{ ok: boolean; error?: string }> {
+  async testConnection(cred?: { apiKey: string }): Promise<{ ok: boolean; error?: string }> {
     try {
-      if (!config.ai.text.anthropicApiKey) return { ok: false, error: 'ANTHROPIC_API_KEY chưa được cấu hình' };
-      await this.client.messages.countTokens({ model: config.ai.text.defaultModel || 'claude-sonnet-4-20250514', messages: [{ role: 'user', content: 'test' }] });
+      if (!cred?.apiKey) return { ok: false, error: 'Chưa có API key' };
+      const client = new Anthropic({ apiKey: cred.apiKey });
+      await client.messages.countTokens({ model: config.ai.text.defaultModel || 'claude-sonnet-4-20250514', messages: [{ role: 'user', content: 'test' }] });
       return { ok: true };
     } catch (e) {
       return { ok: false, error: e instanceof Error ? e.message : 'Unknown error' };

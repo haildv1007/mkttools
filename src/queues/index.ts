@@ -51,6 +51,15 @@ export function startWorkers() {
     });
     if (!item) throw new Error(`Content item ${contentItemId} not found`);
     const organizationId = item.organizationId;
+    // Re-validate actor access at execution time so that a revocation between
+    // enqueue and run stops unauthorized work.
+    if (job.data.actorUserId) {
+      const { getAccessContext, canAccessPage } = await import('../modules/access');
+      const ctx = await getAccessContext(organizationId, job.data.actorUserId);
+      if (ctx && !ctx.isAllAccess && !(await canAccessPage(ctx, item.pageId))) {
+        throw new Error('Actor no longer has access to this content');
+      }
+    }
 
     const actOpts = { action: 'generate', category: 'content' as const, summary: `Đang gen nội dung: ${item.topic.slice(0, 80)}`, entityType: 'content', entityId: contentItemId, entityLabel: item.topic.slice(0, 100), organizationId };
     const actId = await logActivity(actOpts);
@@ -79,12 +88,15 @@ export function startWorkers() {
       version: nextVer(),
     });
 
+    const actorUserId = (job.data.actorUserId as string) || undefined;
+    const credentialCtx = { organizationId, actorUserId };
     const textResult = await generateText({
       topic: item.topic,
       pageName: item.page.name,
       pageContext: item.page.context || undefined,
       contentType: item.contentType,
       notes: item.notes || undefined,
+      credential: credentialCtx,
     });
 
     let fullText = textResult.text +
@@ -120,7 +132,7 @@ export function startWorkers() {
         for (let i = 0; i < descriptions.length; i++) {
           const desc = descriptions[i];
           try {
-            const imgResult = await generateImage({ prompt: desc });
+            const imgResult = await generateImage({ prompt: desc, credential: credentialCtx });
             generatedImages.push({ url: imgResult.url, localPath: imgResult.localPath, description: desc });
             emitContentUpdate({
               contentId: contentItemId,
@@ -146,7 +158,7 @@ export function startWorkers() {
       } else {
         try {
           const prompt = descriptions[0] || `Social media post image for: ${item.topic}. Style: professional marketing, vibrant colors.`;
-          const imageResult = await generateImage({ prompt });
+          const imageResult = await generateImage({ prompt, credential: credentialCtx });
           imageUrl = imageResult.url;
         } catch (err) {
           console.error(`Image generation failed for ${contentItemId}:`, err);
