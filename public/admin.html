@@ -306,6 +306,7 @@ function adminApp(){ return {
   qs(o,extra={}){ const p=new URLSearchParams(); for(const [k,v] of Object.entries({...o,...extra})) if(v!==''&&v!=null) p.set(k,v); return '?'+p; },
   flash(m,err=false){ this.toast=m; this.toastErr=err; setTimeout(()=>this.toast='',3000); },
   async init(){
+    if(!this.token){ location.replace('/login?next=/admin'); return; }
     try{ this.overview = await this.api('/overview'); this.ready=true; }catch(e){ this.denied=true; return; }
     const path=location.pathname.replace(/^\/admin\/?/,''); this.go(path||'overview',true);
     this.plans = (await this.api('/plans')).map(p=>this.decoratePlan(p));

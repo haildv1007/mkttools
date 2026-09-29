@@ -7,7 +7,8 @@ import path from 'path';
 import { config } from './config';
 import { logger } from './utils/logger';
 import { prisma } from './utils/db';
-import { authRouter, authMiddleware, attachOrganization, requireOrganization } from './middleware/auth';
+import { authMiddleware, attachOrganization, requireOrganization } from './middleware/auth';
+import { authRouter } from './modules/auth';
 import { errorHandler } from './middleware/error-handler';
 import { campaignRouter } from './modules/campaign';
 import { dashboardRouter } from './modules/dashboard';
@@ -69,6 +70,8 @@ app.use('/api/dashboard', authMiddleware, attachOrganization, requireOrganizatio
 app.use('/api/workspaces', authMiddleware, attachOrganization, requireOrganization, workspaceRouter);
 
 app.use(express.static(path.join(__dirname, '../public')));
+const authPage = (_req: express.Request, res: express.Response) => res.sendFile(path.join(__dirname, '../public/auth.html'));
+app.get(['/login', '/register', '/forgot-password', '/reset-password/:token', '/verify-email/:token', '/auth/callback', '/onboarding', '/join/:token'], authPage);
 app.get(['/admin', '/admin/*'], (_req, res) => {
   res.sendFile(path.join(__dirname, '../public/admin.html'));
 });

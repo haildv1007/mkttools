@@ -1,10 +1,9 @@
 import { Server as HttpServer } from 'http';
 import { Server, Socket } from 'socket.io';
-import jwt from 'jsonwebtoken';
+import { verifySessionToken } from '../modules/auth/session';
 import { logger } from '../utils/logger';
 import { prisma } from '../utils/db';
 
-const JWT_SECRET = process.env.JWT_SECRET || 'mkttools-dev-secret-change-in-production';
 
 let io: Server | null = null;
 
@@ -56,17 +55,14 @@ export function initSocketIO(server: HttpServer): Server {
     pingTimeout: 20000,
   });
 
-  io.use((socket: Socket, next) => {
+  io.use(async (socket: Socket, next) => {
     const token = socket.handshake.auth?.token;
     if (!token) return next(new Error('Authentication required'));
-    try {
-      const payload = jwt.verify(token, JWT_SECRET) as { userId: string; role: string };
-      (socket as any).userId = payload.userId;
-      (socket as any).userRole = payload.role;
-      next();
-    } catch {
-      next(new Error('Invalid token'));
-    }
+    const payload = await verifySessionToken(token);
+    if (!payload) return next(new Error('Invalid token'));
+    (socket as any).userId = payload.userId;
+    (socket as any).userRole = payload.role;
+    next();
   });
 
   io.on('connection', async (socket: Socket) => {

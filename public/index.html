@@ -39,83 +39,8 @@
 </head>
 <body class="bg-gray-50 font-sans text-gray-800" x-data="app()" x-init="init()" x-cloak>
 
-  <!-- Login Screen -->
-  <div x-show="!token" class="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100 p-4">
-    <div class="bg-white rounded-2xl shadow-xl p-8 w-full max-w-md fade-in">
-      <div class="text-center mb-8">
-        <div class="w-16 h-16 bg-brand-500 rounded-2xl flex items-center justify-center mx-auto mb-4">
-          <i class="ri-megaphone-line text-white text-3xl"></i>
-        </div>
-        <h1 class="text-2xl font-bold text-gray-900">MKT Tools</h1>
-        <p class="text-gray-500 mt-1">Content Marketing Automation</p>
-      </div>
-
-      <div x-show="joinPreview" x-cloak class="mb-4 p-3 bg-brand-50 border border-brand-200 rounded-lg text-sm">
-        <p class="font-medium">Lời mời tham gia <span x-text="joinPreview?.organizationName || ''"></span></p>
-        <p class="text-xs text-gray-600 mt-1">
-          Vai trò: <span x-text="joinPreview?.role"></span> · Email: <span x-text="joinPreview?.email"></span>
-        </p>
-        <p class="text-xs text-gray-500 mt-1">Đăng nhập bằng chính email này rồi bấm Chấp nhận.</p>
-      </div>
-      <div x-show="joinError" x-cloak class="mb-4 p-2 bg-red-50 border border-red-200 rounded text-xs text-red-700" x-text="joinError"></div>
-
-      <div x-show="authMode === 'login'">
-        <div class="space-y-4">
-          <div>
-            <label class="block text-sm font-medium text-gray-700 mb-1">Email</label>
-            <input x-model="loginForm.email" type="email" placeholder="admin@mkttools.local"
-              class="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-transparent outline-none">
-          </div>
-          <div>
-            <label class="block text-sm font-medium text-gray-700 mb-1">Mật khẩu</label>
-            <input x-model="loginForm.password" type="password" placeholder="••••••••" @keyup.enter="login()"
-              class="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-transparent outline-none">
-          </div>
-          <div x-show="authError" class="text-red-500 text-sm" x-text="authError"></div>
-          <button @click="login()" :disabled="authLoading"
-            class="w-full py-2.5 bg-brand-600 text-white rounded-lg font-medium hover:bg-brand-700 disabled:opacity-50 transition">
-            <span x-show="!authLoading">Đăng nhập</span>
-            <span x-show="authLoading"><i class="ri-loader-4-line animate-spin"></i> Đang xử lý...</span>
-          </button>
-        </div>
-        <p class="text-center text-sm text-gray-500 mt-4">
-          Chưa có tài khoản? <a @click="authMode='register'" class="text-brand-600 cursor-pointer hover:underline">Đăng ký</a>
-        </p>
-      </div>
-
-      <div x-show="authMode === 'register'">
-        <div class="space-y-4">
-          <div>
-            <label class="block text-sm font-medium text-gray-700 mb-1">Họ tên</label>
-            <input x-model="registerForm.name" type="text" placeholder="Nguyễn Văn A"
-              class="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-transparent outline-none">
-          </div>
-          <div>
-            <label class="block text-sm font-medium text-gray-700 mb-1">Email</label>
-            <input x-model="registerForm.email" type="email" placeholder="email@example.com"
-              class="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-transparent outline-none">
-          </div>
-          <div>
-            <label class="block text-sm font-medium text-gray-700 mb-1">Mật khẩu</label>
-            <input x-model="registerForm.password" type="password" placeholder="••••••••" @keyup.enter="register()"
-              class="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-transparent outline-none">
-          </div>
-          <div x-show="authError" class="text-red-500 text-sm" x-text="authError"></div>
-          <button @click="register()" :disabled="authLoading"
-            class="w-full py-2.5 bg-brand-600 text-white rounded-lg font-medium hover:bg-brand-700 disabled:opacity-50 transition">
-            <span x-show="!authLoading">Đăng ký</span>
-            <span x-show="authLoading"><i class="ri-loader-4-line animate-spin"></i> Đang xử lý...</span>
-          </button>
-        </div>
-        <p class="text-center text-sm text-gray-500 mt-4">
-          Đã có tài khoản? <a @click="authMode='login'" class="text-brand-600 cursor-pointer hover:underline">Đăng nhập</a>
-        </p>
-      </div>
-    </div>
-  </div>
-
   <!-- Main App -->
-  <div x-show="token" class="min-h-screen flex">
+  <div x-show="authState==='authenticated'" x-cloak class="min-h-screen flex">
     <!-- Sidebar -->
     <aside class="w-64 bg-white border-r border-gray-200 fixed h-full z-20 flex flex-col">
       <div class="p-5 border-b border-gray-100">
@@ -297,6 +222,7 @@
           <div class="flex-1 min-w-0">
             <p class="text-sm font-medium truncate" x-text="user?.name"></p>
             <p class="text-xs text-gray-400 truncate" x-text="user?.email"></p>
+            <button @click="openAccount()" class="text-[11px] text-brand-600 hover:underline">Tài khoản</button>
           </div>
           <button @click="logout()" class="text-gray-400 hover:text-red-500 transition" title="Đăng xuất">
             <i class="ri-logout-box-r-line"></i>
@@ -3295,6 +3221,49 @@
     </div>
   </div>
 
+  <!-- Email verification banner -->
+  <div x-show="authState==='authenticated' && user && !user.emailVerified" x-cloak class="fixed bottom-4 left-72 z-40 bg-amber-50 border border-amber-300 text-amber-800 text-xs rounded-lg px-3 py-2 shadow">
+    Email chưa được xác minh. <button @click="resendVerification(); accountMsg=''" class="underline">Gửi lại email xác minh</button>
+  </div>
+
+  <!-- Account modal -->
+  <div x-show="accountOpen" x-cloak class="fixed inset-0 bg-black/50 z-[70] flex items-center justify-center p-4" @click.self="accountOpen=false">
+    <div class="bg-white rounded-2xl shadow-xl w-full max-w-md p-6 space-y-3 text-sm">
+      <div class="flex justify-between"><h3 class="text-lg font-bold">Tài khoản</h3><button @click="accountOpen=false" class="text-gray-400"><i class="ri-close-line text-2xl"></i></button></div>
+      <p x-show="accountMsg" class="text-xs" :class="accountErr?'text-red-600':'text-green-600'" x-text="accountMsg"></p>
+      <label class="block text-xs text-gray-500">Họ tên<input x-model="accountForm.name" class="w-full mt-1 border rounded-lg px-3 py-2 text-sm"></label>
+      <button @click="saveProfile()" class="px-3 py-1.5 bg-brand-600 text-white rounded-lg text-xs">Lưu</button>
+      <div class="text-xs space-y-1 border-t pt-3">
+        <p>Email: <b x-text="user?.email"></b> · <span :class="user?.emailVerified?'text-green-600':'text-amber-600'" x-text="user?.emailVerified?'Đã xác minh':'Chưa xác minh'"></span></p>
+        <p>Đăng nhập: <span x-show="user?.hasPassword">Email/mật khẩu</span><span x-show="user?.hasPassword && (user?.identities||[]).includes('GOOGLE')"> · </span><span x-show="(user?.identities||[]).includes('GOOGLE')">Google — Đã liên kết</span></p>
+      </div>
+      <div class="border-t pt-3 space-y-2">
+        <p class="text-xs font-semibold" x-text="user?.hasPassword?'Đổi mật khẩu':'Đặt mật khẩu'"></p>
+        <input x-show="user?.hasPassword" x-model="accountForm.currentPassword" type="password" placeholder="Mật khẩu hiện tại" class="w-full border rounded-lg px-3 py-2 text-sm">
+        <input x-model="accountForm.newPassword" type="password" placeholder="Mật khẩu mới (≥ 8 ký tự, chữ + số)" class="w-full border rounded-lg px-3 py-2 text-sm">
+        <button @click="changePassword()" class="px-3 py-1.5 border rounded-lg text-xs hover:bg-gray-50">Cập nhật mật khẩu</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Onboarding steps 2-3 (skippable) -->
+  <div x-show="showOnboarding && !showPageModal && !orgSettingsOpen" x-cloak class="fixed inset-0 bg-black/50 z-[60] flex items-center justify-center p-4">
+    <div class="bg-white rounded-2xl shadow-xl w-full max-w-md p-6 space-y-3 text-sm">
+      <p class="text-xs text-gray-400" x-text="obStep + ' / 3'"></p>
+      <template x-if="obStep===2"><div class="space-y-3">
+        <h3 class="text-lg font-bold">Kết nối Facebook Page</h3>
+        <p class="text-gray-500 text-xs">Kết nối Page để bắt đầu tạo và đăng nội dung. Bạn có thể làm sau.</p>
+        <button @click="obConnectPage()" class="w-full py-2.5 bg-brand-600 text-white rounded-lg font-medium">Kết nối Facebook Page</button>
+        <button @click="obStep=3" class="w-full py-2 text-gray-500 hover:underline">Để sau</button></div></template>
+      <template x-if="obStep===3"><div class="space-y-3">
+        <h3 class="text-lg font-bold">Thiết lập AI</h3>
+        <p class="text-gray-500 text-xs">Thêm API key Gemini / OpenAI / Claude của tổ chức. Key được mã hóa và không hiển thị lại.</p>
+        <button @click="openOrgSettings()" class="w-full py-2.5 bg-brand-600 text-white rounded-lg font-medium">Thiết lập AI</button>
+        <button @click="finishOnboarding()" class="w-full py-2 text-gray-500 hover:underline">Để sau / Hoàn tất</button></div></template>
+      <button x-show="obStep===3" @click="finishOnboarding()" class="w-full py-2 border rounded-lg hover:bg-gray-50">Hoàn tất</button>
+    </div>
+  </div>
+
   <!-- Join banner (visible when authenticated and a /join/<token> was opened) -->
   <div x-show="token && joinToken && joinPreview" x-cloak class="fixed top-4 right-4 z-[70] bg-white border border-brand-300 shadow-lg rounded-xl p-4 max-w-sm">
     <p class="text-sm font-medium">Chấp nhận lời mời</p>
@@ -3368,6 +3337,9 @@ function app() {
     token: localStorage.getItem('mkt_token') || '',
     user: JSON.parse(localStorage.getItem('mkt_user') || 'null'),
     page: 'dashboard',
+    authState: 'loading',
+    onboarding: null, showOnboarding: false, obStep: 2,
+    accountOpen: false, accountForm: { name: '', currentPassword: '', newPassword: '' }, accountMsg: '', accountErr: false,
     authMode: 'login',
     authError: '',
     authLoading: false,
@@ -3587,12 +3559,18 @@ function app() {
 
     async init() {
       this.dgLoadCols();
-      // Detect /join/<token> in URL and prime the invitation preview flow.
-      const joinMatch = window.location.pathname.match(/^\/join\/([A-Za-z0-9_-]+)/);
-      if (joinMatch) {
-        this.joinToken = joinMatch[1];
-        await this.previewInvitation(this.joinToken);
-      }
+      // Single auth bootstrap: server session decides authenticated / login / onboarding.
+      if (!this.token) { window.location.replace('/login'); return; }
+      try {
+        const sess = await this.api('/auth/session');
+        if (!sess) return;
+        this.user = sess.user;
+        localStorage.setItem('mkt_user', JSON.stringify(sess.user));
+        this.onboarding = sess.onboarding;
+        if (sess.onboarding.state === 'NEEDS_ORGANIZATION') { window.location.replace('/onboarding'); return; }
+        this.showOnboarding = sess.onboarding.state === 'ONBOARDING_INCOMPLETE';
+      } catch (e) { window.location.replace('/login'); return; }
+      this.authState = 'authenticated';
       if (this.token) {
         await this.loadOrganizations();
         await this.loadPages();
@@ -3641,68 +3619,39 @@ function app() {
         this.logout();
         return null;
       }
-      if (!res.ok) throw new Error(data.error || 'Request failed');
+      if (!res.ok) throw new Error(data.message || data.error || 'Request failed');
       return data;
     },
 
-    async login() {
-      this.authError = '';
-      this.authLoading = true;
-      try {
-        const data = await this.api('/auth/login', {
-          method: 'POST',
-          body: JSON.stringify(this.loginForm),
-        });
-        this.token = data.token;
-        this.user = data.user;
-        localStorage.setItem('mkt_token', data.token);
-        localStorage.setItem('mkt_user', JSON.stringify(data.user));
-        await this.loadOrganizations();
-        await this.loadPages();
-        await this.loadWorkspaces();
-        await this.validateScope();
-        await this.loadScopePages();
-        await this.loadDashboard();
-      } catch (e) {
-        this.authError = e.message;
-      } finally {
-        this.authLoading = false;
-      }
-    },
-
-    async register() {
-      this.authError = '';
-      this.authLoading = true;
-      try {
-        const data = await this.api('/auth/register', {
-          method: 'POST',
-          body: JSON.stringify(this.registerForm),
-        });
-        this.token = data.token;
-        this.user = data.user;
-        localStorage.setItem('mkt_token', data.token);
-        localStorage.setItem('mkt_user', JSON.stringify(data.user));
-        await this.loadOrganizations();
-        await this.loadPages();
-        await this.loadWorkspaces();
-        await this.validateScope();
-        await this.loadScopePages();
-        await this.loadDashboard();
-      } catch (e) {
-        this.authError = e.message;
-      } finally {
-        this.authLoading = false;
-      }
-    },
-
-    logout() {
+    async logout() {
       this.destroySocket();
+      const t = this.token;
+      try { if (t) await fetch('/api/auth/logout', { method: 'POST', headers: { Authorization: `Bearer ${t}` } }); } catch {}
       this.token = '';
       this.user = null;
-      localStorage.removeItem('mkt_token');
-      localStorage.removeItem('mkt_user');
-      this.page = 'dashboard';
+      ['mkt_token', 'mkt_user', 'mkt_current_org', 'mkt_scope'].forEach((k) => localStorage.removeItem(k));
+      window.location.replace('/login');
     },
+
+    openAccount() { this.accountForm = { name: this.user?.name || '', currentPassword: '', newPassword: '' }; this.accountMsg = ''; this.accountOpen = true; },
+    async saveProfile() {
+      try { const r = await this.api('/auth/profile', { method: 'PUT', body: JSON.stringify({ name: this.accountForm.name }) }); this.user = r.user; localStorage.setItem('mkt_user', JSON.stringify(r.user)); this.accountMsg = 'Đã lưu.'; this.accountErr = false; }
+      catch (e) { this.accountMsg = e.message; this.accountErr = true; }
+    },
+    async changePassword() {
+      try { await this.api('/auth/password', { method: 'PUT', body: JSON.stringify({ currentPassword: this.accountForm.currentPassword, newPassword: this.accountForm.newPassword }) });
+        this.accountForm.currentPassword = ''; this.accountForm.newPassword = ''; this.user.hasPassword = true; this.accountMsg = 'Đã đổi mật khẩu.'; this.accountErr = false; }
+      catch (e) { this.accountMsg = e.message; this.accountErr = true; }
+    },
+    async resendVerification() {
+      try { await this.api('/auth/resend-verification', { method: 'POST', body: '{}' }); this.accountMsg = 'Đã gửi lại email xác minh.'; this.accountErr = false; }
+      catch (e) { this.accountMsg = e.message; this.accountErr = true; }
+    },
+    async finishOnboarding() {
+      try { await this.api('/auth/onboarding/complete', { method: 'POST', body: '{}' }); } catch {}
+      this.showOnboarding = false;
+    },
+    obConnectPage() { this.page = 'pages'; this.editingPage = null; this.pageForm = { platform: 'FACEBOOK', name: '', externalId: '', accessToken: '', context: '', telegramGroupId: '' }; this.showPageModal = true; },
 
     onTimePresetChange() {
       if (this.dbFilter.preset !== 'custom') this.loadDashboard();

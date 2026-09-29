@@ -163,7 +163,10 @@ publicRouter.post('/:token/accept', authMiddleware, async (req: AuthRequest, res
 
   // Enforce email match — the invitation is bound to that email.
   if (user.email.toLowerCase() !== inv.email.toLowerCase()) {
-    return res.status(403).json({ error: 'INVITATION_EMAIL_MISMATCH', message: 'Lời mời gửi cho email khác.' });
+    return res.status(403).json({ error: 'INVITATION_EMAIL_MISMATCH', message: 'Email của tài khoản không khớp với lời mời.' });
+  }
+  if (!user.emailVerifiedAt) {
+    return res.status(403).json({ error: 'EMAIL_NOT_VERIFIED', message: 'Vui lòng xác minh email trước khi chấp nhận lời mời.' });
   }
 
   if (inv.status === 'ACCEPTED') {
@@ -214,6 +217,7 @@ publicRouter.post('/:token/accept', authMiddleware, async (req: AuthRequest, res
     });
   });
 
+  await prisma.user.updateMany({ where: { id: user.id, onboardingCompletedAt: null }, data: { onboardingCompletedAt: new Date() } });
   res.json({ success: true, organizationId: inv.organizationId });
 });
 

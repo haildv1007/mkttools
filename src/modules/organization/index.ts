@@ -723,3 +723,33 @@ router.get('/:id/page-usage', async (req: AuthRequest, res: Response) => {
 });
 
 export { router as organizationRouter };
+
+/**
+ * Create a customer Organization for `userId` (OWNER) and its subscription.
+ * Trial is granted only if the policy is enabled and the user has never consumed one;
+ * the unique user_trial_entitlements row is the atomic guard (invoked once per user).
+ */
+export async function provisionOrganizationForOwner(userId: string, name: string) {
+  const org = await prisma.organization.create({
+    data: { name, ownerUserId: userId, status: 'ACTIVE', members: { create: { userId, role: 'OWNER', status: 'ACTIVE' } } },
+  });
+  const starter = await prisma.subscriptionPlan.findUnique({ where: { code: 'STARTER_3' } });
+  if (!starter) return { org, trial: false };
+  const policy = await getTrialPolicy();
+  let trial = false;
+  if (policy.trialEnabled) {
+    try {
+      await prisma.userTrialEntitlement.create({ data: { id: `ute_${userId}`, userId, organizationId: org.id } });
+      trial = true;
+    } catch (e: any) { if (e?.code !== 'P2002') throw e; }
+  }
+  if (trial) {
+    const now = new Date();
+    await prisma.organizationSubscription.create({
+      data: { organizationId: org.id, planId: starter.id, status: 'TRIAL', trialStartedAt: now, trialEndsAt: new Date(now.getTime() + policy.trialDays * DAY_MS) },
+    });
+  } else {
+    await prisma.organizationSubscription.create({ data: { organizationId: org.id, planId: starter.id, status: 'ACTIVE' } });
+  }
+  return { org, trial };
+}
