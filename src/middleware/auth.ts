@@ -4,6 +4,7 @@ import bcrypt from 'bcryptjs';
 import { Router } from 'express';
 import { prisma } from '../utils/db';
 import { config } from '../config';
+import { resolveCurrentOrganization, readRequestedOrgId, sendOrgDenied } from '../modules/organization';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'mkttools-dev-secret-change-in-production';
 const TOKEN_EXPIRY = '7d';
@@ -42,21 +43,11 @@ export function authMiddleware(req: AuthRequest, res: Response, next: NextFuncti
 export async function attachOrganization(req: AuthRequest, res: Response, next: NextFunction) {
   if (!req.userId) return next();
   try {
-    const requested = (req.header('x-organization-id') || req.query.orgId || '').toString() || null;
-    const memberships = await prisma.organizationMember.findMany({
-      where: { userId: req.userId, status: 'ACTIVE' },
-      include: { organization: { select: { id: true, status: true } } },
-      orderBy: { createdAt: 'asc' },
-    });
-    const active = memberships.filter((m) => m.organization.status === 'ACTIVE');
-    if (active.length === 0) return next();
-    let picked = active[0]!;
-    if (requested) {
-      const found = active.find((m) => m.organizationId === requested);
-      if (found) picked = found;
-    }
-    req.organizationId = picked.organizationId;
-    req.organizationRole = picked.role as AuthRequest['organizationRole'];
+    const { current, denied } = await resolveCurrentOrganization(req.userId, readRequestedOrgId(req));
+    if (denied) return sendOrgDenied(res);
+    if (!current) return next();
+    req.organizationId = current.organizationId;
+    req.organizationRole = current.role as AuthRequest['organizationRole'];
     next();
   } catch (err) {
     next(err);

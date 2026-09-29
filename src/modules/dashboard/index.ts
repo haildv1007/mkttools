@@ -2188,13 +2188,7 @@ router.get('/activity', async (req: AuthRequest, res: Response) => {
     const { category, limit: limitParam, cursor } = req.query;
     const take = Math.min(Math.max(1, Number(limitParam) || 30), 100);
 
-    // Tenant scope: only the current org's activity, plus legacy (organizationId IS NULL) rows.
-    const where: Record<string, unknown> = {
-      OR: [
-        { organizationId: req.organizationId },
-        { organizationId: null },
-      ],
-    };
+    const where: Record<string, unknown> = { organizationId: req.organizationId };
     if (category && category !== 'all') where.category = String(category);
     if (cursor) where.createdAt = { lt: new Date(String(cursor)) };
 

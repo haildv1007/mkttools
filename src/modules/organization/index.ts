@@ -23,16 +23,35 @@ export async function listMemberships(userId: string) {
   });
 }
 
+export function readRequestedOrgId(req: AuthRequest): string | null {
+  const raw = req.header('x-organization-id') || req.query.orgId || '';
+  const v = Array.isArray(raw) ? String(raw[0] ?? '') : String(raw);
+  return v.trim() || null;
+}
+
+/**
+ * No requested id -> first accessible active org.
+ * Requested id + valid membership -> that org.
+ * Requested id without access -> denied (never falls back to another org).
+ */
 export async function resolveCurrentOrganization(userId: string, requested?: string | null) {
   const memberships = await listMemberships(userId);
   const active = memberships.filter((m) => m.organization.status === 'ACTIVE');
-  if (active.length === 0) return { memberships, current: null as null | typeof active[0] };
-  let current = active[0];
   if (requested) {
     const found = active.find((m) => m.organizationId === requested);
-    if (found) current = found;
+    return { memberships, current: found ?? null, denied: !found };
   }
-  return { memberships, current };
+  return { memberships, current: active[0] ?? null, denied: false };
+}
+
+export function sendOrgDenied(res: Response) {
+  return res.status(403).json({ error: 'ORGANIZATION_ACCESS_DENIED', message: 'Bạn không có quyền truy cập tổ chức này.' });
+}
+
+export async function isPlatformAdmin(userId?: string): Promise<boolean> {
+  if (!userId) return false;
+  const u = await prisma.user.findUnique({ where: { id: userId }, select: { isPlatformAdmin: true, isActive: true } });
+  return !!u?.isPlatformAdmin && u.isActive;
 }
 
 /**
@@ -45,8 +64,8 @@ export async function requireOrganizationMember(
   next: NextFunction,
 ) {
   if (!req.userId) return res.status(401).json({ error: 'Unauthorized' });
-  const requested = (req.header('x-organization-id') || req.query.orgId || '').toString() || null;
-  const { current } = await resolveCurrentOrganization(req.userId, requested);
+  const { current, denied } = await resolveCurrentOrganization(req.userId, readRequestedOrgId(req));
+  if (denied) return sendOrgDenied(res);
   if (!current) {
     return res.status(403).json({ error: 'NO_ORGANIZATION', message: 'Bạn chưa thuộc tổ chức nào.' });
   }
@@ -141,8 +160,8 @@ router.get('/', async (req: AuthRequest, res: Response) => {
 
 router.get('/current', async (req: AuthRequest, res: Response) => {
   if (!req.userId) return res.status(401).json({ error: 'Unauthorized' });
-  const requested = (req.header('x-organization-id') || req.query.orgId || '').toString() || null;
-  const { memberships, current } = await resolveCurrentOrganization(req.userId, requested);
+  const { memberships, current, denied } = await resolveCurrentOrganization(req.userId, readRequestedOrgId(req));
+  if (denied) return sendOrgDenied(res);
   if (!current) return res.json({ current: null, memberships: [] });
   const [limit, used, subRaw] = await Promise.all([
     OrganizationQuota.getPageLimit(current.organizationId),
@@ -319,20 +338,15 @@ router.get('/plans/list', async (_req: AuthRequest, res: Response) => {
   res.json(plans);
 });
 
-// Assign / change plan for org (ADMIN+)
+// Plan / custom limit mutation: PLATFORM ADMIN only (no billing yet; never customer-facing)
 router.put('/:id/subscription', async (req: AuthRequest, res: Response) => {
-  if (!req.userId) return res.status(401).json({ error: 'Unauthorized' });
+  if (!(await isPlatformAdmin(req.userId))) return res.status(403).json({ error: 'FORBIDDEN' });
   const id = String(req.params.id);
-  const requester = await prisma.organizationMember.findUnique({
-    where: { organizationId_userId: { organizationId: id, userId: req.userId } },
-  });
-  if (!requester || !roleAtLeast(requester.role as OrgRole, 'OWNER')) {
-    return res.status(403).json({ error: 'OWNER_ONLY' });
-  }
+  const org = await prisma.organization.findUnique({ where: { id }, select: { id: true } });
+  if (!org) return res.status(404).json({ error: 'NOT_FOUND' });
   const { planCode, customMaxPages, expiresAt } = req.body || {};
   const plan = await prisma.subscriptionPlan.findUnique({ where: { code: String(planCode) } });
   if (!plan) return res.status(404).json({ error: 'PLAN_NOT_FOUND' });
-  // Cancel existing active subs
   await prisma.organizationSubscription.updateMany({
     where: { organizationId: id, status: 'ACTIVE' },
     data: { status: 'CANCELLED' },
@@ -347,13 +361,12 @@ router.put('/:id/subscription', async (req: AuthRequest, res: Response) => {
     },
     include: { plan: true },
   })) as any;
-  res.json({
-    planCode: sub.plan.code,
-    planName: sub.plan.name,
-    status: sub.status,
-    expiresAt: sub.expiresAt,
-    customMaxPages: sub.customMaxPages,
-  });
+  res.json({ planCode: sub.plan.code, planName: sub.plan.name, status: sub.status, expiresAt: sub.expiresAt, customMaxPages: sub.customMaxPages });
+});
+
+// Organizations are never hard-deleted in V1 (lifecycle is ACTIVE/SUSPENDED only)
+router.delete('/:id', (_req: AuthRequest, res: Response) => {
+  res.status(405).json({ error: 'ORG_DELETE_DISABLED', message: 'Tổ chức không thể bị xoá.' });
 });
 
 // Page usage endpoint (any member)

@@ -3019,15 +3019,8 @@
             </p>
           </div>
         </div>
-        <div x-show="currentOrganization?.role==='OWNER'" class="flex flex-wrap gap-2">
-          <template x-for="p in orgPlans" :key="p.code">
-            <button @click="changeOrgPlan(p.code)"
-              class="px-3 py-1.5 text-xs border border-gray-200 rounded-lg hover:border-brand-400 hover:bg-brand-50"
-              :class="orgSubscription?.planCode===p.code && 'bg-brand-50 border-brand-400 text-brand-700 font-medium'">
-              <span x-text="p.name"></span> <span class="text-gray-400">(<span x-text="p.maxPages ?? '∞'"></span> pages)</span>
-            </button>
-          </template>
-        </div>
+        <p class="text-xs text-gray-500">Giới hạn: <span class="font-medium" x-text="(orgPageUsage.limit ?? '∞') + ' Page'"></span></p>
+        <a href="mailto:support@mkttools.local?subject=Nâng cấp gói" class="inline-block mt-2 text-xs text-brand-600 hover:underline">Nâng cấp gói</a>
       </div>
 
       <!-- Members -->
@@ -3148,7 +3141,6 @@ function app() {
     orgSelectorOpen: false,
     orgSettingsOpen: false,
     orgMembers: [],
-    orgPlans: [],
     orgMemberForm: { email: '', role: 'MEMBER' },
     orgMemberError: '',
     scopeDropdownOpen: false,
@@ -5233,7 +5225,15 @@ function app() {
         const stored = localStorage.getItem('mkt_current_org');
         // Prefill so first api() call carries the header
         if (stored) this.currentOrganization = { id: stored };
-        const data = await this.api('/organizations/current');
+        let data;
+        try {
+          data = await this.api('/organizations/current');
+        } catch (err) {
+          if (!stored) throw err;
+          localStorage.removeItem('mkt_current_org');
+          this.currentOrganization = null;
+          data = await this.api('/organizations/current');
+        }
         this.organizations = data.memberships || [];
         this.currentOrganization = data.current;
         this.orgSubscription = data.subscription;
@@ -5270,10 +5270,7 @@ function app() {
       if (!this.currentOrganization) return;
       this.orgSettingsOpen = true;
       try {
-        [this.orgMembers, this.orgPlans] = await Promise.all([
-          this.api(`/organizations/${this.currentOrganization.id}/members`),
-          this.api('/organizations/plans/list'),
-        ]);
+        this.orgMembers = await this.api(`/organizations/${this.currentOrganization.id}/members`);
       } catch (e) { console.warn('org settings load failed', e); }
     },
     async addOrgMember() {
@@ -5301,17 +5298,6 @@ function app() {
       try {
         await this.api(`/organizations/${this.currentOrganization.id}/members/${memberId}`, { method: 'DELETE' });
         this.orgMembers = await this.api(`/organizations/${this.currentOrganization.id}/members`);
-      } catch (e) { alert(e.message); }
-    },
-    async changeOrgPlan(planCode) {
-      if (!confirm(`Đổi gói sang ${planCode}?`)) return;
-      try {
-        const sub = await this.api(`/organizations/${this.currentOrganization.id}/subscription`, {
-          method: 'PUT',
-          body: JSON.stringify({ planCode }),
-        });
-        this.orgSubscription = sub;
-        await this.refreshPageUsage();
       } catch (e) { alert(e.message); }
     },
 

@@ -82,7 +82,10 @@ export function initSocketIO(server: HttpServer): Server {
           where: { organizationId_userId: { organizationId: orgId, userId } },
           select: { status: true },
         });
-        if (!m || m.status !== 'ACTIVE') return;
+        if (!m || m.status !== 'ACTIVE') {
+          socket.emit('org:denied', { organizationId: orgId });
+          return;
+        }
         // Leave any prior org rooms first — one active org per socket.
         for (const room of socket.rooms) {
           if (room.startsWith('org:')) socket.leave(room);
@@ -95,7 +98,16 @@ export function initSocketIO(server: HttpServer): Server {
     }
 
     const initialOrg = (socket.handshake.auth?.organizationId as string) || '';
-    if (initialOrg) await joinOrg(initialOrg);
+    if (initialOrg) {
+      await joinOrg(initialOrg);
+    } else {
+      const first = await prisma.organizationMember.findFirst({
+        where: { userId, status: 'ACTIVE', organization: { status: 'ACTIVE' } },
+        orderBy: { createdAt: 'asc' },
+        select: { organizationId: true },
+      });
+      if (first) await joinOrg(first.organizationId);
+    }
 
     socket.on('subscribe:org', (orgId: string) => joinOrg(orgId));
 
