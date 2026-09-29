@@ -522,6 +522,25 @@ model AppSetting {
   @@map("app_settings")
 }
 
+/**
+ * Platform-global configuration (Platform Admin only) — distinct from
+ * AppSetting (legacy, still used for Telegram/Facebook/timezone in the
+ * per-install "Cài đặt hệ thống" page) and from OrganizationAiCredential
+ * (org-scoped, customer BYOK). Secret values are AES-256-GCM encrypted with
+ * PLATFORM_SECRET_KEY before being stored — `value` is never plaintext when
+ * `isSecret` is true.
+ */
+model PlatformSetting {
+  key       String   @id
+  value     String?
+  isSecret  Boolean  @default(false) @map("is_secret")
+  updatedBy String?  @map("updated_by")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("platform_settings")
+}
+
 model ActivityLog {
   id             String   @id @default(cuid())
   organizationId String?  @map("organization_id")

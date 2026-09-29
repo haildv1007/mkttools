@@ -18,6 +18,7 @@ import { adminRouter } from './modules/admin';
 import { aiCredentialRouter } from './modules/ai-credentials';
 import { organizationInvitationRouter, publicInvitationRouter } from './modules/invitations';
 import { billingPublicRouter, billingCustomerRouter, billingAdminRouter } from './modules/billing';
+import { refreshPlatformSettingsCache } from './modules/platform-settings';
 import { getBot } from './modules/telegram-bot';
 import { startWorkers, startScheduler } from './queues';
 import { initSocketIO } from './realtime';
@@ -88,6 +89,9 @@ async function main() {
   try {
     await prisma.$connect();
     logger.info('Database connected');
+
+    await refreshPlatformSettingsCache();
+    logger.info('Platform settings loaded');
 
     if (config.telegram.botToken) {
       getBot();

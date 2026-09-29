@@ -243,6 +243,121 @@
         </template></tbody></table></div>
       <div x-html="pager('pages','loadPages')"></div>
     </section>
+
+    <!-- PLATFORM SETTINGS -->
+    <section x-show="view==='settings'">
+      <h1 class="text-lg font-bold mb-3">Cấu hình nền tảng</h1>
+      <div class="flex gap-1 border-b mb-4">
+        <template x-for="t in [['general','Chung'],['auth','Đăng nhập'],['email','Email'],['payment','Thanh toán'],['integrations','Tích hợp']]" :key="t[0]">
+          <button @click="psTab=t[0]" class="px-3 py-1.5 -mb-px border-b-2" :class="psTab===t[0]?'border-brand-600 text-brand-600 font-medium':'border-transparent text-gray-500'" x-text="t[1]"></button>
+        </template>
+      </div>
+
+      <template x-if="ps">
+      <div>
+        <!-- CHUNG -->
+        <div x-show="psTab==='general'" class="bg-white border border-gray-200 rounded-lg p-4 max-w-xl space-y-3">
+          <label class="block text-xs">Tên sản phẩm<input x-model="ps.general.productName" class="border rounded-lg px-2 py-1.5 w-full mt-1"></label>
+          <label class="block text-xs">APP / Public URL<input x-model="ps.general.appUrl" placeholder="https://yourdomain.com" class="border rounded-lg px-2 py-1.5 w-full mt-1"></label>
+          <label class="block text-xs">Email hỗ trợ<input x-model="ps.general.supportEmail" class="border rounded-lg px-2 py-1.5 w-full mt-1"></label>
+          <label class="block text-xs">Múi giờ mặc định<input x-model="ps.general.timezone" class="border rounded-lg px-2 py-1.5 w-full mt-1"></label>
+          <label class="flex items-center gap-2"><input type="checkbox" x-model="ps.general.allowRegistrations">Cho phép đăng ký mới</label>
+          <label class="flex items-center gap-2"><input type="checkbox" x-model="ps.general.trialEnabled">Bật dùng thử <span class="text-gray-400">(đồng bộ với Gói & Subscription → Cấu hình dùng thử)</span></label>
+          <button @click="savePS('general')" class="px-4 py-1.5 bg-brand-600 text-white rounded-lg">Lưu</button>
+        </div>
+
+        <!-- ĐĂNG NHẬP -->
+        <div x-show="psTab==='auth'" class="bg-white border border-gray-200 rounded-lg p-4 max-w-xl space-y-3">
+          <label class="flex items-center gap-2"><input type="checkbox" x-model="ps.auth.emailPasswordEnabled">Email/Password login</label>
+          <label class="flex items-center gap-2"><input type="checkbox" x-model="ps.auth.googleEnabled">Google Login</label>
+          <label class="block text-xs">Google Client ID<input x-model="ps.auth.googleClientId" class="border rounded-lg px-2 py-1.5 w-full mt-1"></label>
+          <div class="text-xs">
+            <p class="mb-1">Google Client Secret
+              <span x-show="ps.auth.googleClientSecret.configured" class="ml-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-green-100 text-green-700">Đã cấu hình <span x-text="ps.auth.googleClientSecret.masked"></span></span>
+              <span x-show="!ps.auth.googleClientSecret.configured" class="ml-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-gray-100 text-gray-600">Chưa cấu hình</span>
+            </p>
+            <div class="flex gap-2"><input x-model="psSecret.googleClientSecret" type="password" placeholder="Nhập để thay đổi" class="border rounded-lg px-2 py-1.5 flex-1">
+              <button x-show="ps.auth.googleClientSecret.configured" @click="deletePS('/auth/google-secret')" class="px-2 py-1.5 border border-red-300 text-red-600 rounded-lg text-xs">Xóa</button></div>
+          </div>
+          <label class="block text-xs">Google Redirect URI<input x-model="ps.auth.googleRedirectUri" placeholder="mặc định: {APP_URL}/api/auth/google/callback" class="border rounded-lg px-2 py-1.5 w-full mt-1"></label>
+          <label class="flex items-center gap-2"><input type="checkbox" x-model="ps.auth.emailVerificationRequired">Bắt buộc xác minh email trước khi đăng nhập</label>
+          <button @click="savePS('auth')" class="px-4 py-1.5 bg-brand-600 text-white rounded-lg">Lưu</button>
+        </div>
+
+        <!-- EMAIL -->
+        <div x-show="psTab==='email'" class="bg-white border border-gray-200 rounded-lg p-4 max-w-xl space-y-3">
+          <div class="grid grid-cols-2 gap-3">
+            <label class="block text-xs">SMTP Host<input x-model="ps.email.smtpHost" class="border rounded-lg px-2 py-1.5 w-full mt-1"></label>
+            <label class="block text-xs">SMTP Port<input x-model="ps.email.smtpPort" class="border rounded-lg px-2 py-1.5 w-full mt-1"></label>
+            <label class="block text-xs">SMTP Username<input x-model="ps.email.smtpUser" class="border rounded-lg px-2 py-1.5 w-full mt-1"></label>
+            <div class="text-xs">
+              <p class="mb-1">SMTP Password
+                <span x-show="ps.email.smtpPassword.configured" class="ml-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-green-100 text-green-700">Đã cấu hình</span>
+                <span x-show="!ps.email.smtpPassword.configured" class="ml-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-gray-100 text-gray-600">Chưa cấu hình</span>
+              </p>
+              <div class="flex gap-1"><input x-model="psSecret.smtpPassword" type="password" placeholder="Nhập để thay đổi" class="border rounded-lg px-2 py-1.5 flex-1 min-w-0">
+                <button x-show="ps.email.smtpPassword.configured" @click="deletePS('/email/smtp-password')" class="px-2 py-1.5 border border-red-300 text-red-600 rounded-lg text-xs">Xóa</button></div>
+            </div>
+            <label class="block text-xs">From Email<input x-model="ps.email.fromEmail" class="border rounded-lg px-2 py-1.5 w-full mt-1"></label>
+            <label class="block text-xs">From Name<input x-model="ps.email.fromName" class="border rounded-lg px-2 py-1.5 w-full mt-1"></label>
+          </div>
+          <label class="flex items-center gap-2"><input type="checkbox" x-model="ps.email.secure">Secure/TLS</label>
+          <button @click="savePS('email')" class="px-4 py-1.5 bg-brand-600 text-white rounded-lg">Lưu</button>
+          <div class="pt-3 border-t flex gap-2 items-center">
+            <input x-model="testEmailTo" type="email" placeholder="Email nhận thử" class="border rounded-lg px-2 py-1.5 flex-1">
+            <button @click="sendTestEmail()" class="px-3 py-1.5 border rounded-lg hover:bg-gray-50">Gửi email thử</button>
+          </div>
+        </div>
+
+        <!-- THANH TOÁN -->
+        <div x-show="psTab==='payment'" class="bg-white border border-gray-200 rounded-lg p-4 max-w-xl space-y-3">
+          <p class="text-xs text-gray-500">Nền tảng cấu hình cho SePay (M2.8). Chưa có logic thanh toán được kích hoạt ở milestone này.</p>
+          <label class="flex items-center gap-2"><input type="checkbox" x-model="ps.payment.enabled">Bật thanh toán</label>
+          <label class="block text-xs">Provider<input value="SEPAY" disabled class="border rounded-lg px-2 py-1.5 w-full mt-1 bg-gray-50 text-gray-500"></label>
+          <label class="block text-xs">Mode<select x-model="ps.payment.mode" class="border rounded-lg px-2 py-1.5 w-full mt-1"><option value="SANDBOX">Sandbox</option><option value="PRODUCTION">Production</option></select></label>
+          <div class="text-xs">
+            <p class="mb-1">SePay Secret Key
+              <span x-show="ps.payment.sepaySecretKey.configured" class="ml-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-green-100 text-green-700">Đã cấu hình</span>
+              <span x-show="!ps.payment.sepaySecretKey.configured" class="ml-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-gray-100 text-gray-600">Chưa cấu hình</span>
+            </p>
+            <div class="flex gap-1"><input x-model="psSecret.sepaySecretKey" type="password" placeholder="Nhập để thay đổi" class="border rounded-lg px-2 py-1.5 flex-1">
+              <button x-show="ps.payment.sepaySecretKey.configured" @click="deletePS('/payment/sepay-secret')" class="px-2 py-1.5 border border-red-300 text-red-600 rounded-lg text-xs">Xóa</button></div>
+          </div>
+          <label class="block text-xs">Order TTL (phút) <span class="text-gray-400">— chưa áp dụng vào logic đơn hàng hiện tại (mặc định 30 phút)</span><input type="number" min="1" x-model.number="ps.payment.orderTtlMinutes" class="border rounded-lg px-2 py-1.5 w-full mt-1"></label>
+          <div class="text-xs bg-gray-50 rounded-lg p-2 space-y-1">
+            <p>Webhook URL: <span class="font-mono" x-text="ps.payment.webhookUrl"></span></p>
+            <p>Trạng thái: <span class="px-2 py-0.5 rounded-full text-[10px] font-semibold" :class="ps.payment.webhookConfigured?'bg-green-100 text-green-700':'bg-gray-100 text-gray-600'" x-text="ps.payment.webhookConfigured?'Đã cấu hình':'Chưa cấu hình'"></span></p>
+          </div>
+          <button @click="savePS('payment')" class="px-4 py-1.5 bg-brand-600 text-white rounded-lg">Lưu</button>
+
+          <div class="pt-3 border-t">
+            <p class="font-semibold text-xs mb-2">Billing</p>
+            <label class="block text-xs mb-2">Currency<input value="VND" disabled class="border rounded-lg px-2 py-1.5 w-full mt-1 bg-gray-50 text-gray-500"></label>
+            <p class="text-xs mb-1">Kỳ hạn cho phép</p>
+            <div class="flex gap-3 text-xs mb-2">
+              <template x-for="m in [1,3,12]" :key="m">
+                <label class="flex items-center gap-1"><input type="checkbox" :checked="ps.billing.allowedPeriods.includes(m)" @change="toggleBillingPeriod(m)"><span x-text="m+' tháng'"></span></label>
+              </template>
+            </div>
+            <button @click="saveBillingPeriods()" class="px-4 py-1.5 bg-brand-600 text-white rounded-lg">Lưu billing</button>
+          </div>
+        </div>
+
+        <!-- TÍCH HỢP -->
+        <div x-show="psTab==='integrations'" class="bg-white border border-gray-200 rounded-lg p-4 max-w-xl space-y-3">
+          <p class="text-xs text-gray-500">Tóm tắt trạng thái. Chỉnh sửa Token/App ID tại "Cài đặt hệ thống" trong ứng dụng chính.</p>
+          <div class="flex items-center justify-between border rounded-lg p-2 text-xs">
+            <span><i class="ri-telegram-line mr-1 text-sky-500"></i>Telegram Bot</span>
+            <span class="px-2 py-0.5 rounded-full text-[10px] font-semibold" :class="integrations.telegram?.configured?'bg-green-100 text-green-700':'bg-gray-100 text-gray-600'" x-text="integrations.telegram?.configured?'Đã cấu hình':'Chưa cấu hình'"></span>
+          </div>
+          <div class="flex items-center justify-between border rounded-lg p-2 text-xs">
+            <span><i class="ri-facebook-fill mr-1 text-blue-600"></i>Meta / Facebook App</span>
+            <span class="px-2 py-0.5 rounded-full text-[10px] font-semibold" :class="integrations.facebook?.configured?'bg-green-100 text-green-700':'bg-gray-100 text-gray-600'" x-text="integrations.facebook?.configured?'Đã cấu hình':'Chưa cấu hình'"></span>
+          </div>
+        </div>
+      </div>
+      </template>
+    </section>
   </main>
 
   <!-- ORG DRAWER -->
@@ -371,12 +486,13 @@
 <script>
 function adminApp(){ return {
   token: localStorage.getItem('mkt_token')||'', ready:false, denied:false, view:'overview', tab:'overview',
-  nav:[{id:'overview',label:'Tổng quan',icon:'ri-dashboard-line'},{id:'organizations',label:'Khách hàng',icon:'ri-building-line'},{id:'users',label:'Người dùng',icon:'ri-user-line'},{id:'plans',label:'Gói & Subscription',icon:'ri-vip-crown-line'},{id:'payments',label:'Thanh toán',icon:'ri-money-dollar-circle-line'},{id:'pages',label:'Pages',icon:'ri-pages-line'}],
+  nav:[{id:'overview',label:'Tổng quan',icon:'ri-dashboard-line'},{id:'organizations',label:'Khách hàng',icon:'ri-building-line'},{id:'users',label:'Người dùng',icon:'ri-user-line'},{id:'plans',label:'Gói & Subscription',icon:'ri-vip-crown-line'},{id:'payments',label:'Thanh toán',icon:'ri-money-dollar-circle-line'},{id:'pages',label:'Pages',icon:'ri-pages-line'},{id:'settings',label:'Cấu hình nền tảng',icon:'ri-settings-4-line'}],
   overview:null, orgs:{items:[],total:0,page:1,pageSize:25}, users:{items:[],total:0,page:1,pageSize:25}, subs:{items:[],total:0,page:1,pageSize:25}, pages:{items:[],total:0,page:1,pageSize:25},
   payments:{items:[],total:0,page:1,pageSize:25}, paymentDetail:null,
   plans:[], planPrices:{}, trial:{trialEnabled:true,trialDays:7,trialMaxPages:2,trialMaxMembers:2},
   of:{q:'',orgStatus:'',subStatus:'',plan:'',trial:'',overPages:'',overMembers:'',sort:'created',dir:'desc',pageSize:25}, uf:{q:''}, sf:{status:'',plan:'',trial:'',expired:'',expiresWithin:''}, pf:{q:'',status:''}, pmf:{q:'',status:'',planCode:''},
   org:null, userDetail:null, modal:'', form:{}, toast:'', toastErr:false,
+  ps:null, psTab:'general', psSecret:{googleClientSecret:'',smtpPassword:'',sepaySecretKey:''}, integrations:{}, testEmailTo:'',
 
   async api(path, opts={}){
     const r = await fetch('/api/admin'+path,{method:opts.method||'GET',headers:{'Content-Type':'application/json',Authorization:'Bearer '+this.token},body:opts.body?JSON.stringify(opts.body):undefined});
@@ -395,7 +511,7 @@ function adminApp(){ return {
   },
   decoratePlan(p){ return {...p,_name:p.name,_maxPages:p.maxPages??'',_maxMembers:p.maxMembers??'',_isActive:p.isActive,_sortOrder:p.sortOrder}; },
   go(v,noPush){ if(!this.nav.find(n=>n.id===v)) v='overview'; this.view=v; if(!noPush) history.pushState({},'', v==='overview'?'/admin':'/admin/'+v);
-    ({overview:()=>this.loadOverview(),organizations:()=>this.loadOrgs(1),users:()=>this.loadUsers(1),plans:()=>{this.loadPlans();this.loadPlanPrices();this.loadSubs(1)},payments:()=>this.loadPayments(1),pages:()=>this.loadPages(1)})[v](); },
+    ({overview:()=>this.loadOverview(),organizations:()=>this.loadOrgs(1),users:()=>this.loadUsers(1),plans:()=>{this.loadPlans();this.loadPlanPrices();this.loadSubs(1)},payments:()=>this.loadPayments(1),pages:()=>this.loadPages(1),settings:()=>this.loadPS()})[v](); },
   async loadOverview(){ this.overview=await this.api('/overview'); },
   kpiList(){ const k=this.overview?.kpis||{}; return [['Organizations',k.organizations],['Users',k.users],['Connected Pages',k.connectedPages],['Active Subs',k.activeSubscriptions],['Trials',k.trials],['Expired',k.expiredSubscriptions],['Suspended',k.suspendedOrganizations]]; },
   async loadOrgs(p){ this.orgs=await this.api('/organizations'+this.qs(this.of,{page:p})); },
@@ -442,6 +558,27 @@ function adminApp(){ return {
   async reactivate(){ try{ await this.api('/organizations/'+this.org.organization.id+'/reactivate',{method:'POST'}); this.flash('Đã kích hoạt lại'); this.refreshOrg(); }catch(e){ this.flash(e.message,true); } },
   async togglePlatformAdmin(u){ const v=!u.isPlatformAdmin; if(!confirm((v?'Cấp':'Gỡ')+' quyền Platform Admin cho '+u.email+'?')) return;
     try{ await this.api('/users/'+u.id+'/platform-admin',{method:'PUT',body:{value:v}}); u.isPlatformAdmin=v; this.flash('Đã cập nhật'); this.loadUsers(this.users.page); }catch(e){ this.flash(e.message,true); } },
+
+  // ---- Platform Settings (Cấu hình nền tảng) ----
+  async loadPS(){ try{ this.ps=await this.api('/settings'); this.integrations=await this.api('/settings/integrations'); }catch(e){ this.flash(e.message,true); } },
+  async savePS(section){
+    try{
+      const body={...this.ps[section]};
+      if(section==='auth'){ body.googleClientSecret=this.psSecret.googleClientSecret||undefined; }
+      if(section==='email'){ body.smtpPassword=this.psSecret.smtpPassword||undefined; }
+      if(section==='payment'){ body.sepaySecretKey=this.psSecret.sepaySecretKey||undefined; delete body.webhookUrl; delete body.webhookConfigured; }
+      // Secret placeholder objects ({configured,masked}) must not be sent back as values.
+      for(const k of ['googleClientSecret','smtpPassword','sepaySecretKey']) if(typeof body[k]==='object') delete body[k];
+      const r=await this.api('/settings/'+section,{method:'PUT',body});
+      Object.assign(this.ps,r);
+      this.psSecret={googleClientSecret:'',smtpPassword:'',sepaySecretKey:''};
+      this.flash('Đã lưu');
+    }catch(e){ this.flash(e.message,true); }
+  },
+  async deletePS(path){ if(!confirm('Xóa secret đã lưu?')) return; try{ const r=await this.api('/settings'+path,{method:'DELETE'}); Object.assign(this.ps,r); this.flash('Đã xóa'); }catch(e){ this.flash(e.message,true); } },
+  async sendTestEmail(){ if(!this.testEmailTo){ this.flash('Nhập email nhận thử',true); return; } try{ const r=await this.api('/settings/email/test',{method:'POST',body:{to:this.testEmailTo}}); this.flash(r.message||'Đã gửi'); }catch(e){ this.flash(e.message,true); } },
+  toggleBillingPeriod(m){ const arr=this.ps.billing.allowedPeriods; const i=arr.indexOf(m); if(i>=0) arr.splice(i,1); else arr.push(m); },
+  async saveBillingPeriods(){ try{ const r=await this.api('/settings/billing',{method:'PUT',body:{allowedPeriods:this.ps.billing.allowedPeriods}}); Object.assign(this.ps,r); this.flash('Đã lưu billing'); }catch(e){ this.flash(e.message,true); } },
 }}
 document.addEventListener('alpine:initialized',()=>{ window.__a = Alpine.$data(document.body); });
 </script>

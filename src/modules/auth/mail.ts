@@ -1,17 +1,26 @@
 import nodemailer from 'nodemailer';
 import { logger } from '../../utils/logger';
+import { getAppUrl, getMailTransportConfig } from '../platform-settings';
 
-export const APP_URL = (process.env.APP_URL || `http://localhost:${process.env.PORT || 3000}`).replace(/\/$/, '');
+/** Kept as a function (not a frozen const) so a platform-settings change to
+ *  general.appUrl takes effect without a restart. */
+export function APP_URL(): string { return getAppUrl(); }
 
-let transport: ReturnType<typeof nodemailer.createTransport> | null = null;
+let cachedKey = '';
+let cachedTransport: ReturnType<typeof nodemailer.createTransport> | null = null;
+
 function getTransport() {
-  if (!process.env.SMTP_HOST) return null;
-  transport ??= nodemailer.createTransport({
-    host: process.env.SMTP_HOST, port: Number(process.env.SMTP_PORT || 587),
-    secure: process.env.SMTP_SECURE === 'true',
-    auth: process.env.SMTP_USER ? { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS || '' } : undefined,
-  });
-  return transport;
+  const cfg = getMailTransportConfig();
+  if (!cfg) return null;
+  const key = JSON.stringify(cfg);
+  if (!cachedTransport || key !== cachedKey) {
+    cachedTransport = nodemailer.createTransport({
+      host: cfg.host, port: cfg.port, secure: cfg.secure,
+      auth: cfg.user ? { user: cfg.user, pass: cfg.pass } : undefined,
+    });
+    cachedKey = key;
+  }
+  return { transport: cachedTransport, cfg };
 }
 
 /** Transactional mail only. Never logs secrets; never throws to callers. */
@@ -23,11 +32,11 @@ export async function sendMail(to: string, subject: string, text: string): Promi
       logger.info({ to, subject }, `MAIL_DEV_LOG ${text}`);
       return true;
     }
-    logger.error({ to, subject }, 'MAIL_NOT_CONFIGURED: set SMTP_HOST/SMTP_USER/SMTP_PASS/MAIL_FROM to send email');
+    logger.error({ to, subject }, 'MAIL_NOT_CONFIGURED: set SMTP in Platform Admin \u2192 C\u1ea5u h\u00ecnh n\u1ec1n t\u1ea3ng \u2192 Email (or SMTP_HOST/SMTP_USER/SMTP_PASS env)');
     return false;
   }
   try {
-    await t.sendMail({ from: process.env.MAIL_FROM || 'MKT Tools <no-reply@mkttools.local>', to, subject, text });
+    await t.transport.sendMail({ from: `${t.cfg.fromName} <${t.cfg.fromEmail}>`, to, subject, text });
     return true;
   } catch (e) {
     logger.error({ to, subject, err: e instanceof Error ? e.message : 'unknown' }, 'MAIL_SEND_FAILED');
@@ -36,6 +45,6 @@ export async function sendMail(to: string, subject: string, text: string): Promi
 }
 
 export const sendVerificationEmail = (to: string, name: string, token: string) =>
-  sendMail(to, 'Xác minh email MKT Tools', `Xin chào ${name},\n\nVui lòng xác minh email của bạn:\n${APP_URL}/verify-email/${token}\n\nLiên kết có hiệu lực 24 giờ.`);
+  sendMail(to, 'Xác minh email MKT Tools', `Xin chào ${name},\n\nVui lòng xác minh email của bạn:\n${APP_URL()}/verify-email/${token}\n\nLiên kết có hiệu lực 24 giờ.`);
 export const sendPasswordResetEmail = (to: string, token: string) =>
-  sendMail(to, 'Đặt lại mật khẩu MKT Tools', `Bạn (hoặc ai đó) đã yêu cầu đặt lại mật khẩu.\n${APP_URL}/reset-password/${token}\n\nLiên kết có hiệu lực 1 giờ và chỉ dùng được một lần. Nếu không phải bạn, hãy bỏ qua email này.`);
+  sendMail(to, 'Đặt lại mật khẩu MKT Tools', `Bạn (hoặc ai đó) đã yêu cầu đặt lại mật khẩu.\n${APP_URL()}/reset-password/${token}\n\nLiên kết có hiệu lực 1 giờ và chỉ dùng được một lần. Nếu không phải bạn, hãy bỏ qua email này.`);

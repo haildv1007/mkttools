@@ -7,6 +7,7 @@ import {
 import { getAccessiblePageIds } from '../access';
 import { logActivity } from '../../utils/activity';
 import { billingAdminRouter } from '../billing';
+import { platformSettingsAdminRouter } from '../platform-settings';
 
 const DAY_MS = 24 * 3600 * 1000;
 
@@ -460,5 +461,6 @@ router.get('/pages', async (req: AuthRequest, res: Response) => {
 });
 
 router.use('/billing', billingAdminRouter);
+router.use('/settings', platformSettingsAdminRouter);
 
 export { router as adminRouter };

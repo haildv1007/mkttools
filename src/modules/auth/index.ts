@@ -12,6 +12,7 @@ import {
 } from './session';
 import { sendVerificationEmail, sendPasswordResetEmail } from './mail';
 import { providers } from './providers';
+import { getPlatformSettingBool } from '../platform-settings';
 
 const router = Router();
 const H = 3600 * 1000;
@@ -91,6 +92,12 @@ async function sendVerification(user: { id: string; email: string; name: string 
 // ---------- email + password ----------
 
 router.post('/register', registerLimit, async (req: Request, res: Response) => {
+  if (!getPlatformSettingBool('auth.emailPasswordEnabled')) {
+    return err(res, 403, 'PASSWORD_LOGIN_DISABLED', 'Đăng ký bằng email/mật khẩu hiện đang tắt.');
+  }
+  if (!getPlatformSettingBool('general.allowRegistrations')) {
+    return err(res, 403, 'REGISTRATION_DISABLED', 'Hệ thống hiện không nhận đăng ký mới.');
+  }
   const name = String(req.body?.name || '').trim();
   const email = normalizeEmail(req.body?.email);
   if (!name || name.length > 100) return err(res, 400, 'INVALID_NAME', 'Vui lòng nhập họ tên.');
@@ -114,6 +121,9 @@ router.post('/register', registerLimit, async (req: Request, res: Response) => {
 });
 
 router.post('/login', loginLimit, async (req: Request, res: Response) => {
+  if (!getPlatformSettingBool('auth.emailPasswordEnabled')) {
+    return err(res, 403, 'PASSWORD_LOGIN_DISABLED', 'Đăng nhập bằng email/mật khẩu hiện đang tắt.');
+  }
   const email = normalizeEmail(req.body?.email);
   const password = String(req.body?.password || '');
   if (!email || !password) return err(res, 400, 'INVALID_INPUT', 'Vui lòng nhập email và mật khẩu.');
@@ -121,6 +131,9 @@ router.post('/login', loginLimit, async (req: Request, res: Response) => {
   const ok = await bcrypt.compare(password, user?.passwordHash || DUMMY_HASH);
   if (!user || !user.passwordHash || !ok || !user.isActive) {
     return err(res, 401, 'INVALID_CREDENTIALS', 'Tài khoản hoặc mật khẩu không chính xác.');
+  }
+  if (getPlatformSettingBool('auth.emailVerificationRequired') && !user.emailVerifiedAt) {
+    return err(res, 403, 'EMAIL_NOT_VERIFIED', 'Vui lòng xác minh email trước khi đăng nhập.');
   }
   const token = await createSession(user, req.headers['user-agent']);
   res.json(await sessionBody(user.id, token));
