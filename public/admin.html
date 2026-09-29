@@ -1,0 +1,358 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MKT Tools — Admin</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link href="https://cdn.jsdelivr.net/npm/remixicon@4.1.0/fonts/remixicon.css" rel="stylesheet">
+<script>tailwind.config={theme:{extend:{fontFamily:{sans:['Inter','sans-serif']},colors:{brand:{50:'#eff6ff',100:'#dbeafe',500:'#3b82f6',600:'#2563eb',700:'#1d4ed8'}}}}}</script>
+<style>[x-cloak]{display:none!important} td,th{padding:.5rem .75rem;text-align:left;white-space:nowrap} tbody tr{height:48px}</style>
+</head>
+<body class="bg-gray-50 font-sans text-sm text-gray-800" x-data="adminApp()" x-init="init()" x-cloak>
+
+<div x-show="denied" class="p-10 text-center">
+  <p class="font-semibold text-red-600">Bạn không có quyền truy cập khu vực Platform Admin.</p>
+  <a href="/" class="text-brand-600 hover:underline">← Về MKT Tools</a>
+</div>
+
+<div x-show="!denied && ready" class="flex min-h-screen">
+  <aside class="w-52 bg-white border-r border-gray-200 p-3 flex flex-col gap-1 shrink-0">
+    <div class="font-bold text-base px-2 py-2">MKT Admin</div>
+    <template x-for="n in nav" :key="n.id">
+      <button @click="go(n.id)" class="text-left px-3 py-2 rounded-lg" :class="view===n.id?'bg-brand-50 text-brand-600 font-medium':'hover:bg-gray-100'">
+        <i :class="n.icon" class="mr-2"></i><span x-text="n.label"></span>
+      </button>
+    </template>
+    <a href="/" class="mt-auto px-3 py-2 text-gray-500 hover:text-brand-600"><i class="ri-arrow-left-line mr-2"></i>Về ứng dụng</a>
+  </aside>
+
+  <main class="flex-1 p-5 min-w-0">
+    <div x-show="toast" class="fixed top-4 right-4 z-[60] px-3 py-2 rounded-lg text-white text-xs" :class="toastErr?'bg-red-600':'bg-green-600'" x-text="toast"></div>
+
+    <!-- OVERVIEW -->
+    <section x-show="view==='overview'">
+      <h1 class="text-lg font-bold mb-3">Tổng quan</h1>
+      <div class="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-7 gap-2 mb-5">
+        <template x-for="k in kpiList()" :key="k[0]">
+          <div class="bg-white border border-gray-200 rounded-lg p-3"><p class="text-[11px] text-gray-500" x-text="k[0]"></p><p class="text-xl font-bold" x-text="k[1]"></p></div>
+        </template>
+      </div>
+      <h2 class="font-semibold mb-2">Khách hàng mới</h2>
+      <div class="bg-white border border-gray-200 rounded-lg overflow-x-auto"><table class="w-full">
+        <thead class="bg-gray-50 text-[11px] text-gray-500 uppercase"><tr><th>Organization</th><th>Owner</th><th>Gói</th><th>Pages</th><th>Members</th><th>Trạng thái</th><th>Tạo</th></tr></thead>
+        <tbody><template x-for="o in (overview?.recentOrganizations||[])" :key="o.id">
+          <tr class="border-t cursor-pointer hover:bg-gray-50" @click="openOrg(o.id)">
+            <td class="font-medium" x-text="o.name"></td><td x-text="o.owner?.email||'—'"></td><td x-text="planLabel(o)"></td>
+            <td><span x-text="o.pages+' / '+lim(o.pageLimit)" :class="o.overPages&&'text-red-600 font-semibold'"></span></td>
+            <td><span x-text="o.members+' / '+lim(o.memberLimit)" :class="o.overMembers&&'text-red-600 font-semibold'"></span></td>
+            <td><span class="px-2 py-0.5 rounded-full text-[10px] font-semibold" :class="badge(o.status)" x-text="o.status"></span></td>
+            <td x-text="d(o.createdAt)"></td></tr>
+        </template></tbody></table></div>
+    </section>
+
+    <!-- ORGANIZATIONS -->
+    <section x-show="view==='organizations'">
+      <h1 class="text-lg font-bold mb-3">Khách hàng</h1>
+      <div class="flex flex-wrap gap-2 mb-3 items-center">
+        <input x-model="of.q" @input.debounce.300ms="loadOrgs(1)" placeholder="Tên tổ chức / email owner" class="border rounded-lg px-3 py-1.5 w-64">
+        <select x-model="of.orgStatus" @change="loadOrgs(1)" class="border rounded-lg px-2 py-1.5"><option value="">Org: tất cả</option><option>ACTIVE</option><option>SUSPENDED</option></select>
+        <select x-model="of.subStatus" @change="loadOrgs(1)" class="border rounded-lg px-2 py-1.5"><option value="">Sub: tất cả</option><option>ACTIVE</option><option>TRIAL</option><option>EXPIRED</option><option>NONE</option></select>
+        <select x-model="of.plan" @change="loadOrgs(1)" class="border rounded-lg px-2 py-1.5"><option value="">Gói: tất cả</option><template x-for="p in plans" :key="p.code"><option :value="p.code" x-text="p.name"></option></template></select>
+        <label class="flex items-center gap-1"><input type="checkbox" x-model="of.trial" true-value="1" false-value="" @change="loadOrgs(1)">Trial</label>
+        <label class="flex items-center gap-1"><input type="checkbox" x-model="of.overPages" true-value="1" false-value="" @change="loadOrgs(1)">Vượt Page</label>
+        <label class="flex items-center gap-1"><input type="checkbox" x-model="of.overMembers" true-value="1" false-value="" @change="loadOrgs(1)">Vượt Member</label>
+        <select x-model="of.sort" @change="loadOrgs(1)" class="border rounded-lg px-2 py-1.5"><option value="created">Sắp xếp: ngày tạo</option><option value="expires">hết hạn</option><option value="pages">pages</option><option value="members">members</option></select>
+        <select x-model="of.dir" @change="loadOrgs(1)" class="border rounded-lg px-2 py-1.5"><option value="desc">Giảm</option><option value="asc">Tăng</option></select>
+        <select x-model.number="of.pageSize" @change="loadOrgs(1)" class="border rounded-lg px-2 py-1.5"><option>25</option><option>50</option><option>100</option></select>
+      </div>
+      <div class="bg-white border border-gray-200 rounded-lg overflow-x-auto"><table class="w-full">
+        <thead class="bg-gray-50 text-[11px] text-gray-500 uppercase"><tr><th>Organization</th><th>Owner</th><th>Gói</th><th>Pages</th><th>Members</th><th>WS</th><th>Sub</th><th>Hết hạn</th><th>Org</th><th>Tạo</th></tr></thead>
+        <tbody><template x-for="o in orgs.items" :key="o.id">
+          <tr class="border-t cursor-pointer hover:bg-gray-50" @click="openOrg(o.id)">
+            <td class="font-medium" x-text="o.name"></td><td x-text="o.owner?.email||'—'"></td><td x-text="planLabel(o)"></td>
+            <td><span x-text="o.pages+' / '+lim(o.pageLimit)" :class="o.overPages&&'text-red-600 font-semibold'"></span><span x-show="o.overPages" class="ml-1 text-[9px] text-red-600 font-bold">OVER</span></td>
+            <td><span x-text="o.members+' / '+lim(o.memberLimit)" :class="o.overMembers&&'text-red-600 font-semibold'"></span><span x-show="o.overMembers" class="ml-1 text-[9px] text-red-600 font-bold">OVER</span></td>
+            <td x-text="o.workspaces"></td>
+            <td><span class="px-2 py-0.5 rounded-full text-[10px] font-semibold" :class="badge(o.subscriptionStatus)" x-text="o.subscriptionStatus"></span></td>
+            <td x-text="expiryText(o)"></td>
+            <td><span class="px-2 py-0.5 rounded-full text-[10px] font-semibold" :class="badge(o.status)" x-text="o.status"></span></td>
+            <td x-text="d(o.createdAt)"></td></tr>
+        </template></tbody></table></div>
+      <div x-html="pager('orgs','loadOrgs')"></div>
+    </section>
+
+    <!-- USERS -->
+    <section x-show="view==='users'">
+      <h1 class="text-lg font-bold mb-3">Người dùng</h1>
+      <input x-model="uf.q" @input.debounce.300ms="loadUsers(1)" placeholder="Tên / email" class="border rounded-lg px-3 py-1.5 w-64 mb-3">
+      <div class="bg-white border border-gray-200 rounded-lg overflow-x-auto"><table class="w-full">
+        <thead class="bg-gray-50 text-[11px] text-gray-500 uppercase"><tr><th>User</th><th>Email</th><th>Organizations</th><th>Platform Admin</th><th>Tạo</th></tr></thead>
+        <tbody><template x-for="u in users.items" :key="u.id">
+          <tr class="border-t cursor-pointer hover:bg-gray-50" @click="userDetail=u">
+            <td class="font-medium" x-text="u.name"></td><td x-text="u.email"></td>
+            <td class="max-w-md truncate" x-text="u.memberships.map(m=>m.organizationName+' — '+m.role).join(', ')||'—'"></td>
+            <td><span x-show="u.isPlatformAdmin" class="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-purple-100 text-purple-700">ADMIN</span></td>
+            <td x-text="d(u.createdAt)"></td></tr>
+        </template></tbody></table></div>
+      <div x-html="pager('users','loadUsers')"></div>
+    </section>
+
+    <!-- PLANS & SUBSCRIPTIONS -->
+    <section x-show="view==='plans'">
+      <h1 class="text-lg font-bold mb-3">Gói & Subscription</h1>
+
+      <h2 class="font-semibold mb-2">Gói</h2>
+      <div class="bg-white border border-gray-200 rounded-lg overflow-x-auto mb-5"><table class="w-full">
+        <thead class="bg-gray-50 text-[11px] text-gray-500 uppercase"><tr><th>Tên</th><th>Code</th><th>Max Pages</th><th>Max Members</th><th>Active</th><th>Orgs</th><th>Thứ tự</th><th></th></tr></thead>
+        <tbody><template x-for="p in plans" :key="p.id">
+          <tr class="border-t">
+            <td><input x-model="p._name" class="border rounded px-2 py-1 w-28"></td><td class="text-gray-500" x-text="p.code"></td>
+            <td><input x-model="p._maxPages" placeholder="Không giới hạn" class="border rounded px-2 py-1 w-28"></td>
+            <td><input x-model="p._maxMembers" placeholder="Không giới hạn" class="border rounded px-2 py-1 w-28"></td>
+            <td><input type="checkbox" x-model="p._isActive"></td><td x-text="p.organizations"></td>
+            <td><input x-model.number="p._sortOrder" class="border rounded px-2 py-1 w-16"></td>
+            <td><button @click="savePlan(p)" class="px-3 py-1 bg-brand-600 text-white rounded-lg text-xs">Lưu</button></td></tr>
+        </template></tbody></table></div>
+
+      <h2 class="font-semibold mb-1">Cấu hình dùng thử</h2>
+      <p class="text-xs text-gray-500 mb-2">Áp dụng cho Organization mới đủ điều kiện dùng thử. Số ngày áp dụng cho Trial mới; giới hạn Page/Thành viên được đọc trực tiếp từ cấu hình này nên có hiệu lực ngay với cả các Trial đang chạy. Trial hiện có không tự động được gia hạn.</p>
+      <div class="bg-white border border-gray-200 rounded-lg p-3 mb-5 flex flex-wrap items-end gap-4">
+        <label class="flex items-center gap-2"><input type="checkbox" x-model="trial.trialEnabled">Bật dùng thử</label>
+        <label>Số ngày<br><input type="number" min="1" x-model.number="trial.trialDays" class="border rounded px-2 py-1 w-24"></label>
+        <label>Giới hạn Page<br><input type="number" min="0" x-model.number="trial.trialMaxPages" class="border rounded px-2 py-1 w-24"></label>
+        <label>Giới hạn thành viên<br><input type="number" min="0" x-model.number="trial.trialMaxMembers" class="border rounded px-2 py-1 w-24"></label>
+        <button @click="saveTrial()" class="px-4 py-1.5 bg-brand-600 text-white rounded-lg">Lưu</button>
+      </div>
+
+      <h2 class="font-semibold mb-2">Subscriptions</h2>
+      <div class="flex flex-wrap gap-2 mb-2">
+        <select x-model="sf.status" @change="loadSubs(1)" class="border rounded-lg px-2 py-1.5"><option value="">Status: tất cả</option><option>ACTIVE</option><option>TRIAL</option><option>EXPIRED</option></select>
+        <select x-model="sf.plan" @change="loadSubs(1)" class="border rounded-lg px-2 py-1.5"><option value="">Gói: tất cả</option><template x-for="p in plans" :key="p.code"><option :value="p.code" x-text="p.name"></option></template></select>
+        <label class="flex items-center gap-1"><input type="checkbox" x-model="sf.trial" true-value="1" false-value="" @change="loadSubs(1)">Trial</label>
+        <label class="flex items-center gap-1"><input type="checkbox" x-model="sf.expired" true-value="1" false-value="" @change="loadSubs(1)">Đã hết hạn</label>
+        <select x-model="sf.expiresWithin" @change="loadSubs(1)" class="border rounded-lg px-2 py-1.5"><option value="">Hết hạn: bất kỳ</option><option value="7">≤ 7 ngày</option><option value="30">≤ 30 ngày</option></select>
+      </div>
+      <div class="bg-white border border-gray-200 rounded-lg overflow-x-auto"><table class="w-full">
+        <thead class="bg-gray-50 text-[11px] text-gray-500 uppercase"><tr><th>Organization</th><th>Gói</th><th>Status</th><th>Pages</th><th>Members</th><th>Bắt đầu</th><th>Hết hạn</th><th>Custom</th></tr></thead>
+        <tbody><template x-for="o in subs.items" :key="o.id">
+          <tr class="border-t cursor-pointer hover:bg-gray-50" @click="openOrg(o.id)">
+            <td class="font-medium" x-text="o.name"></td><td x-text="planLabel(o)"></td>
+            <td><span class="px-2 py-0.5 rounded-full text-[10px] font-semibold" :class="badge(o.subscriptionStatus)" x-text="o.subscriptionStatus"></span></td>
+            <td x-text="o.pages+' / '+lim(o.pageLimit)"></td><td x-text="o.members+' / '+lim(o.memberLimit)"></td>
+            <td x-text="d(o.startedAt)"></td><td x-text="expiryText(o)"></td>
+            <td x-text="(o.customMaxPages!=null?'P:'+o.customMaxPages+' ':'')+(o.customMaxMembers!=null?'M:'+o.customMaxMembers:'')||'—'"></td></tr>
+        </template></tbody></table></div>
+      <div x-html="pager('subs','loadSubs')"></div>
+    </section>
+
+    <!-- PAGES -->
+    <section x-show="view==='pages'">
+      <h1 class="text-lg font-bold mb-3">Pages</h1>
+      <div class="flex gap-2 mb-3">
+        <input x-model="pf.q" @input.debounce.300ms="loadPages(1)" placeholder="Tên Page / Organization" class="border rounded-lg px-3 py-1.5 w-64">
+        <select x-model="pf.status" @change="loadPages(1)" class="border rounded-lg px-2 py-1.5"><option value="">Tất cả</option><option value="active">Đang kết nối</option><option value="inactive">Đã ngắt</option></select>
+      </div>
+      <div class="bg-white border border-gray-200 rounded-lg overflow-x-auto"><table class="w-full">
+        <thead class="bg-gray-50 text-[11px] text-gray-500 uppercase"><tr><th>Page</th><th>Organization</th><th>Platform</th><th>Kết nối</th><th>Ngày kết nối</th></tr></thead>
+        <tbody><template x-for="p in pages.items" :key="p.id">
+          <tr class="border-t"><td class="font-medium" x-text="p.name"></td><td x-text="p.organizationName"></td><td x-text="p.platform"></td>
+            <td><span class="px-2 py-0.5 rounded-full text-[10px] font-semibold" :class="p.isActive?'bg-green-100 text-green-700':'bg-amber-100 text-amber-700'" x-text="p.isActive?'ACTIVE':'Đã ngắt'"></span></td>
+            <td x-text="d(p.createdAt)"></td></tr>
+        </template></tbody></table></div>
+      <div x-html="pager('pages','loadPages')"></div>
+    </section>
+  </main>
+
+  <!-- ORG DRAWER -->
+  <div x-show="org" class="fixed inset-0 z-50 flex justify-end bg-black/30" @click.self="org=null">
+    <div class="w-full max-w-3xl bg-white h-full overflow-y-auto p-5">
+      <template x-if="org">
+      <div>
+        <div class="flex items-start justify-between mb-3">
+          <div><h2 class="text-lg font-bold" x-text="org.organization.name"></h2>
+            <p class="text-xs text-gray-500" x-text="'ID: '+org.organization.id"></p></div>
+          <button @click="org=null" class="text-gray-400 hover:text-gray-600"><i class="ri-close-line text-2xl"></i></button>
+        </div>
+        <div class="grid grid-cols-4 gap-2 mb-3 text-xs">
+          <div class="border rounded-lg p-2"><p class="text-gray-500">Org</p><span class="px-2 py-0.5 rounded-full text-[10px] font-semibold" :class="badge(org.organization.status)" x-text="org.organization.status"></span></div>
+          <div class="border rounded-lg p-2"><p class="text-gray-500">Gói</p><p class="font-semibold" x-text="planLabel({planName:org.subscription.planName,isTrial:org.subscription.isTrial,subscriptionStatus:org.subscription.status})"></p></div>
+          <div class="border rounded-lg p-2" :class="org.usage.overPages&&'border-red-300 bg-red-50'"><p class="text-gray-500">Pages</p><p class="font-semibold" x-text="org.usage.pages+' / '+lim(org.subscription.pageLimit)"></p><p x-show="org.usage.overPages" class="text-red-600 font-bold text-[10px]">OVER LIMIT</p></div>
+          <div class="border rounded-lg p-2" :class="org.usage.overMembers&&'border-red-300 bg-red-50'"><p class="text-gray-500">Members</p><p class="font-semibold" x-text="org.usage.members+' / '+lim(org.subscription.memberLimit)"></p><p x-show="org.usage.overMembers" class="text-red-600 font-bold text-[10px]">OVER LIMIT</p></div>
+        </div>
+        <div class="flex flex-wrap gap-2 mb-4">
+          <button @click="openPlanModal()" class="px-3 py-1.5 border rounded-lg hover:bg-gray-50">Đổi gói</button>
+          <button @click="openDatesModal()" class="px-3 py-1.5 border rounded-lg hover:bg-gray-50">Gia hạn</button>
+          <button @click="openLimitsModal()" class="px-3 py-1.5 border rounded-lg hover:bg-gray-50">Giới hạn tùy chỉnh</button>
+          <button @click="openStatusModal()" class="px-3 py-1.5 border rounded-lg hover:bg-gray-50">Trạng thái sub</button>
+          <button x-show="org.organization.status==='ACTIVE'" @click="suspend()" class="px-3 py-1.5 border border-red-300 text-red-600 rounded-lg hover:bg-red-50">Suspend</button>
+          <button x-show="org.organization.status==='SUSPENDED'" @click="reactivate()" class="px-3 py-1.5 border border-green-300 text-green-700 rounded-lg hover:bg-green-50">Reactivate</button>
+        </div>
+        <div class="flex gap-1 border-b mb-3">
+          <template x-for="t in [['overview','Tổng quan'],['members','Members'],['pages','Pages'],['workspaces','Workspaces'],['subscription','Subscription']]" :key="t[0]">
+            <button @click="tab=t[0]" class="px-3 py-1.5 -mb-px border-b-2" :class="tab===t[0]?'border-brand-600 text-brand-600 font-medium':'border-transparent text-gray-500'" x-text="t[1]"></button>
+          </template>
+        </div>
+
+        <div x-show="tab==='overview'" class="grid grid-cols-2 gap-3 text-xs">
+          <div class="border rounded-lg p-3 space-y-1"><p class="font-semibold text-sm">Organization</p>
+            <p>Tạo: <span x-text="d(org.organization.createdAt)"></span></p>
+            <p>Owner: <span x-text="(org.organization.owner?.name||'—')+' · '+(org.organization.owner?.email||'')"></span></p></div>
+          <div class="border rounded-lg p-3 space-y-1"><p class="font-semibold text-sm">Đếm</p>
+            <p>Pages <b x-text="org.counts.pages"></b> · Members <b x-text="org.counts.members"></b> · Workspaces <b x-text="org.counts.workspaces"></b></p>
+            <p>Campaigns <b x-text="org.counts.campaigns"></b> · Content <b x-text="org.counts.content"></b></p></div>
+          <div class="border rounded-lg p-3 space-y-1 col-span-2"><p class="font-semibold text-sm">Giới hạn</p>
+            <p>Page: <b x-text="org.usage.pages+' / '+lim(org.subscription.pageLimit)"></b> · gói: <span x-text="lim(org.subscription.planMaxPages)"></span> · override: <span x-text="org.subscription.customMaxPages??'—'"></span></p>
+            <p>Member: <b x-text="org.usage.members+' / '+lim(org.subscription.memberLimit)"></b> · gói: <span x-text="lim(org.subscription.planMaxMembers)"></span> · override: <span x-text="org.subscription.customMaxMembers??'—'"></span></p>
+            <p x-show="org.subscription.isTrial">Trial (giới hạn lấy từ cấu hình dùng thử)</p></div>
+        </div>
+
+        <table x-show="tab==='members'" class="w-full text-xs"><thead class="text-[11px] text-gray-500 uppercase"><tr><th>Member</th><th>Email</th><th>Role</th><th>Access</th><th>Status</th><th>Joined</th></tr></thead>
+          <tbody><template x-for="m in org.members" :key="m.id"><tr class="border-t"><td x-text="m.name"></td><td x-text="m.email"></td><td x-text="m.role"></td>
+            <td x-text="m.isAllAccess?'Toàn bộ':(m.workspaceCount+' Workspace · '+m.pageCount+' Page')"></td><td x-text="m.status"></td><td x-text="d(m.joinedAt)"></td></tr></template></tbody></table>
+
+        <table x-show="tab==='pages'" class="w-full text-xs"><thead class="text-[11px] text-gray-500 uppercase"><tr><th>Page</th><th>Platform</th><th>External ID</th><th>Status</th><th>Workspaces</th><th>Connected</th></tr></thead>
+          <tbody><template x-for="p in org.pages" :key="p.id"><tr class="border-t"><td x-text="p.name"></td><td x-text="p.platform"></td><td x-text="p.externalId"></td>
+            <td><span class="px-2 py-0.5 rounded-full text-[10px] font-semibold" :class="p.isActive?'bg-green-100 text-green-700':'bg-amber-100 text-amber-700'" x-text="p.isActive?'ACTIVE':'Đã ngắt'"></span></td>
+            <td x-text="p.workspaces.join(', ')||'—'"></td><td x-text="d(p.createdAt)"></td></tr></template></tbody></table>
+
+        <table x-show="tab==='workspaces'" class="w-full text-xs"><thead class="text-[11px] text-gray-500 uppercase"><tr><th>Workspace</th><th>Pages</th><th>Members có quyền</th><th>Tạo</th></tr></thead>
+          <tbody><template x-for="w in org.workspaces" :key="w.id"><tr class="border-t"><td x-text="w.name"></td><td x-text="w.pageCount"></td><td x-text="w.memberCount"></td><td x-text="d(w.createdAt)"></td></tr></template></tbody></table>
+
+        <div x-show="tab==='subscription'" class="text-xs space-y-2">
+          <div class="border rounded-lg p-3 space-y-1">
+            <p>Status: <b x-text="org.subscription.status"></b> · Gói: <b x-text="org.subscription.planName||'—'"></b></p>
+            <p>Bắt đầu: <span x-text="d(org.subscription.startedAt)"></span> · Hết hạn: <span x-text="d(org.subscription.expiresAt)"></span></p>
+            <p x-show="org.subscription.trialStartedAt">Trial: <span x-text="d(org.subscription.trialStartedAt)+' → '+d(org.subscription.trialEndsAt)"></span> · còn <span x-text="org.subscription.trialDaysRemaining"></span> ngày</p>
+            <p>Effective: <b x-text="lim(org.subscription.pageLimit)+' Pages / '+lim(org.subscription.memberLimit)+' Members'"></b></p></div>
+          <p class="font-semibold">Lịch sử</p>
+          <template x-for="h in org.subscription.history" :key="h.id"><p class="text-gray-600" x-text="h.status+' · '+(h.planCode||'')+' · '+d(h.startedAt)+' → '+d(h.expiresAt)"></p></template>
+        </div>
+      </div></template>
+    </div>
+  </div>
+
+  <!-- MODALS -->
+  <div x-show="modal" class="fixed inset-0 z-[55] bg-black/40 flex items-center justify-center p-4" @click.self="modal=''">
+    <div class="bg-white rounded-xl w-full max-w-md p-5 space-y-3">
+      <!-- change plan -->
+      <template x-if="modal==='plan'"><div class="space-y-3">
+        <h3 class="font-bold">Đổi gói</h3>
+        <p class="text-xs text-gray-500">Hiện tại: <b x-text="org.subscription.planName||'—'"></b> (<span x-text="org.subscription.status"></span>)</p>
+        <select x-model="form.planCode" class="border rounded-lg px-2 py-1.5 w-full"><template x-for="p in plans.filter(p=>p.isActive)" :key="p.code"><option :value="p.code" x-text="p.name+' ('+p.code+')'"></option></template></select>
+        <div class="text-xs bg-gray-50 rounded-lg p-2 space-y-0.5">
+          <p>Pages: <b x-text="org.usage.pages"></b> hiện tại → giới hạn mới <b x-text="lim(newLimit('Pages'))"></b></p>
+          <p>Members: <b x-text="org.usage.members"></b> hiện tại → giới hạn mới <b x-text="lim(newLimit('Members'))"></b></p></div>
+        <div x-show="willOver()" class="text-xs bg-amber-50 border border-amber-300 text-amber-800 rounded-lg p-2">Tổ chức sẽ vượt giới hạn của gói mới. Dữ liệu hiện tại không bị xóa, nhưng không thể thêm Page/Thành viên mới cho tới khi usage nằm trong giới hạn.</div>
+        <label class="block text-xs">Ngày bắt đầu<input type="date" x-model="form.startedAt" class="border rounded px-2 py-1 w-full"></label>
+        <label class="block text-xs">Ngày hết hạn (trống = không hết hạn)<input type="date" x-model="form.expiresAt" class="border rounded px-2 py-1 w-full"></label>
+        <div class="flex justify-end gap-2"><button @click="modal=''" class="px-3 py-1.5 border rounded-lg">Hủy</button><button @click="submitPlan()" class="px-3 py-1.5 bg-brand-600 text-white rounded-lg" x-text="willOver()?'Xác nhận đổi gói':'Lưu'"></button></div></div></template>
+      <!-- dates -->
+      <template x-if="modal==='dates'"><div class="space-y-3">
+        <h3 class="font-bold">Gia hạn</h3>
+        <p class="text-xs text-gray-500">Nếu ngày hết hạn hiện tại còn ở tương lai → cộng từ ngày đó; ngược lại cộng từ hôm nay. (Trial: áp dụng cho ngày kết thúc Trial.)</p>
+        <div class="flex gap-2"><template x-for="n in [30,90,365]" :key="n"><button @click="extend(n)" class="px-3 py-1.5 border rounded-lg hover:bg-gray-50" x-text="'+'+n+' ngày'"></button></template></div>
+        <label class="block text-xs">Ngày hết hạn tùy chỉnh<input type="date" x-model="form.expiresAt" class="border rounded px-2 py-1 w-full"></label>
+        <label class="block text-xs">Ngày bắt đầu<input type="date" x-model="form.startedAt" class="border rounded px-2 py-1 w-full"></label>
+        <div class="flex justify-end gap-2"><button @click="modal=''" class="px-3 py-1.5 border rounded-lg">Đóng</button><button @click="submitDates()" class="px-3 py-1.5 bg-brand-600 text-white rounded-lg">Lưu ngày</button></div></div></template>
+      <!-- limits -->
+      <template x-if="modal==='limits'"><div class="space-y-3">
+        <h3 class="font-bold">Giới hạn tùy chỉnh</h3>
+        <p class="text-xs text-gray-500">Để trống và lưu = xóa override, quay về giới hạn của gói.</p>
+        <label class="block text-xs">Custom Page (gói: <span x-text="lim(org.subscription.planMaxPages)"></span>)<input type="number" min="0" x-model="form.customMaxPages" class="border rounded px-2 py-1 w-full"></label>
+        <label class="block text-xs">Custom Member (gói: <span x-text="lim(org.subscription.planMaxMembers)"></span>)<input type="number" min="0" x-model="form.customMaxMembers" class="border rounded px-2 py-1 w-full"></label>
+        <div class="flex justify-end gap-2"><button @click="modal=''" class="px-3 py-1.5 border rounded-lg">Hủy</button><button @click="submitLimits()" class="px-3 py-1.5 bg-brand-600 text-white rounded-lg">Lưu</button></div></div></template>
+      <!-- status -->
+      <template x-if="modal==='status'"><div class="space-y-3">
+        <h3 class="font-bold">Trạng thái subscription</h3>
+        <p class="text-xs text-gray-500">Hiện tại: <b x-text="org.subscription.status"></b>. Trial → trả phí: dùng "Đổi gói".</p>
+        <select x-model="form.status" class="border rounded-lg px-2 py-1.5 w-full"><option>ACTIVE</option><option>EXPIRED</option><option>CANCELLED</option></select>
+        <label x-show="form.status==='ACTIVE'" class="block text-xs">Ngày hết hạn mới (nếu cần)<input type="date" x-model="form.expiresAt" class="border rounded px-2 py-1 w-full"></label>
+        <div class="flex justify-end gap-2"><button @click="modal=''" class="px-3 py-1.5 border rounded-lg">Hủy</button><button @click="submitStatus()" class="px-3 py-1.5 bg-brand-600 text-white rounded-lg">Lưu</button></div></div></template>
+    </div>
+  </div>
+
+  <!-- USER DETAIL -->
+  <div x-show="userDetail" class="fixed inset-0 z-50 flex justify-end bg-black/30" @click.self="userDetail=null">
+    <div class="w-full max-w-md bg-white h-full p-5 overflow-y-auto">
+      <template x-if="userDetail"><div class="space-y-3">
+        <div class="flex justify-between"><h2 class="text-lg font-bold" x-text="userDetail.name"></h2><button @click="userDetail=null" class="text-gray-400"><i class="ri-close-line text-2xl"></i></button></div>
+        <p x-text="userDetail.email"></p><p class="text-xs text-gray-500">Tạo: <span x-text="d(userDetail.createdAt)"></span></p>
+        <p>Platform Admin: <b x-text="userDetail.isPlatformAdmin?'Có':'Không'"></b></p>
+        <button @click="togglePlatformAdmin(userDetail)" class="px-3 py-1.5 border rounded-lg hover:bg-gray-50" x-text="userDetail.isPlatformAdmin?'Gỡ Platform Admin':'Cấp Platform Admin'"></button>
+        <p class="font-semibold">Organizations</p>
+        <template x-for="m in userDetail.memberships" :key="m.organizationId"><p class="text-xs" x-text="m.organizationName+' — '+m.role+' ('+m.status+')'"></p></template>
+      </div></template>
+    </div>
+  </div>
+</div>
+
+<script>
+function adminApp(){ return {
+  token: localStorage.getItem('mkt_token')||'', ready:false, denied:false, view:'overview', tab:'overview',
+  nav:[{id:'overview',label:'Tổng quan',icon:'ri-dashboard-line'},{id:'organizations',label:'Khách hàng',icon:'ri-building-line'},{id:'users',label:'Người dùng',icon:'ri-user-line'},{id:'plans',label:'Gói & Subscription',icon:'ri-vip-crown-line'},{id:'pages',label:'Pages',icon:'ri-pages-line'}],
+  overview:null, orgs:{items:[],total:0,page:1,pageSize:25}, users:{items:[],total:0,page:1,pageSize:25}, subs:{items:[],total:0,page:1,pageSize:25}, pages:{items:[],total:0,page:1,pageSize:25},
+  plans:[], trial:{trialEnabled:true,trialDays:7,trialMaxPages:2,trialMaxMembers:2},
+  of:{q:'',orgStatus:'',subStatus:'',plan:'',trial:'',overPages:'',overMembers:'',sort:'created',dir:'desc',pageSize:25}, uf:{q:''}, sf:{status:'',plan:'',trial:'',expired:'',expiresWithin:''}, pf:{q:'',status:''},
+  org:null, userDetail:null, modal:'', form:{}, toast:'', toastErr:false,
+
+  async api(path, opts={}){
+    const r = await fetch('/api/admin'+path,{method:opts.method||'GET',headers:{'Content-Type':'application/json',Authorization:'Bearer '+this.token},body:opts.body?JSON.stringify(opts.body):undefined});
+    const j = await r.json().catch(()=>({}));
+    if(!r.ok){ const e=new Error(j.message||j.error||'Lỗi'); e.status=r.status; throw e; }
+    return j;
+  },
+  qs(o,extra={}){ const p=new URLSearchParams(); for(const [k,v] of Object.entries({...o,...extra})) if(v!==''&&v!=null) p.set(k,v); return '?'+p; },
+  flash(m,err=false){ this.toast=m; this.toastErr=err; setTimeout(()=>this.toast='',3000); },
+  async init(){
+    try{ this.overview = await this.api('/overview'); this.ready=true; }catch(e){ this.denied=true; return; }
+    const path=location.pathname.replace(/^\/admin\/?/,''); this.go(path||'overview',true);
+    this.plans = (await this.api('/plans')).map(p=>this.decoratePlan(p));
+    this.trial = await this.api('/trial-policy');
+  },
+  decoratePlan(p){ return {...p,_name:p.name,_maxPages:p.maxPages??'',_maxMembers:p.maxMembers??'',_isActive:p.isActive,_sortOrder:p.sortOrder}; },
+  go(v,noPush){ if(!this.nav.find(n=>n.id===v)) v='overview'; this.view=v; if(!noPush) history.pushState({},'', v==='overview'?'/admin':'/admin/'+v);
+    ({overview:()=>this.loadOverview(),organizations:()=>this.loadOrgs(1),users:()=>this.loadUsers(1),plans:()=>{this.loadPlans();this.loadSubs(1)},pages:()=>this.loadPages(1)})[v](); },
+  async loadOverview(){ this.overview=await this.api('/overview'); },
+  kpiList(){ const k=this.overview?.kpis||{}; return [['Organizations',k.organizations],['Users',k.users],['Connected Pages',k.connectedPages],['Active Subs',k.activeSubscriptions],['Trials',k.trials],['Expired',k.expiredSubscriptions],['Suspended',k.suspendedOrganizations]]; },
+  async loadOrgs(p){ this.orgs=await this.api('/organizations'+this.qs(this.of,{page:p})); },
+  async loadUsers(p){ this.users=await this.api('/users'+this.qs(this.uf,{page:p})); },
+  async loadSubs(p){ this.subs=await this.api('/subscriptions'+this.qs(this.sf,{page:p})); },
+  async loadPages(p){ this.pages=await this.api('/pages'+this.qs(this.pf,{page:p})); },
+  async loadPlans(){ this.plans=(await this.api('/plans')).map(p=>this.decoratePlan(p)); },
+  pager(key,fn){ const s=this[key]; const last=Math.max(1,Math.ceil(s.total/s.pageSize)); return `<div class="flex items-center gap-2 mt-2 text-xs text-gray-500"><span>${s.total} kết quả</span><button ${s.page<=1?'disabled':''} onclick="window.__a.${fn}(${s.page-1})" class="px-2 py-1 border rounded disabled:opacity-40">‹</button><span>${s.page}/${last}</span><button ${s.page>=last?'disabled':''} onclick="window.__a.${fn}(${s.page+1})" class="px-2 py-1 border rounded disabled:opacity-40">›</button></div>`; },
+
+  lim(v){ return v==null?'Không giới hạn':v; },
+  d(v){ return v?new Date(v).toLocaleDateString('vi-VN'):'—'; },
+  planLabel(o){ if(o.subscriptionStatus==='NONE') return '—'; return o.isTrial?'TRIAL':(o.planName||o.planCode||'—'); },
+  expiryText(o){ if(o.isTrial&&o.subscriptionStatus==='TRIAL') return 'Còn '+o.trialDaysRemaining+' ngày'; return this.d(o.expiresAt); },
+  badge(s){ return ({ACTIVE:'bg-green-100 text-green-700',TRIAL:'bg-amber-100 text-amber-700',EXPIRED:'bg-red-100 text-red-700',NONE:'bg-gray-100 text-gray-600',CANCELLED:'bg-gray-200 text-gray-700',SUSPENDED:'bg-red-100 text-red-700'})[s]||'bg-gray-100'; },
+
+  async savePlan(p){ try{ await this.api('/plans/'+p.id,{method:'PATCH',body:{name:p._name,maxPages:p._maxPages===''?null:Number(p._maxPages),maxMembers:p._maxMembers===''?null:Number(p._maxMembers),isActive:p._isActive,sortOrder:p._sortOrder}}); this.flash('Đã lưu gói'); this.loadPlans(); }catch(e){ this.flash(e.message,true); } },
+  async saveTrial(){ try{ this.trial=await this.api('/trial-policy',{method:'PUT',body:this.trial}); this.flash('Đã lưu cấu hình dùng thử'); }catch(e){ this.flash(e.message,true); } },
+
+  async openOrg(id){ this.org=await this.api('/organizations/'+id); this.tab='overview'; },
+  async refreshOrg(){ const id=this.org.organization.id; this.org=await this.api('/organizations/'+id); if(this.view==='organizations') this.loadOrgs(this.orgs.page); if(this.view==='plans') this.loadSubs(this.subs.page); },
+  isoDate(v){ return v?new Date(v).toISOString().slice(0,10):''; },
+  openPlanModal(){ const c=this.plans.find(p=>p.code===this.org.subscription.planCode)||this.plans.find(p=>p.isActive); this.form={planCode:c?.code,startedAt:this.isoDate(new Date()),expiresAt:''}; this.modal='plan'; },
+  newLimit(kind){ const p=this.plans.find(x=>x.code===this.form.planCode); const custom=this.org.subscription['customMax'+kind]; return custom!=null?custom:(p?p['max'+kind]:null); },
+  willOver(){ const lp=this.newLimit('Pages'), lm=this.newLimit('Members'); return (lp!=null&&this.org.usage.pages>lp)||(lm!=null&&this.org.usage.members>lm); },
+  async submitPlan(){ try{ await this.api('/organizations/'+this.org.organization.id+'/plan',{method:'PUT',body:{planCode:this.form.planCode,startedAt:this.form.startedAt||undefined,expiresAt:this.form.expiresAt||null}}); this.modal=''; this.flash('Đã đổi gói'); this.refreshOrg(); }catch(e){ this.flash(e.message,true); } },
+  openDatesModal(){ this.form={expiresAt:'',startedAt:''}; this.modal='dates'; },
+  async extend(n){ try{ await this.api('/organizations/'+this.org.organization.id+'/dates',{method:'PUT',body:{days:n}}); this.modal=''; this.flash('Đã gia hạn +'+n+' ngày'); this.refreshOrg(); }catch(e){ this.flash(e.message,true); } },
+  async submitDates(){ try{ const b={}; if(this.form.expiresAt) b.expiresAt=this.form.expiresAt; if(this.form.startedAt) b.startedAt=this.form.startedAt; await this.api('/organizations/'+this.org.organization.id+'/dates',{method:'PUT',body:b}); this.modal=''; this.flash('Đã cập nhật ngày'); this.refreshOrg(); }catch(e){ this.flash(e.message,true); } },
+  openLimitsModal(){ this.form={customMaxPages:this.org.subscription.customMaxPages??'',customMaxMembers:this.org.subscription.customMaxMembers??''}; this.modal='limits'; },
+  async submitLimits(){ const clearing=(this.form.customMaxPages===''&&this.org.subscription.customMaxPages!=null)||(this.form.customMaxMembers===''&&this.org.subscription.customMaxMembers!=null); if(clearing&&!confirm('Xóa giới hạn tùy chỉnh và quay về giới hạn của gói?')) return;
+    try{ await this.api('/organizations/'+this.org.organization.id+'/limits',{method:'PUT',body:{customMaxPages:this.form.customMaxPages===''?null:Number(this.form.customMaxPages),customMaxMembers:this.form.customMaxMembers===''?null:Number(this.form.customMaxMembers)}}); this.modal=''; this.flash('Đã lưu giới hạn'); this.refreshOrg(); }catch(e){ this.flash(e.message,true); } },
+  openStatusModal(){ this.form={status:'ACTIVE',expiresAt:''}; this.modal='status'; },
+  async submitStatus(){ if(this.form.status==='CANCELLED'&&!confirm('Hủy subscription của tổ chức này?')) return;
+    try{ await this.api('/organizations/'+this.org.organization.id+'/subscription-status',{method:'PUT',body:{status:this.form.status,expiresAt:this.form.expiresAt||undefined}}); this.modal=''; this.flash('Đã đổi trạng thái'); this.refreshOrg(); }catch(e){ this.flash(e.message,true); } },
+  async suspend(){ if(!confirm('Suspend tổ chức này? Dữ liệu được giữ nguyên nhưng mọi thao tác ghi bị chặn.')) return; try{ await this.api('/organizations/'+this.org.organization.id+'/suspend',{method:'POST'}); this.flash('Đã suspend'); this.refreshOrg(); }catch(e){ this.flash(e.message,true); } },
+  async reactivate(){ try{ await this.api('/organizations/'+this.org.organization.id+'/reactivate',{method:'POST'}); this.flash('Đã kích hoạt lại'); this.refreshOrg(); }catch(e){ this.flash(e.message,true); } },
+  async togglePlatformAdmin(u){ const v=!u.isPlatformAdmin; if(!confirm((v?'Cấp':'Gỡ')+' quyền Platform Admin cho '+u.email+'?')) return;
+    try{ await this.api('/users/'+u.id+'/platform-admin',{method:'PUT',body:{value:v}}); u.isPlatformAdmin=v; this.flash('Đã cập nhật'); this.loadUsers(this.users.page); }catch(e){ this.flash(e.message,true); } },
+}}
+document.addEventListener('alpine:initialized',()=>{ window.__a = Alpine.$data(document.body); });
+</script>
+</body></html>

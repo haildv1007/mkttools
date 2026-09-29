@@ -132,6 +132,7 @@
 
       <!-- Scope Selector -->
       <!-- Organization selector (shown when user belongs to any org) -->
+      <a x-show="user?.isPlatformAdmin" href="/admin" class="mx-3 mt-2 block text-xs text-purple-600 hover:underline"><i class="ri-shield-star-line"></i> Platform Admin</a>
       <div x-show="currentOrganization" class="px-3 py-2 border-b border-gray-100 relative" @click.outside="orgSelectorOpen=false">
         <p class="text-[10px] text-gray-400 uppercase tracking-wider mb-1 px-1">Tổ chức</p>
         <button @click="organizations.length>1 && (orgSelectorOpen=!orgSelectorOpen)"
@@ -3017,14 +3018,14 @@
 
       <!-- Subscription -->
       <div class="mb-6 p-4 rounded-xl"
-           :class="orgSubscription?.subscriptionStatus === 'EXPIRED' ? 'border-2 border-red-300 bg-red-50' : orgSubscription?.isTrial ? 'border border-amber-300 bg-amber-50' : 'border border-gray-200'">
+           :class="orgSubscription?.subscriptionStatus === 'EXPIRED' ? 'border border-red-200 bg-red-50/50' : orgSubscription?.isTrial ? 'border border-amber-300 bg-amber-50' : 'border border-gray-200'">
         <div class="flex items-center gap-2 mb-3">
           <h4 class="font-semibold text-sm">Gói dịch vụ & Giới hạn</h4>
           <!-- Trial badge -->
           <span x-show="orgSubscription?.isTrial && orgSubscription?.subscriptionStatus !== 'EXPIRED'"
                 class="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-amber-200 text-amber-800">Dùng thử</span>
           <!-- Expiring soon badge -->
-          <span x-show="orgSubscription?.isTrial && orgSubscription?.subscriptionStatus === 'TRIAL' && orgSubscription?.trialDaysRemaining != null && orgSubscription?.trialDaysRemaining <= 2 && orgSubscription?.trialDaysRemaining > 0"
+          <span x-show="orgSubscription?.isTrial && orgSubscription?.subscriptionStatus === 'TRIAL' && orgSubscription?.trialDaysRemaining != null && orgSubscription?.trialDaysRemaining <= 3 && orgSubscription?.trialDaysRemaining > 0"
                 class="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-red-200 text-red-800">Sắp hết hạn</span>
           <!-- Expired badge -->
           <span x-show="orgSubscription?.subscriptionStatus === 'EXPIRED'"
@@ -3060,8 +3061,10 @@
           <div class="mb-3">
             <p class="text-xs text-gray-500">Gói hiện tại</p>
             <p class="text-sm font-medium" x-text="orgSubscription?.planName || 'Chưa gán gói'"></p>
+            <p class="text-xs text-gray-500 mt-0.5">Subscription: <span x-text="orgSubscription?.subscriptionStatus"></span> · Hết hạn: <span x-text="orgSubscription?.expiresAt ? new Date(orgSubscription.expiresAt).toLocaleDateString('vi-VN') : 'Không thời hạn'"></span></p>
           </div>
         </template>
+        <p x-show="currentOrganization?.status==='SUSPENDED'" class="mb-2 text-xs text-red-600">Tổ chức đang bị tạm ngưng: bạn vẫn xem được dữ liệu nhưng không thể thao tác. Vui lòng liên hệ hỗ trợ.</p>
 
         <div class="flex items-center gap-4 mb-2">
           <div class="flex-1">

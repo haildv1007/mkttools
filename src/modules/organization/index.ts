@@ -36,12 +36,13 @@ export function readRequestedOrgId(req: AuthRequest): string | null {
  */
 export async function resolveCurrentOrganization(userId: string, requested?: string | null) {
   const memberships = await listMemberships(userId);
-  const active = memberships.filter((m) => m.organization.status === 'ACTIVE');
+  // SUSPENDED orgs stay readable; mutations are blocked centrally (see attachOrganization).
   if (requested) {
-    const found = active.find((m) => m.organizationId === requested);
+    const found = memberships.find((m) => m.organizationId === requested);
     return { memberships, current: found ?? null, denied: !found };
   }
-  return { memberships, current: active[0] ?? null, denied: false };
+  const first = memberships.find((m) => m.organization.status === 'ACTIVE') ?? memberships[0];
+  return { memberships, current: first ?? null, denied: false };
 }
 
 export function sendOrgDenied(res: Response) {
@@ -130,80 +131,86 @@ export interface SubscriptionContext {
   isTrial: boolean;
   pageLimit: number | null;   // null = unlimited; 0 = fully blocked
   memberLimit: number | null;
+  startedAt: Date | null;
+  expiresAt: Date | null;
   trialStartedAt: Date | null;
   trialEndsAt: Date | null;
   trialDaysRemaining: number | null;
   planCode: string | null;
   planName: string | null;
+  customMaxPages: number | null;
+  customMaxMembers: number | null;
+  planMaxPages: number | null;
+  planMaxMembers: number | null;
 }
 
-export async function resolveSubscriptionContext(orgId: string): Promise<SubscriptionContext> {
-  const sub = (await prisma.organizationSubscription.findFirst({
-    where: { organizationId: orgId, status: { in: ['ACTIVE', 'TRIAL'] } },
-    include: { plan: true },
-    orderBy: { startedAt: 'desc' },
-  })) as any;
+const DAY_MS = 24 * 3600 * 1000;
 
+/**
+ * Single source of truth for effective limits/status. Pure (no I/O) so bulk
+ * callers (admin lists) can reuse it.
+ * - TRIAL: limits come from trial policy, never from the plan.
+ * - ACTIVE: custom_max ?? plan.max (null = unlimited).
+ * - TRIAL past trial_ends_at, or ACTIVE past expires_at => EXPIRED (lazy, no cron).
+ */
+export function contextFromSubscription(sub: any | null, policy: TrialPolicyConfig, now = new Date()): SubscriptionContext {
+  const base = {
+    startedAt: sub?.startedAt ?? null,
+    expiresAt: sub?.expiresAt ?? null,
+    trialStartedAt: sub?.trialStartedAt ?? null,
+    trialEndsAt: sub?.trialEndsAt ?? null,
+    customMaxPages: sub?.customMaxPages ?? null,
+    customMaxMembers: sub?.customMaxMembers ?? null,
+    planMaxPages: sub?.plan?.maxPages ?? null,
+    planMaxMembers: sub?.plan?.maxMembers ?? null,
+  };
   if (!sub) {
-    // Check for a recently-expired sub for display purposes
-    const expired = (await prisma.organizationSubscription.findFirst({
-      where: { organizationId: orgId, status: { in: ['EXPIRED', 'CANCELLED'] } },
-      include: { plan: true },
-      orderBy: { startedAt: 'desc' },
-    })) as any;
-    return {
-      status: 'EXPIRED',
-      isTrial: !!(expired?.trialStartedAt),
-      pageLimit: 0,
-      memberLimit: 0,
-      trialStartedAt: expired?.trialStartedAt ?? null,
-      trialEndsAt: expired?.trialEndsAt ?? null,
-      trialDaysRemaining: null,
-      planCode: expired?.plan?.code ?? null,
-      planName: expired?.plan?.name ?? null,
-    };
+    return { ...base, status: 'NONE', isTrial: false, pageLimit: 0, memberLimit: 0, trialDaysRemaining: null, planCode: null, planName: null };
   }
-
+  const wasTrial = !!sub.trialStartedAt && sub.status !== 'ACTIVE';
+  const expired = (extra: Partial<SubscriptionContext> = {}): SubscriptionContext => ({
+    ...base, status: 'EXPIRED', isTrial: wasTrial, pageLimit: 0, memberLimit: 0, trialDaysRemaining: 0,
+    planCode: wasTrial ? null : (sub.plan?.code ?? null), planName: wasTrial ? 'Dùng thử' : (sub.plan?.name ?? null), ...extra,
+  });
+  if (sub.status === 'EXPIRED' || sub.status === 'CANCELLED') return expired();
   if (sub.status === 'TRIAL') {
-    const now = new Date();
-    if (sub.trialEndsAt && sub.trialEndsAt <= now) {
-      // Lazily mark as expired — no cron needed
-      await prisma.organizationSubscription.update({ where: { id: sub.id }, data: { status: 'EXPIRED' } });
-      return {
-        status: 'EXPIRED', isTrial: true,
-        pageLimit: 0, memberLimit: 0,
-        trialStartedAt: sub.trialStartedAt, trialEndsAt: sub.trialEndsAt,
-        trialDaysRemaining: 0,
-        planCode: null, planName: 'Dùng thử',
-      };
-    }
-    const policy = await getTrialPolicy();
-    const daysRemaining = sub.trialEndsAt
-      ? Math.max(0, Math.ceil((sub.trialEndsAt.getTime() - now.getTime()) / (24 * 3600 * 1000)))
-      : null;
+    if (sub.trialEndsAt && sub.trialEndsAt <= now) return expired();
     return {
-      status: 'TRIAL', isTrial: true,
-      pageLimit: policy.trialMaxPages,
-      memberLimit: policy.trialMaxMembers,
-      trialStartedAt: sub.trialStartedAt,
-      trialEndsAt: sub.trialEndsAt,
-      trialDaysRemaining: daysRemaining,
+      ...base, status: 'TRIAL', isTrial: true,
+      pageLimit: policy.trialMaxPages, memberLimit: policy.trialMaxMembers,
+      trialDaysRemaining: sub.trialEndsAt ? Math.max(0, Math.ceil((sub.trialEndsAt.getTime() - now.getTime()) / DAY_MS)) : null,
       planCode: null, planName: 'Dùng thử',
     };
   }
-
-  // ACTIVE paid subscription
-  const pageLimit = sub.customMaxPages != null ? sub.customMaxPages : (sub.plan?.maxPages ?? null);
-  const memberLimit = sub.customMaxMembers != null ? sub.customMaxMembers : (sub.plan?.maxMembers ?? null);
+  if (sub.expiresAt && sub.expiresAt <= now) return expired();
   return {
-    status: 'ACTIVE', isTrial: false,
-    pageLimit, memberLimit,
-    trialStartedAt: sub.trialStartedAt ?? null,
-    trialEndsAt: sub.trialEndsAt ?? null,
+    ...base, status: 'ACTIVE', isTrial: false,
+    pageLimit: sub.customMaxPages != null ? sub.customMaxPages : (sub.plan?.maxPages ?? null),
+    memberLimit: sub.customMaxMembers != null ? sub.customMaxMembers : (sub.plan?.maxMembers ?? null),
     trialDaysRemaining: null,
-    planCode: sub.plan?.code ?? null,
-    planName: sub.plan?.name ?? null,
+    planCode: sub.plan?.code ?? null, planName: sub.plan?.name ?? null,
   };
+}
+
+/** Pick the current subscription per org: newest ACTIVE/TRIAL, else newest of any status. */
+export function pickCurrentSubscription(subs: any[]): any | null {
+  const sorted = [...subs].sort((x, y) => +y.startedAt - +x.startedAt);
+  return sorted.find((x) => x.status === 'ACTIVE' || x.status === 'TRIAL') ?? sorted[0] ?? null;
+}
+
+export async function resolveSubscriptionContext(orgId: string): Promise<SubscriptionContext> {
+  const subs = (await prisma.organizationSubscription.findMany({
+    where: { organizationId: orgId },
+    include: { plan: true },
+    orderBy: { startedAt: 'desc' },
+  })) as any[];
+  const sub = pickCurrentSubscription(subs);
+  const ctx = contextFromSubscription(sub, await getTrialPolicy());
+  // Lazily persist expiry so stored status converges (best-effort).
+  if (sub && ctx.status === 'EXPIRED' && (sub.status === 'TRIAL' || sub.status === 'ACTIVE')) {
+    await prisma.organizationSubscription.update({ where: { id: sub.id }, data: { status: 'EXPIRED' } }).catch(() => {});
+  }
+  return ctx;
 }
 
 // ---------------- Quota service ----------------
@@ -309,6 +316,7 @@ router.get('/current', async (req: AuthRequest, res: Response) => {
       slug: current.organization.slug,
       role: current.role,
       isOwner: current.organization.ownerUserId === req.userId,
+      status: current.organization.status,
     },
     memberships: memberships.map((m) => ({
       id: m.organization.id,
@@ -322,6 +330,7 @@ router.get('/current', async (req: AuthRequest, res: Response) => {
       trialStartedAt: subCtx.trialStartedAt,
       trialEndsAt: subCtx.trialEndsAt,
       trialDaysRemaining: subCtx.trialDaysRemaining,
+      expiresAt: subCtx.expiresAt,
       planCode: subCtx.planCode,
       planName: subCtx.planName,
     },
@@ -403,6 +412,10 @@ router.post('/:id/members', async (req: AuthRequest, res: Response) => {
   const wantedRole: OrgRole = ['ADMIN', 'MANAGER', 'MEMBER'].includes(role) ? role : 'MEMBER';
   const user = await prisma.user.findUnique({ where: { email: String(email || '').trim().toLowerCase() } });
   if (!user) return res.status(404).json({ error: 'USER_NOT_FOUND', message: 'Không tìm thấy user với email này.' });
+  const orgRow = await prisma.organization.findUnique({ where: { id }, select: { status: true } });
+  if (orgRow?.status === 'SUSPENDED') {
+    return res.status(403).json({ error: 'ORGANIZATION_SUSPENDED', message: 'Tổ chức đang bị tạm ngưng. Vui lòng liên hệ hỗ trợ.' });
+  }
   // Block if subscription expired
   const subCtxForAdd = await resolveSubscriptionContext(id);
   if (subCtxForAdd.status === 'EXPIRED' || subCtxForAdd.status === 'NONE') {
@@ -543,28 +556,12 @@ router.get('/:id/subscription', async (req: AuthRequest, res: Response) => {
     trialStartedAt: ctx.trialStartedAt,
     trialEndsAt: ctx.trialEndsAt,
     trialDaysRemaining: ctx.trialDaysRemaining,
+    expiresAt: ctx.expiresAt,
     planCode: ctx.planCode,
     planName: ctx.planName,
     pageUsage: { used: pageUsed, limit: ctx.pageLimit },
     memberUsage: { used: memberUsed, limit: ctx.memberLimit },
   });
-});
-
-// Platform Admin: edit trial policy
-router.patch('/trial-policy', async (req: AuthRequest, res: Response) => {
-  if (!(await isPlatformAdmin(req.userId))) return res.status(403).json({ error: 'FORBIDDEN' });
-  const { trialEnabled, trialDays, trialMaxPages, trialMaxMembers } = req.body || {};
-  const data: Record<string, unknown> = {};
-  if (trialEnabled != null) data.trialEnabled = Boolean(trialEnabled);
-  if (trialDays != null) data.trialDays = Number(trialDays);
-  if (trialMaxPages != null) data.trialMaxPages = Number(trialMaxPages);
-  if (trialMaxMembers != null) data.trialMaxMembers = Number(trialMaxMembers);
-  const policy = await (prisma.trialPolicy as any).upsert({
-    where: { id: 'trial_policy_singleton' },
-    update: data,
-    create: { id: 'trial_policy_singleton', trialEnabled: true, trialDays: 7, trialMaxPages: 2, trialMaxMembers: 2, ...data },
-  });
-  res.json(policy);
 });
 
 // Plan / custom limit mutation: PLATFORM ADMIN only (no billing yet; never customer-facing)

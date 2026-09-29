@@ -51,6 +51,10 @@ export async function attachOrganization(req: AuthRequest, res: Response, next: 
     if (!current) return next();
     req.organizationId = current.organizationId;
     req.organizationRole = current.role as AuthRequest['organizationRole'];
+    // Suspended org: read-only. One central guard instead of per-route checks.
+    if (current.organization.status === 'SUSPENDED' && !['GET', 'HEAD', 'OPTIONS'].includes(req.method)) {
+      return res.status(403).json({ error: 'ORGANIZATION_SUSPENDED', message: 'Tổ chức đang bị tạm ngưng. Vui lòng liên hệ hỗ trợ.' });
+    }
     // Include access mode + memberId so downstream can decide RESTRICTED vs ALL.
     const m = await prisma.organizationMember.findUnique({
       where: { organizationId_userId: { organizationId: current.organizationId, userId: req.userId } },
@@ -114,7 +118,7 @@ authRouter.post('/login', async (req: Request, res: Response) => {
 
   res.json({
     token,
-    user: { id: user.id, email: user.email, name: user.name, role: user.role },
+    user: { id: user.id, email: user.email, name: user.name, role: user.role, isPlatformAdmin: (user as any).isPlatformAdmin === true },
     organizations: memberships.map((m) => ({
       id: m.organization.id,
       name: m.organization.name,
@@ -179,7 +183,7 @@ authRouter.post('/register', async (req: Request, res: Response) => {
 
   res.json({
     token,
-    user: { id: user.id, email: user.email, name: user.name, role: user.role },
+    user: { id: user.id, email: user.email, name: user.name, role: user.role, isPlatformAdmin: (user as any).isPlatformAdmin === true },
     organization: { id: org.id, name: org.name, role: 'OWNER' },
   });
 });

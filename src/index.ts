@@ -13,6 +13,7 @@ import { campaignRouter } from './modules/campaign';
 import { dashboardRouter } from './modules/dashboard';
 import { workspaceRouter } from './modules/workspace';
 import { organizationRouter } from './modules/organization';
+import { adminRouter } from './modules/admin';
 import { aiCredentialRouter } from './modules/ai-credentials';
 import { organizationInvitationRouter, publicInvitationRouter } from './modules/invitations';
 import { getBot } from './modules/telegram-bot';
@@ -58,6 +59,7 @@ app.get('/api/health', async (_req, res) => {
 
 app.use('/api/auth', authRouter);
 
+app.use('/api/admin', authMiddleware, adminRouter);
 app.use('/api/organizations', authMiddleware, organizationRouter);
 app.use('/api/ai-credentials', authMiddleware, attachOrganization, requireOrganization, aiCredentialRouter);
 app.use('/api/invitations', publicInvitationRouter);
@@ -67,6 +69,9 @@ app.use('/api/dashboard', authMiddleware, attachOrganization, requireOrganizatio
 app.use('/api/workspaces', authMiddleware, attachOrganization, requireOrganization, workspaceRouter);
 
 app.use(express.static(path.join(__dirname, '../public')));
+app.get(['/admin', '/admin/*'], (_req, res) => {
+  res.sendFile(path.join(__dirname, '../public/admin.html'));
+});
 app.get('*', (_req, res) => {
   res.sendFile(path.join(__dirname, '../public/index.html'));
 });

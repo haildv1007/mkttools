@@ -1,7 +1,7 @@
 import { prisma } from './db';
 import { logger } from './logger';
 
-type Category = 'content' | 'publish' | 'bulk' | 'import' | 'system';
+type Category = 'content' | 'publish' | 'bulk' | 'import' | 'system' | 'admin';
 type Status = 'running' | 'success' | 'error';
 
 interface LogOptions {
