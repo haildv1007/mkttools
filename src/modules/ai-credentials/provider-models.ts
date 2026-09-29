@@ -34,8 +34,8 @@ export const PROVIDER_MODELS: Record<string, ModelTable> = {
     IMAGE_REVISION:   { FAST: 'gpt-image-2.5-flare', BALANCED: 'gpt-image-2.5-flare', QUALITY: 'gpt-image-2.5-sunburst' },
   },
   gemini: {
-    TEXT_GENERATION: { FAST: 'gemini-3.8-flash', BALANCED: 'gemini-3.8-pro', QUALITY: 'gemini-3.8-pro' },
-    TEXT_REVISION:   { FAST: 'gemini-3.8-flash', BALANCED: 'gemini-3.8-pro', QUALITY: 'gemini-3.8-pro' },
+    TEXT_GENERATION: { FAST: 'gemini-2.0-flash', BALANCED: 'gemini-2.5-flash', QUALITY: 'gemini-2.5-flash' },
+    TEXT_REVISION:   { FAST: 'gemini-2.0-flash', BALANCED: 'gemini-2.5-flash', QUALITY: 'gemini-2.5-flash' },
     IMAGE_GENERATION: { FAST: 'gemini-3.1-flash-image', BALANCED: 'gemini-3.1-flash-image', QUALITY: 'gemini-3.1-pro-image' },
     IMAGE_REVISION:   { FAST: 'gemini-3.1-flash-image', BALANCED: 'gemini-3.1-flash-image', QUALITY: 'gemini-3.1-pro-image' },
   },

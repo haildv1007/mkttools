@@ -79,6 +79,9 @@ async function attachCredential(
       actorUserId: ctx.actorUserId,
     });
     ctx.apiKey = resolved.apiKey;
+    // The org's saved default model (from Settings) wins over the quality-tier
+    // fallback below, unless the caller already passed an explicit model.
+    if (!ctx.model && resolved.defaultModel) ctx.model = resolved.defaultModel;
   }
   // Resolve model via AiModelResolver: explicit ctx.model wins, otherwise
   // (org default quality) -> BALANCED -> first supported tier.
