@@ -6,7 +6,8 @@ import { OpenAITextProvider } from './providers/openai-text';
 import { GeminiTextProvider } from './providers/gemini-text';
 import { DalleImageProvider } from './providers/dalle-image';
 import { GeminiImageProvider } from './providers/gemini-image';
-import { resolveCredential, tryResolveCredential, AiProviderNotConfiguredError } from '../ai-credentials';
+import { resolveCredential, tryResolveCredential, AiProviderNotConfiguredError, resolveModel } from '../ai-credentials';
+import type { Operation } from '../ai-credentials';
 
 const textProviders: Record<string, () => TextProvider> = {
   claude: () => new ClaudeTextProvider(),
@@ -59,11 +60,18 @@ export async function listProviders() {
   };
 }
 
-async function attachCredential(opts: { credential?: CredentialContext } | undefined, providerName: string, defaultModel: string | null): Promise<CredentialContext> {
+async function attachCredential(
+  opts: { credential?: CredentialContext } | undefined,
+  providerName: string,
+  operation: Operation,
+): Promise<CredentialContext> {
   const ctx: CredentialContext = { ...(opts?.credential ?? { organizationId: '' }) };
   if (!ctx.organizationId) {
     throw new AiProviderNotConfiguredError(providerName);
   }
+  ctx.provider = providerName;
+  ctx.operation = ctx.operation || operation;
+  // Resolve credential (per org, encrypted) if not already injected.
   if (!ctx.apiKey) {
     const resolved = await resolveCredential({
       organizationId: ctx.organizationId,
@@ -71,27 +79,33 @@ async function attachCredential(opts: { credential?: CredentialContext } | undef
       actorUserId: ctx.actorUserId,
     });
     ctx.apiKey = resolved.apiKey;
-    ctx.model = ctx.model || resolved.defaultModel || defaultModel || undefined;
-    ctx.provider = providerName;
-  } else {
-    ctx.provider = providerName;
-    ctx.model = ctx.model || defaultModel || undefined;
   }
+  // Resolve model via AiModelResolver: explicit ctx.model wins, otherwise
+  // (org default quality) -> BALANCED -> first supported tier.
+  const resolved = await resolveModel({
+    organizationId: ctx.organizationId,
+    provider: providerName,
+    operation: ctx.operation!,
+    qualityTier: ctx.qualityTier ?? null,
+    explicitModel: ctx.model ?? null,
+  });
+  ctx.model = resolved.model;
+  ctx.qualityTier = resolved.quality;
   return ctx;
 }
 
 export async function generateText(options: TextGeneratorOptions): Promise<GeneratedContent> {
   const providerName = options.credential?.provider || (await getTextProviderName());
-  const defaultModel = await getTextModelName();
-  const credential = await attachCredential(options, providerName, defaultModel);
+  const op: Operation = options.credential?.operation || (options.previousFeedback ? 'TEXT_REVISION' : 'TEXT_GENERATION');
+  const credential = await attachCredential(options, providerName, op);
   const provider = await makeTextProvider(providerName);
   return provider.generate({ ...options, credential });
 }
 
 export async function generateImage(options: ImageGeneratorOptions): Promise<GeneratedImage> {
   const providerName = options.credential?.provider || (await getImageProviderName());
-  const defaultModel = await getImageModelName();
-  const credential = await attachCredential(options, providerName, defaultModel);
+  const op: Operation = options.credential?.operation || 'IMAGE_GENERATION';
+  const credential = await attachCredential(options, providerName, op);
   const provider = await makeImageProvider(providerName);
   return provider.generate({ ...options, credential });
 }

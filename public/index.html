@@ -50,6 +50,15 @@
         <p class="text-gray-500 mt-1">Content Marketing Automation</p>
       </div>
 
+      <div x-show="joinPreview" x-cloak class="mb-4 p-3 bg-brand-50 border border-brand-200 rounded-lg text-sm">
+        <p class="font-medium">Lời mời tham gia <span x-text="joinPreview?.organizationName || ''"></span></p>
+        <p class="text-xs text-gray-600 mt-1">
+          Vai trò: <span x-text="joinPreview?.role"></span> · Email: <span x-text="joinPreview?.email"></span>
+        </p>
+        <p class="text-xs text-gray-500 mt-1">Đăng nhập bằng chính email này rồi bấm Chấp nhận.</p>
+      </div>
+      <div x-show="joinError" x-cloak class="mb-4 p-2 bg-red-50 border border-red-200 rounded text-xs text-red-700" x-text="joinError"></div>
+
       <div x-show="authMode === 'login'">
         <div class="space-y-4">
           <div>
@@ -3067,6 +3076,42 @@
           <button @click="addOrgMember()" class="px-4 py-2 text-sm bg-brand-600 text-white rounded-lg hover:bg-brand-700">Thêm</button>
         </div>
         <p x-show="orgMemberError" x-text="orgMemberError" class="text-xs text-red-600 mt-2"></p>
+
+        <!-- Invitations -->
+        <div x-show="currentOrganization?.role==='OWNER' || currentOrganization?.role==='ADMIN'" class="mt-4 pt-3 border-t border-gray-100">
+          <h5 class="text-xs uppercase tracking-wider text-gray-500 mb-2">Mời thành viên</h5>
+          <div class="flex flex-wrap gap-2 mb-2">
+            <input x-model="inviteForm.email" type="email" placeholder="email@example.com"
+              class="flex-1 min-w-[180px] px-3 py-2 text-sm border border-gray-200 rounded-lg outline-none focus:ring-1 focus:ring-brand-400">
+            <select x-model="inviteForm.role" class="px-3 py-2 text-sm border border-gray-200 rounded-lg">
+              <option value="ADMIN">Admin</option>
+              <option value="MANAGER">Manager</option>
+              <option value="MEMBER">Member</option>
+            </select>
+            <select x-model="inviteForm.accessMode" class="px-3 py-2 text-sm border border-gray-200 rounded-lg">
+              <option value="ALL">Toàn bộ</option>
+              <option value="RESTRICTED">Giới hạn</option>
+            </select>
+            <button @click="sendInvitation()" class="px-4 py-2 text-sm bg-brand-600 text-white rounded-lg hover:bg-brand-700">Tạo lời mời</button>
+          </div>
+          <p x-show="inviteError" x-text="inviteError" class="text-xs text-red-600 mb-2"></p>
+          <div x-show="lastInviteUrl" class="text-xs bg-brand-50 border border-brand-200 rounded p-2 mb-2 flex items-center gap-2">
+            <span class="flex-1 break-all font-mono" x-text="lastInviteUrl"></span>
+            <button @click="copyInviteUrl(lastInviteUrl)" class="text-brand-700 hover:underline">Sao chép</button>
+          </div>
+
+          <div x-show="orgInvitations.length" class="space-y-1">
+            <template x-for="i in orgInvitations" :key="i.id">
+              <div class="flex items-center gap-2 py-1.5 text-xs">
+                <span class="flex-1 truncate" x-text="i.email"></span>
+                <span class="text-gray-500" x-text="i.role"></span>
+                <span class="text-gray-400" x-text="i.accessMode"></span>
+                <span class="text-gray-400" x-text="'HH ' + new Date(i.expiresAt).toLocaleDateString('vi-VN')"></span>
+                <button @click="cancelInvitation(i.id)" class="text-red-500 hover:underline">Huỷ</button>
+              </div>
+            </template>
+          </div>
+        </div>
       </div>
 
       <!-- AI Providers -->
@@ -3115,7 +3160,12 @@
                 </template>
               </select>
               <input x-model="orgAiForm.apiKey" type="password" placeholder="API Key" class="flex-1 min-w-[200px] text-xs border border-gray-200 rounded px-2 py-1.5">
-              <input x-model="orgAiForm.defaultModel" type="text" placeholder="Model mặc định (tuỳ chọn)" class="text-xs border border-gray-200 rounded px-2 py-1.5">
+              <select x-model="orgAiForm.defaultQuality" class="text-xs border border-gray-200 rounded px-2 py-1.5">
+                <option value="">Chất lượng mặc định (Cân bằng)</option>
+                <option value="FAST">Nhanh</option>
+                <option value="BALANCED">Cân bằng</option>
+                <option value="QUALITY">Chất lượng cao</option>
+              </select>
               <button @click="saveAiCredential()" class="text-xs bg-brand-600 text-white px-3 py-1.5 rounded hover:bg-brand-700">Lưu key</button>
             </div>
             <p x-show="orgAiError" x-text="orgAiError" class="text-xs text-red-600 mt-2"></p>
@@ -3188,6 +3238,20 @@
         <button @click="saveMemberAccess()" class="px-4 py-2 text-sm bg-brand-600 text-white rounded hover:bg-brand-700">Lưu quyền</button>
       </div>
     </div>
+  </div>
+
+  <!-- Join banner (visible when authenticated and a /join/<token> was opened) -->
+  <div x-show="token && joinToken && joinPreview" x-cloak class="fixed top-4 right-4 z-[70] bg-white border border-brand-300 shadow-lg rounded-xl p-4 max-w-sm">
+    <p class="text-sm font-medium">Chấp nhận lời mời</p>
+    <p class="text-xs text-gray-600 mt-1">
+      <span x-text="joinPreview?.organizationName || 'Tổ chức'"></span> mời bạn với vai trò
+      <span x-text="joinPreview?.role"></span>.
+    </p>
+    <div class="flex gap-2 mt-2">
+      <button @click="acceptInvitation()" :disabled="joinLoading" class="text-xs bg-brand-600 text-white px-3 py-1.5 rounded hover:bg-brand-700">Chấp nhận</button>
+      <button @click="joinToken=''; joinPreview=null" class="text-xs text-gray-500 hover:underline">Bỏ qua</button>
+    </div>
+    <p x-show="joinError" x-text="joinError" class="text-xs text-red-600 mt-2"></p>
   </div>
 
   <!-- Toast -->
@@ -3268,8 +3332,17 @@ function app() {
     orgMemberForm: { email: '', role: 'MEMBER' },
     orgMemberError: '',
     orgAiCreds: null,
-    orgAiForm: { provider: 'gemini', apiKey: '', defaultModel: '' },
+    orgAiForm: { provider: 'gemini', apiKey: '', defaultModel: '', defaultQuality: '' },
     orgAiError: '',
+    orgInvitations: [],
+    inviteForm: { email: '', role: 'MEMBER', accessMode: 'ALL' },
+    inviteError: '',
+    lastInviteUrl: '',
+    // Join flow
+    joinToken: '',
+    joinPreview: null,
+    joinError: '',
+    joinLoading: false,
     accessDrawerOpen: false,
     accessTarget: null,
     accessForm: { accessMode: 'ALL', workspaceIds: [], pageIds: [] },
@@ -3458,6 +3531,12 @@ function app() {
 
     async init() {
       this.dgLoadCols();
+      // Detect /join/<token> in URL and prime the invitation preview flow.
+      const joinMatch = window.location.pathname.match(/^\/join\/([A-Za-z0-9_-]+)/);
+      if (joinMatch) {
+        this.joinToken = joinMatch[1];
+        await this.previewInvitation(this.joinToken);
+      }
       if (this.token) {
         await this.loadOrganizations();
         await this.loadPages();
@@ -5412,7 +5491,49 @@ function app() {
       try {
         this.orgMembers = await this.api(`/organizations/${this.currentOrganization.id}/members`);
         this.orgAiCreds = await this.api('/ai-credentials');
+        this.orgInvitations = await this.api('/organizations-invitations');
       } catch (e) { console.warn('org settings load failed', e); }
+    },
+    async sendInvitation() {
+      this.inviteError = '';
+      this.lastInviteUrl = '';
+      try {
+        const r = await this.api('/organizations-invitations', {
+          method: 'POST',
+          body: JSON.stringify(this.inviteForm),
+        });
+        this.lastInviteUrl = window.location.origin + r.inviteUrl;
+        this.inviteForm = { email: '', role: 'MEMBER', accessMode: 'ALL' };
+        this.orgInvitations = await this.api('/organizations-invitations');
+      } catch (e) { this.inviteError = e.message; }
+    },
+    async cancelInvitation(id) {
+      try {
+        await this.api(`/organizations-invitations/${id}`, { method: 'DELETE' });
+        this.orgInvitations = await this.api('/organizations-invitations');
+      } catch (e) { alert(e.message); }
+    },
+    async copyInviteUrl(url) {
+      try { await navigator.clipboard.writeText(url); alert('Đã sao chép liên kết mời.'); } catch { prompt('Copy link:', url); }
+    },
+    async previewInvitation(token) {
+      this.joinError = '';
+      this.joinPreview = null;
+      try {
+        this.joinPreview = await this.api(`/invitations/${encodeURIComponent(token)}`);
+      } catch (e) { this.joinError = e.message; }
+    },
+    async acceptInvitation() {
+      if (!this.token) { alert('Vui lòng đăng nhập trước.'); return; }
+      this.joinLoading = true; this.joinError = '';
+      try {
+        await this.api(`/invitations/${encodeURIComponent(this.joinToken)}/accept`, { method: 'POST' });
+        this.joinToken = '';
+        this.joinPreview = null;
+        await this.loadOrganizations();
+        alert('Đã tham gia tổ chức.');
+      } catch (e) { this.joinError = e.message; }
+      finally { this.joinLoading = false; }
     },
     async openAccessDrawer(member) {
       if (!this.currentOrganization) return;
@@ -5483,6 +5604,7 @@ function app() {
           body: JSON.stringify({
             apiKey: this.orgAiForm.apiKey,
             defaultModel: this.orgAiForm.defaultModel || null,
+            defaultQuality: this.orgAiForm.defaultQuality || null,
           }),
         });
         this.orgAiForm.apiKey = '';

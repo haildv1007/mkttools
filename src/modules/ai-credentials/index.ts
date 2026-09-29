@@ -4,6 +4,7 @@ import { AuthRequest } from '../../middleware/auth';
 import { encryptSecret, decryptSecret, maskSecret } from '../../utils/crypto';
 import { roleAtLeast, OrgRole } from '../organization';
 import { getSetting } from '../settings';
+import { PROVIDER_MODELS, QUALITY_TIERS, providerSupports, providerSupportsModel, AiModelNotSupportedError, Operation, Quality } from './provider-models';
 
 export type CredentialSource = 'ORGANIZATION_KEY' | 'PERSONAL_KEY' | 'PLATFORM_API';
 export const ENABLED_SOURCES: CredentialSource[] = ['ORGANIZATION_KEY'];
@@ -87,16 +88,77 @@ export async function tryResolveCredential(args: { organizationId: string; provi
   try { return await resolveCredential(args); } catch { return null; }
 }
 
-function serialize(row: {
-  id: string; provider: string; source: string; defaultModel: string | null;
-  config: unknown; isActive: boolean; validationStatus: string; validationMessage: string | null;
-  lastValidatedAt: Date | null; encryptedApiKey: string; updatedAt: Date;
-}) {
+// ---------------- Model resolver ----------------
+
+export { AiModelNotSupportedError, PROVIDER_MODELS, QUALITY_TIERS } from './provider-models';
+export type { Operation, Quality } from './provider-models';
+
+export interface ResolvedModel {
+  provider: string;
+  operation: Operation;
+  quality: Quality;
+  model: string;
+}
+
+/**
+ * Central model resolution. Given (org, provider, operation, quality?),
+ * returns the concrete provider model id to call. Falls back to:
+ *   explicit quality -> org default quality -> BALANCED -> first tier available.
+ * Throws AiModelNotSupportedError if the provider does not support the
+ * operation, or if an explicit model id was passed for a provider that
+ * does not list it in the catalog.
+ */
+export async function resolveModel(args: {
+  organizationId: string;
+  provider: string;
+  operation: Operation;
+  qualityTier?: Quality | null;
+  explicitModel?: string | null;
+}): Promise<ResolvedModel> {
+  const provider = args.provider.toLowerCase();
+  const table = PROVIDER_MODELS[provider];
+  if (!table || !table[args.operation]) {
+    throw new AiModelNotSupportedError(`Provider ${provider} không hỗ trợ operation ${args.operation}.`);
+  }
+  const opTable = table[args.operation]!;
+
+  if (args.explicitModel) {
+    if (!providerSupportsModel(provider, args.explicitModel)) {
+      throw new AiModelNotSupportedError(`Model ${args.explicitModel} không được ${provider} hỗ trợ.`);
+    }
+    // Find quality mapping (best-effort) for reporting only.
+    const q = (QUALITY_TIERS.find((q) => opTable[q] === args.explicitModel) as Quality) || 'BALANCED';
+    return { provider, operation: args.operation, quality: q, model: args.explicitModel };
+  }
+
+  let quality: Quality | undefined = args.qualityTier || undefined;
+  if (!quality) {
+    // Load org default quality from the stored credential row.
+    const cred = await prisma.organizationAiCredential.findUnique({
+      where: { organizationId_provider: { organizationId: args.organizationId, provider } },
+      select: { defaultQuality: true },
+    });
+    quality = (cred?.defaultQuality as Quality | null) || 'BALANCED';
+  }
+
+  // Fall back to first available tier if requested tier is unsupported for op.
+  let model = opTable[quality];
+  if (!model) {
+    for (const q of QUALITY_TIERS) {
+      if (opTable[q]) { quality = q; model = opTable[q]!; break; }
+    }
+  }
+  if (!model) throw new AiModelNotSupportedError(`Không tìm được model phù hợp cho ${provider}/${args.operation}.`);
+  return { provider, operation: args.operation, quality, model };
+}
+
+function serialize(row: any) {
   return {
     id: row.id,
     provider: row.provider,
     source: row.source,
     defaultModel: row.defaultModel,
+    defaultQuality: row.defaultQuality,
     config: row.config,
     isActive: row.isActive,
     validationStatus: row.validationStatus,
@@ -105,6 +167,7 @@ function serialize(row: {
     updatedAt: row.updatedAt,
     maskedKey: maskSecret(decryptSecret(row.encryptedApiKey || '')),
     hasKey: !!row.encryptedApiKey,
+    supportedOperations: Object.keys(PROVIDER_MODELS[row.provider] || {}),
   };
 }
 
@@ -121,12 +184,18 @@ router.get('/', async (req: AuthRequest, res: Response) => {
     orderBy: { provider: 'asc' },
   });
   // OWNER/ADMIN can see credentials; MANAGER/MEMBER see only booleans (no maskedKey either)
+  const providerCatalog = SUPPORTED_PROVIDERS.map((p) => ({
+    provider: p,
+    operations: PROVIDER_MODELS[p] || {},
+    qualityTiers: QUALITY_TIERS,
+  }));
   if (requireOrgAdmin(req.organizationRole)) {
-    res.json({ enabledSources: ENABLED_SOURCES, supportedProviders: SUPPORTED_PROVIDERS, credentials: creds.map(serialize) });
+    res.json({ enabledSources: ENABLED_SOURCES, supportedProviders: SUPPORTED_PROVIDERS, providerCatalog, credentials: creds.map(serialize) });
   } else {
     res.json({
       enabledSources: ENABLED_SOURCES,
       supportedProviders: SUPPORTED_PROVIDERS,
+      providerCatalog,
       credentials: creds.map((c) => ({ provider: c.provider, isActive: c.isActive, hasKey: !!c.encryptedApiKey })),
     });
   }
@@ -136,22 +205,27 @@ router.put('/:provider', async (req: AuthRequest, res: Response) => {
   if (!requireOrgAdmin(req.organizationRole)) return res.status(403).json({ error: 'FORBIDDEN' });
   const provider = String(req.params.provider).toLowerCase();
   if (!SUPPORTED_PROVIDERS.includes(provider as ProviderName)) return res.status(400).json({ error: 'UNSUPPORTED_PROVIDER' });
-  const { apiKey, defaultModel, config, source } = req.body || {};
+  const { apiKey, defaultModel, defaultQuality, config, source } = req.body || {};
   const wantedSource: CredentialSource = source && ENABLED_SOURCES.includes(source) ? source : 'ORGANIZATION_KEY';
   if (!apiKey || typeof apiKey !== 'string' || apiKey.length < 6) {
     return res.status(400).json({ error: 'INVALID_KEY', message: 'API key không hợp lệ.' });
   }
+  // Validate defaultModel / defaultQuality against catalog for this provider.
+  if (defaultModel && !providerSupportsModel(provider, defaultModel)) {
+    return res.status(400).json({ error: 'AI_MODEL_NOT_SUPPORTED', message: `Model ${defaultModel} không được ${provider} hỗ trợ.` });
+  }
+  const wantedQuality = defaultQuality && QUALITY_TIERS.includes(defaultQuality) ? defaultQuality : null;
   const enc = encryptSecret(apiKey.trim());
   const row = await prisma.organizationAiCredential.upsert({
     where: { organizationId_provider: { organizationId: req.organizationId!, provider } },
     update: {
-      encryptedApiKey: enc, defaultModel: defaultModel || null,
+      encryptedApiKey: enc, defaultModel: defaultModel || null, defaultQuality: wantedQuality,
       config: config ?? undefined, source: wantedSource, isActive: true,
       validationStatus: 'UNTESTED', validationMessage: null, lastValidatedAt: null,
     },
     create: {
       organizationId: req.organizationId!, provider,
-      encryptedApiKey: enc, defaultModel: defaultModel || null,
+      encryptedApiKey: enc, defaultModel: defaultModel || null, defaultQuality: wantedQuality,
       config: config ?? undefined, source: wantedSource, isActive: true,
     },
   });

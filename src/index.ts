@@ -14,6 +14,7 @@ import { dashboardRouter } from './modules/dashboard';
 import { workspaceRouter } from './modules/workspace';
 import { organizationRouter } from './modules/organization';
 import { aiCredentialRouter } from './modules/ai-credentials';
+import { organizationInvitationRouter, publicInvitationRouter } from './modules/invitations';
 import { getBot } from './modules/telegram-bot';
 import { startWorkers, startScheduler } from './queues';
 import { initSocketIO } from './realtime';
@@ -59,6 +60,8 @@ app.use('/api/auth', authRouter);
 
 app.use('/api/organizations', authMiddleware, organizationRouter);
 app.use('/api/ai-credentials', authMiddleware, attachOrganization, requireOrganization, aiCredentialRouter);
+app.use('/api/invitations', publicInvitationRouter);
+app.use('/api/organizations-invitations', authMiddleware, attachOrganization, requireOrganization, organizationInvitationRouter);
 app.use('/api/campaigns', authMiddleware, attachOrganization, requireOrganization, campaignRouter);
 app.use('/api/dashboard', authMiddleware, attachOrganization, requireOrganization, dashboardRouter);
 app.use('/api/workspaces', authMiddleware, attachOrganization, requireOrganization, workspaceRouter);

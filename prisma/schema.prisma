@@ -91,6 +91,19 @@ enum AiCredentialValidation {
   ERROR
 }
 
+enum InvitationStatus {
+  PENDING
+  ACCEPTED
+  CANCELLED
+  EXPIRED
+}
+
+enum AiQualityTier {
+  FAST
+  BALANCED
+  QUALITY
+}
+
 model User {
   id             String   @id @default(cuid())
   email          String   @unique
@@ -129,6 +142,7 @@ model Organization {
   contentItems ContentItem[]
   subscriptions OrganizationSubscription[]
   aiCredentials OrganizationAiCredential[]
+  invitations   OrganizationInvitation[]
 
   @@map("organizations")
 }
@@ -181,6 +195,27 @@ model OrganizationMemberPage {
   @@map("organization_member_pages")
 }
 
+model OrganizationInvitation {
+  id                String           @id @default(cuid())
+  organizationId    String           @map("organization_id")
+  email             String
+  role              OrgMemberRole    @default(MEMBER)
+  accessMode        MemberAccessMode @default(ALL) @map("access_mode")
+  invitedByUserId   String?          @map("invited_by_user_id")
+  tokenHash         String           @unique @map("token_hash")
+  status            InvitationStatus @default(PENDING)
+  expiresAt         DateTime         @map("expires_at")
+  acceptedAt        DateTime?        @map("accepted_at")
+  createdAt         DateTime         @default(now()) @map("created_at")
+  updatedAt         DateTime         @updatedAt @map("updated_at")
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, status])
+  @@index([email])
+  @@map("organization_invitations")
+}
+
 model OrganizationAiCredential {
   id                String                 @id @default(cuid())
   organizationId    String                 @map("organization_id")
@@ -188,6 +223,7 @@ model OrganizationAiCredential {
   source            AiCredentialSource     @default(ORGANIZATION_KEY)
   encryptedApiKey   String                 @map("encrypted_api_key")
   defaultModel      String?                @map("default_model")
+  defaultQuality    AiQualityTier?         @map("default_quality")
   config            Json?
   isActive          Boolean                @default(true) @map("is_active")
   validationStatus  AiCredentialValidation @default(UNTESTED) @map("validation_status")
