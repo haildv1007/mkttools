@@ -4558,8 +4558,11 @@ function app() {
     },
 
     async openRevisionModal(item) {
-      const images = item.generatedImages || [];
-      const imgArr = Array.isArray(images) ? images : [];
+      let images = item.generatedImages || [];
+      let imgArr = Array.isArray(images) ? images : [];
+      if (imgArr.length === 0 && item.generatedImageUrl) {
+        imgArr = [{ url: item.generatedImageUrl }];
+      }
       this.revModal = {
         open: true, item, type: 'TEXT', feedback: '',
         images: [...imgArr],
