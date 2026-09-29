@@ -243,6 +243,7 @@ model SubscriptionPlan {
   code       String   @unique
   name       String
   maxPages   Int?     @map("max_pages")
+  maxMembers Int?     @map("max_members")
   isActive   Boolean  @default(true) @map("is_active")
   sortOrder  Int      @default(0) @map("sort_order")
   createdAt  DateTime @default(now()) @map("created_at")
@@ -261,6 +262,7 @@ model OrganizationSubscription {
   startedAt        DateTime           @default(now()) @map("started_at")
   expiresAt        DateTime?          @map("expires_at")
   customMaxPages   Int?               @map("custom_max_pages")
+  customMaxMembers Int?               @map("custom_max_members")
   createdAt        DateTime           @default(now()) @map("created_at")
   updatedAt        DateTime           @updatedAt @map("updated_at")
 

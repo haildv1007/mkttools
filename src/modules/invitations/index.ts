@@ -2,7 +2,7 @@ import { Router, Request, Response } from 'express';
 import crypto from 'crypto';
 import { prisma } from '../../utils/db';
 import { AuthRequest, authMiddleware } from '../../middleware/auth';
-import { roleAtLeast, OrgRole } from '../organization';
+import { roleAtLeast, OrgRole, OrganizationQuota } from '../organization';
 
 const TOKEN_LEN = 32;
 const DEFAULT_TTL_DAYS = 14;
@@ -67,6 +67,12 @@ orgRouter.post('/', async (req: AuthRequest, res: Response) => {
     where: { organizationId: req.organizationId, email, status: 'PENDING' },
   });
   if (activeInvite) return res.status(409).json({ error: 'ALREADY_INVITED', message: 'Đã có lời mời đang chờ cho email này.' });
+
+  // Quota check at invite creation — re-checked at acceptance too.
+  const memberCheck = await OrganizationQuota.canAddMember(req.organizationId!);
+  if (!memberCheck.ok) {
+    return res.status(422).json({ error: 'MEMBER_LIMIT_REACHED', message: 'Bạn đã sử dụng hết số thành viên của gói hiện tại.' });
+  }
 
   const { raw, hash } = generateToken();
   const expiresAt = new Date(Date.now() + DEFAULT_TTL_DAYS * 24 * 3600 * 1000);
@@ -160,6 +166,17 @@ publicRouter.post('/:token/accept', authMiddleware, async (req: AuthRequest, res
       where: { organizationId_userId: { organizationId: inv.organizationId, userId: user.id } },
     });
     if (existing) return res.json({ success: true, organizationId: inv.organizationId, alreadyAccepted: true });
+  }
+
+  // Re-check quota at accept time. Already-ACTIVE members are idempotent; skip quota for them.
+  const existingAtAccept = await prisma.organizationMember.findUnique({
+    where: { organizationId_userId: { organizationId: inv.organizationId, userId: user.id } },
+  });
+  if (!existingAtAccept || existingAtAccept.status !== 'ACTIVE') {
+    const memberCheck = await OrganizationQuota.canAddMember(inv.organizationId);
+    if (!memberCheck.ok) {
+      return res.status(422).json({ error: 'MEMBER_LIMIT_REACHED', message: 'Bạn đã sử dụng hết số thành viên của gói hiện tại.' });
+    }
   }
 
   await prisma.$transaction(async (tx) => {

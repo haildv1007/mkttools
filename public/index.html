@@ -143,6 +143,8 @@
               <span x-text="currentOrganization?.role"></span>
               <span x-show="orgPageUsage.limit != null"> · Pages <span x-text="orgPageUsage.used"></span>/<span x-text="orgPageUsage.limit"></span></span>
               <span x-show="orgPageUsage.limit == null"> · Pages <span x-text="orgPageUsage.used"></span>/∞</span>
+              <span x-show="orgMemberUsage.limit != null"> · Thành viên <span x-text="orgMemberUsage.used"></span>/<span x-text="orgMemberUsage.limit"></span></span>
+              <span x-show="orgMemberUsage.limit == null"> · Thành viên <span x-text="orgMemberUsage.used"></span>/∞</span>
             </p>
           </div>
           <i x-show="organizations.length>1" class="ri-arrow-down-s-line text-gray-400 text-sm transition" :class="orgSelectorOpen && 'rotate-180'"></i>
@@ -3027,8 +3029,15 @@
               <span x-show="orgPageUsage.limit != null && orgPageUsage.used > orgPageUsage.limit" class="text-red-600 text-xs ml-1">(vượt hạn mức)</span>
             </p>
           </div>
+          <div class="flex-1">
+            <p class="text-xs text-gray-500">Sử dụng Thành viên</p>
+            <p class="text-sm font-medium">
+              <span x-text="orgMemberUsage.used"></span> / <span x-text="orgMemberUsage.limit ?? '∞'"></span>
+              <span x-show="orgMemberUsage.limit != null && orgMemberUsage.used >= orgMemberUsage.limit" class="text-amber-600 text-xs ml-1">(đã đầy)</span>
+            </p>
+          </div>
         </div>
-        <p class="text-xs text-gray-500">Giới hạn: <span class="font-medium" x-text="(orgPageUsage.limit ?? '∞') + ' Page'"></span></p>
+        <p class="text-xs text-gray-500">Giới hạn: <span class="font-medium" x-text="(orgPageUsage.limit ?? '∞') + ' Page · ' + (orgMemberUsage.limit ?? '∞') + ' Thành viên'"></span></p>
         <a href="mailto:support@mkttools.local?subject=Nâng cấp gói" class="inline-block mt-2 text-xs text-brand-600 hover:underline">Nâng cấp gói</a>
       </div>
 
@@ -3326,6 +3335,7 @@ function app() {
     currentOrganization: null,
     orgSubscription: null,
     orgPageUsage: { used: 0, limit: null },
+    orgMemberUsage: { used: 0, limit: null },
     orgSelectorOpen: false,
     orgSettingsOpen: false,
     orgMembers: [],
@@ -5457,6 +5467,7 @@ function app() {
         this.currentOrganization = data.current;
         this.orgSubscription = data.subscription;
         this.orgPageUsage = data.pageUsage || { used: 0, limit: null };
+        this.orgMemberUsage = data.memberUsage || { used: 0, limit: null };
         if (data.current) localStorage.setItem('mkt_current_org', data.current.id);
       } catch (e) {
         console.warn('loadOrganizations failed', e);

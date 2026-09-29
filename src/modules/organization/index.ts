@@ -139,6 +139,40 @@ export const OrganizationQuota = {
       throw err;
     }
   },
+
+  async getMemberLimit(orgId: string): Promise<number | null> {
+    const sub = (await prisma.organizationSubscription.findFirst({
+      where: { organizationId: orgId, status: 'ACTIVE' },
+      include: { plan: true },
+      orderBy: { startedAt: 'desc' },
+    })) as any;
+    if (!sub) return null;
+    if (sub.customMaxMembers != null) return sub.customMaxMembers;
+    return sub.plan?.maxMembers ?? null;
+  },
+
+  async getMemberUsage(orgId: string): Promise<number> {
+    return prisma.organizationMember.count({ where: { organizationId: orgId, status: 'ACTIVE' } });
+  },
+
+  async canAddMember(orgId: string): Promise<{ ok: boolean; used: number; limit: number | null; reason?: string }> {
+    const [limit, used] = await Promise.all([
+      OrganizationQuota.getMemberLimit(orgId),
+      OrganizationQuota.getMemberUsage(orgId),
+    ]);
+    if (limit == null) return { ok: true, used, limit: null };
+    if (used >= limit) return { ok: false, used, limit, reason: 'MEMBER_LIMIT_REACHED' };
+    return { ok: true, used, limit };
+  },
+
+  async assertCanAddMember(orgId: string): Promise<void> {
+    const check = await OrganizationQuota.canAddMember(orgId);
+    if (!check.ok) {
+      const err = new Error('Bạn đã sử dụng hết số thành viên của gói hiện tại.') as Error & { code?: string };
+      err.code = 'MEMBER_LIMIT_REACHED';
+      throw err;
+    }
+  },
 };
 
 // ---------------- Router ----------------
@@ -163,9 +197,11 @@ router.get('/current', async (req: AuthRequest, res: Response) => {
   const { memberships, current, denied } = await resolveCurrentOrganization(req.userId, readRequestedOrgId(req));
   if (denied) return sendOrgDenied(res);
   if (!current) return res.json({ current: null, memberships: [] });
-  const [limit, used, subRaw] = await Promise.all([
+  const [pageLimit, pageUsed, memberLimit, memberUsed, subRaw] = await Promise.all([
     OrganizationQuota.getPageLimit(current.organizationId),
     OrganizationQuota.getPageUsage(current.organizationId),
+    OrganizationQuota.getMemberLimit(current.organizationId),
+    OrganizationQuota.getMemberUsage(current.organizationId),
     prisma.organizationSubscription.findFirst({
       where: { organizationId: current.organizationId, status: 'ACTIVE' },
       include: { plan: true },
@@ -193,8 +229,10 @@ router.get('/current', async (req: AuthRequest, res: Response) => {
       status: sub.status,
       expiresAt: sub.expiresAt,
       customMaxPages: sub.customMaxPages,
+      customMaxMembers: sub.customMaxMembers,
     } : null,
-    pageUsage: { used, limit },
+    pageUsage: { used: pageUsed, limit: pageLimit },
+    memberUsage: { used: memberUsed, limit: memberLimit },
   });
 });
 
@@ -275,6 +313,10 @@ router.post('/:id/members', async (req: AuthRequest, res: Response) => {
     where: { organizationId_userId: { organizationId: id, userId: user.id } },
   });
   if (existing) return res.status(409).json({ error: 'ALREADY_MEMBER' });
+  const memberCheck = await OrganizationQuota.canAddMember(id);
+  if (!memberCheck.ok) {
+    return res.status(422).json({ error: 'MEMBER_LIMIT_REACHED', message: 'Bạn đã sử dụng hết số thành viên của gói hiện tại.' });
+  }
   const member = await prisma.organizationMember.create({
     data: { organizationId: id, userId: user.id, role: wantedRole, status: 'ACTIVE' },
   });
@@ -365,13 +407,30 @@ router.get('/plans/list', async (_req: AuthRequest, res: Response) => {
   res.json(plans);
 });
 
+// Platform Admin: update a plan's attributes (name, maxPages, maxMembers, isActive, sortOrder)
+router.patch('/plans/:planId', async (req: AuthRequest, res: Response) => {
+  if (!(await isPlatformAdmin(req.userId))) return res.status(403).json({ error: 'FORBIDDEN' });
+  const planId = String(req.params.planId);
+  const plan = await prisma.subscriptionPlan.findUnique({ where: { id: planId } });
+  if (!plan) return res.status(404).json({ error: 'PLAN_NOT_FOUND' });
+  const { name, maxPages, maxMembers, isActive, sortOrder } = req.body || {};
+  const data: Record<string, unknown> = {};
+  if (name != null) data.name = String(name).trim();
+  if (maxPages !== undefined) data.maxPages = maxPages == null ? null : Number(maxPages);
+  if (maxMembers !== undefined) data.maxMembers = maxMembers == null ? null : Number(maxMembers);
+  if (isActive != null) data.isActive = Boolean(isActive);
+  if (sortOrder != null) data.sortOrder = Number(sortOrder);
+  const updated = await prisma.subscriptionPlan.update({ where: { id: planId }, data });
+  res.json(updated);
+});
+
 // Plan / custom limit mutation: PLATFORM ADMIN only (no billing yet; never customer-facing)
 router.put('/:id/subscription', async (req: AuthRequest, res: Response) => {
   if (!(await isPlatformAdmin(req.userId))) return res.status(403).json({ error: 'FORBIDDEN' });
   const id = String(req.params.id);
   const org = await prisma.organization.findUnique({ where: { id }, select: { id: true } });
   if (!org) return res.status(404).json({ error: 'NOT_FOUND' });
-  const { planCode, customMaxPages, expiresAt } = req.body || {};
+  const { planCode, customMaxPages, customMaxMembers, expiresAt } = req.body || {};
   const plan = await prisma.subscriptionPlan.findUnique({ where: { code: String(planCode) } });
   if (!plan) return res.status(404).json({ error: 'PLAN_NOT_FOUND' });
   await prisma.organizationSubscription.updateMany({
@@ -384,11 +443,12 @@ router.put('/:id/subscription', async (req: AuthRequest, res: Response) => {
       planId: plan.id,
       status: 'ACTIVE',
       customMaxPages: customMaxPages != null ? Number(customMaxPages) : null,
+      customMaxMembers: customMaxMembers != null ? Number(customMaxMembers) : null,
       expiresAt: expiresAt ? new Date(expiresAt) : null,
     },
     include: { plan: true },
   })) as any;
-  res.json({ planCode: sub.plan.code, planName: sub.plan.name, status: sub.status, expiresAt: sub.expiresAt, customMaxPages: sub.customMaxPages });
+  res.json({ planCode: sub.plan.code, planName: sub.plan.name, status: sub.status, expiresAt: sub.expiresAt, customMaxPages: sub.customMaxPages, customMaxMembers: sub.customMaxMembers });
 });
 
 // Organizations are never hard-deleted in V1 (lifecycle is ACTIVE/SUSPENDED only)
