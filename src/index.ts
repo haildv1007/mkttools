@@ -7,11 +7,12 @@ import path from 'path';
 import { config } from './config';
 import { logger } from './utils/logger';
 import { prisma } from './utils/db';
-import { authRouter, authMiddleware } from './middleware/auth';
+import { authRouter, authMiddleware, attachOrganization, requireOrganization } from './middleware/auth';
 import { errorHandler } from './middleware/error-handler';
 import { campaignRouter } from './modules/campaign';
 import { dashboardRouter } from './modules/dashboard';
 import { workspaceRouter } from './modules/workspace';
+import { organizationRouter } from './modules/organization';
 import { getBot } from './modules/telegram-bot';
 import { startWorkers, startScheduler } from './queues';
 import { initSocketIO } from './realtime';
@@ -55,9 +56,10 @@ app.get('/api/health', async (_req, res) => {
 
 app.use('/api/auth', authRouter);
 
-app.use('/api/campaigns', authMiddleware, campaignRouter);
-app.use('/api/dashboard', authMiddleware, dashboardRouter);
-app.use('/api/workspaces', authMiddleware, workspaceRouter);
+app.use('/api/organizations', authMiddleware, organizationRouter);
+app.use('/api/campaigns', authMiddleware, attachOrganization, requireOrganization, campaignRouter);
+app.use('/api/dashboard', authMiddleware, attachOrganization, requireOrganization, dashboardRouter);
+app.use('/api/workspaces', authMiddleware, attachOrganization, requireOrganization, workspaceRouter);
 
 app.use(express.static(path.join(__dirname, '../public')));
 app.get('*', (_req, res) => {

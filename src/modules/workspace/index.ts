@@ -1,5 +1,6 @@
-import { Router, Request, Response } from 'express';
+import { Router, Response } from 'express';
 import { prisma } from '../../utils/db';
+import { AuthRequest } from '../../middleware/auth';
 
 const router = Router();
 
@@ -27,7 +28,7 @@ async function uniqueSlug(base: string, excludeId?: string): Promise<string> {
 
 const pageInclude = {
   workspacePages: {
-    include: { page: { select: { id: true, name: true, platform: true, externalId: true, isActive: true } } },
+    include: { page: { select: { id: true, name: true, platform: true, externalId: true, isActive: true, organizationId: true } } },
   },
 } as const;
 
@@ -45,28 +46,47 @@ function formatWorkspace(w: any) {
   };
 }
 
-// List workspaces
-router.get('/', async (_req: Request, res: Response) => {
+router.get('/', async (req: AuthRequest, res: Response) => {
   const workspaces = await prisma.workspace.findMany({
+    where: { organizationId: req.organizationId },
     include: pageInclude,
     orderBy: { createdAt: 'desc' },
   });
   res.json(workspaces.map(formatWorkspace));
 });
 
-// Get single workspace
-router.get('/:id', async (req: Request, res: Response) => {
+router.get('/resolve-scope', async (req: AuthRequest, res: Response) => {
+  try {
+    const { type, id } = req.query;
+    const pageIds = await resolvePageIds(String(type || 'all'), id ? String(id) : undefined, req.organizationId!);
+    res.json({ pageIds });
+  } catch (err) {
+    res.status(400).json({ error: err instanceof Error ? err.message : 'Failed to resolve scope' });
+  }
+});
+
+router.get('/:id', async (req: AuthRequest, res: Response) => {
   const id = req.params.id as string;
   const workspace = await prisma.workspace.findUnique({
     where: { id },
     include: pageInclude,
   });
-  if (!workspace) return res.status(404).json({ error: 'Workspace not found' });
+  if (!workspace || workspace.organizationId !== req.organizationId) {
+    return res.status(404).json({ error: 'Workspace not found' });
+  }
   res.json(formatWorkspace(workspace));
 });
 
-// Create workspace
-router.post('/', async (req: Request, res: Response) => {
+async function filterOrgPageIds(orgId: string, pageIds: string[]): Promise<string[]> {
+  if (!pageIds.length) return [];
+  const pages = await prisma.page.findMany({
+    where: { id: { in: pageIds }, organizationId: orgId },
+    select: { id: true },
+  });
+  return pages.map((p) => p.id);
+}
+
+router.post('/', async (req: AuthRequest, res: Response) => {
   try {
     const { name, description, color, icon, pageIds } = req.body;
     if (!name) return res.status(400).json({ error: 'Tên workspace là bắt buộc' });
@@ -74,36 +94,40 @@ router.post('/', async (req: Request, res: Response) => {
     const slug = await uniqueSlug(name);
     const workspace = await prisma.workspace.create({
       data: {
+        organizationId: req.organizationId!,
         name,
         slug,
         description: description || null,
         color: color || null,
         icon: icon || null,
-        createdBy: (req as any).user?.id || null,
+        createdBy: req.userId || null,
       },
     });
 
     if (pageIds?.length) {
-      await prisma.workspacePage.createMany({
-        data: pageIds.map((pageId: string) => ({ workspaceId: workspace.id, pageId })),
-        skipDuplicates: true,
-      });
+      const safePageIds = await filterOrgPageIds(req.organizationId!, pageIds);
+      if (safePageIds.length) {
+        await prisma.workspacePage.createMany({
+          data: safePageIds.map((pageId) => ({ workspaceId: workspace.id, pageId })),
+          skipDuplicates: true,
+        });
+      }
     }
 
-    const full = await prisma.workspace.findUnique({
-      where: { id: workspace.id },
-      include: pageInclude,
-    });
+    const full = await prisma.workspace.findUnique({ where: { id: workspace.id }, include: pageInclude });
     res.json(formatWorkspace(full));
   } catch (err) {
     res.status(400).json({ error: err instanceof Error ? err.message : 'Failed to create workspace' });
   }
 });
 
-// Update workspace
-router.put('/:id', async (req: Request, res: Response) => {
+router.put('/:id', async (req: AuthRequest, res: Response) => {
   try {
     const id = req.params.id as string;
+    const existing = await prisma.workspace.findUnique({ where: { id } });
+    if (!existing || existing.organizationId !== req.organizationId) {
+      return res.status(404).json({ error: 'Workspace not found' });
+    }
     const { name, description, color, icon, pageIds } = req.body;
     const data: Record<string, unknown> = {};
     if (name !== undefined) {
@@ -118,28 +142,29 @@ router.put('/:id', async (req: Request, res: Response) => {
 
     if (pageIds !== undefined) {
       await prisma.workspacePage.deleteMany({ where: { workspaceId: id } });
-      if (pageIds.length) {
+      const safePageIds = await filterOrgPageIds(req.organizationId!, pageIds);
+      if (safePageIds.length) {
         await prisma.workspacePage.createMany({
-          data: pageIds.map((pageId: string) => ({ workspaceId: id, pageId })),
+          data: safePageIds.map((pageId) => ({ workspaceId: id, pageId })),
           skipDuplicates: true,
         });
       }
     }
 
-    const full = await prisma.workspace.findUnique({
-      where: { id },
-      include: pageInclude,
-    });
+    const full = await prisma.workspace.findUnique({ where: { id }, include: pageInclude });
     res.json(formatWorkspace(full));
   } catch (err) {
     res.status(400).json({ error: err instanceof Error ? err.message : 'Failed to update workspace' });
   }
 });
 
-// Delete workspace (only the group, not pages/content)
-router.delete('/:id', async (req: Request, res: Response) => {
+router.delete('/:id', async (req: AuthRequest, res: Response) => {
   try {
     const id = req.params.id as string;
+    const existing = await prisma.workspace.findUnique({ where: { id } });
+    if (!existing || existing.organizationId !== req.organizationId) {
+      return res.status(404).json({ error: 'Workspace not found' });
+    }
     await prisma.workspace.delete({ where: { id } });
     res.json({ success: true });
   } catch (err) {
@@ -147,41 +172,48 @@ router.delete('/:id', async (req: Request, res: Response) => {
   }
 });
 
-// Scope resolver endpoint
-router.get('/resolve-scope', async (req: Request, res: Response) => {
-  try {
-    const { type, id } = req.query;
-    const pageIds = await resolvePageIds(String(type || 'all'), id ? String(id) : undefined);
-    res.json({ pageIds });
-  } catch (err) {
-    res.status(400).json({ error: err instanceof Error ? err.message : 'Failed to resolve scope' });
-  }
-});
-
-// Reusable scope resolver
-export async function resolvePageIds(scopeType: string, scopeId?: string): Promise<string[]> {
+/**
+ * Tenant-scoped page id resolver. If orgId is omitted this is legacy behavior
+ * (returns global set) — callers that pass an orgId (all modern paths) always
+ * stay inside that org.
+ */
+export async function resolvePageIds(scopeType: string, scopeId?: string, organizationId?: string): Promise<string[]> {
   switch (scopeType) {
-    case 'page':
+    case 'page': {
       if (!scopeId) return [];
-      const page = await prisma.page.findUnique({ where: { id: scopeId }, select: { id: true, isActive: true } });
+      const page = await prisma.page.findUnique({ where: { id: scopeId }, select: { id: true, isActive: true, organizationId: true } });
       if (!page || !page.isActive) return [];
+      if (organizationId && page.organizationId !== organizationId) return [];
       return [scopeId];
-
-    case 'workspace':
+    }
+    case 'workspace': {
       if (!scopeId) return [];
+      const ws = await prisma.workspace.findUnique({ where: { id: scopeId }, select: { organizationId: true } });
+      if (!ws) return [];
+      if (organizationId && ws.organizationId !== organizationId) return [];
       const wps = await prisma.workspacePage.findMany({
-        where: { workspaceId: scopeId, page: { isActive: true } },
+        where: {
+          workspaceId: scopeId,
+          page: {
+            isActive: true,
+            ...(organizationId ? { organizationId } : {}),
+          },
+        },
         select: { pageId: true },
       });
       return wps.map((wp: any) => wp.pageId);
-
+    }
     case 'all':
-    default:
+    default: {
       const allPages = await prisma.page.findMany({
-        where: { isActive: true },
+        where: {
+          isActive: true,
+          ...(organizationId ? { organizationId } : {}),
+        },
         select: { id: true },
       });
       return allPages.map((p: any) => p.id);
+    }
   }
 }
 

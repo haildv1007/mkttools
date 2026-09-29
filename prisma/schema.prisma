@@ -49,6 +49,30 @@ enum ApprovalAction {
   REQUEST_EDIT
 }
 
+enum OrganizationStatus {
+  ACTIVE
+  SUSPENDED
+}
+
+enum OrgMemberRole {
+  OWNER
+  ADMIN
+  MANAGER
+  MEMBER
+}
+
+enum OrgMemberStatus {
+  ACTIVE
+  INVITED
+  DISABLED
+}
+
+enum SubscriptionStatus {
+  ACTIVE
+  EXPIRED
+  CANCELLED
+}
+
 model User {
   id             String   @id @default(cuid())
   email          String   @unique
@@ -57,18 +81,92 @@ model User {
   role           UserRole @default(ADMIN)
   telegramChatId String?  @map("telegram_chat_id")
   isActive       Boolean  @default(true) @map("is_active")
+  isPlatformAdmin Boolean @default(false) @map("is_platform_admin")
   createdAt      DateTime @default(now()) @map("created_at")
   updatedAt      DateTime @updatedAt @map("updated_at")
 
   pages         Page[]
   campaigns     Campaign[]
   approvalLogs  ApprovalLog[]
+  ownedOrganizations Organization[] @relation("OrgOwner")
+  memberships   OrganizationMember[]
 
   @@map("users")
 }
 
+model Organization {
+  id           String             @id @default(cuid())
+  name         String
+  slug         String?            @unique
+  ownerUserId  String?            @map("owner_user_id")
+  status       OrganizationStatus @default(ACTIVE)
+  createdAt    DateTime           @default(now()) @map("created_at")
+  updatedAt    DateTime           @updatedAt @map("updated_at")
+
+  owner        User?              @relation("OrgOwner", fields: [ownerUserId], references: [id])
+  members      OrganizationMember[]
+  pages        Page[]
+  workspaces   Workspace[]
+  campaigns    Campaign[]
+  contentItems ContentItem[]
+  subscriptions OrganizationSubscription[]
+
+  @@map("organizations")
+}
+
+model OrganizationMember {
+  id             String          @id @default(cuid())
+  organizationId String          @map("organization_id")
+  userId         String          @map("user_id")
+  role           OrgMemberRole   @default(MEMBER)
+  status         OrgMemberStatus @default(ACTIVE)
+  createdAt      DateTime        @default(now()) @map("created_at")
+  updatedAt      DateTime        @updatedAt @map("updated_at")
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, userId])
+  @@index([userId])
+  @@map("organization_members")
+}
+
+model SubscriptionPlan {
+  id         String   @id @default(cuid())
+  code       String   @unique
+  name       String
+  maxPages   Int?     @map("max_pages")
+  isActive   Boolean  @default(true) @map("is_active")
+  sortOrder  Int      @default(0) @map("sort_order")
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  subscriptions OrganizationSubscription[]
+
+  @@map("subscription_plans")
+}
+
+model OrganizationSubscription {
+  id               String             @id @default(cuid())
+  organizationId   String             @map("organization_id")
+  planId           String             @map("plan_id")
+  status           SubscriptionStatus @default(ACTIVE)
+  startedAt        DateTime           @default(now()) @map("started_at")
+  expiresAt        DateTime?          @map("expires_at")
+  customMaxPages   Int?               @map("custom_max_pages")
+  createdAt        DateTime           @default(now()) @map("created_at")
+  updatedAt        DateTime           @updatedAt @map("updated_at")
+
+  organization Organization     @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  plan         SubscriptionPlan @relation(fields: [planId], references: [id])
+
+  @@index([organizationId, status])
+  @@map("organization_subscriptions")
+}
+
 model Page {
   id          String   @id @default(cuid())
+  organizationId String @map("organization_id")
   platform    Platform
   name        String
   externalId  String   @map("external_id")
@@ -82,16 +180,19 @@ model Page {
   updatedAt   DateTime @updatedAt @map("updated_at")
 
   user           User            @relation(fields: [userId], references: [id])
+  organization   Organization    @relation(fields: [organizationId], references: [id])
   campaigns      Campaign[]
   contentItems   ContentItem[]
   workspacePages WorkspacePage[]
 
-  @@unique([platform, externalId])
+  @@unique([organizationId, platform, externalId])
+  @@index([organizationId, isActive])
   @@map("pages")
 }
 
 model Campaign {
   id          String    @id @default(cuid())
+  organizationId String @map("organization_id")
   name        String
   description String?
   pageId        String    @map("page_id")
@@ -106,13 +207,16 @@ model Campaign {
 
   page         Page          @relation(fields: [pageId], references: [id])
   user         User          @relation(fields: [userId], references: [id])
+  organization Organization  @relation(fields: [organizationId], references: [id])
   contentItems ContentItem[]
 
+  @@index([organizationId, isActive])
   @@map("campaigns")
 }
 
 model ContentItem {
   id               String        @id @default(cuid())
+  organizationId   String        @map("organization_id")
   campaignId       String        @map("campaign_id")
   pageId           String        @map("page_id")
   scheduledAt      DateTime      @map("scheduled_at")
@@ -139,6 +243,7 @@ model ContentItem {
 
   campaign         Campaign          @relation(fields: [campaignId], references: [id])
   page             Page              @relation(fields: [pageId], references: [id])
+  organization     Organization      @relation(fields: [organizationId], references: [id])
   approvalLogs     ApprovalLog[]
   revisionSessions RevisionSession[]
   revisions        ContentRevision[]
@@ -146,6 +251,8 @@ model ContentItem {
   @@index([status])
   @@index([scheduledAt])
   @@index([pageId, scheduledAt])
+  @@index([organizationId, status])
+  @@index([organizationId, createdAt])
   @@map("content_items")
 }
 
@@ -164,18 +271,21 @@ model ApprovalLog {
 }
 
 model Workspace {
-  id          String   @id @default(cuid())
-  name        String
-  slug        String   @unique
-  description String?
-  color       String?
-  icon        String?
-  createdBy   String?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id             String   @id @default(cuid())
+  organizationId String   @map("organization_id")
+  name           String
+  slug           String   @unique
+  description    String?
+  color          String?
+  icon           String?
+  createdBy      String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
 
+  organization   Organization    @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   workspacePages WorkspacePage[]
 
+  @@index([organizationId])
   @@map("workspaces")
 }
 
@@ -241,24 +351,26 @@ model AppSetting {
 }
 
 model ActivityLog {
-  id          String   @id @default(cuid())
-  action      String
-  category    String
-  status      String   @default("running")
-  summary     String
-  detail      String?
-  entityType  String?  @map("entity_type")
-  entityId    String?  @map("entity_id")
-  entityLabel String?  @map("entity_label")
-  progress    Int?
-  total       Int?
-  errorCode   String?  @map("error_code")
-  createdAt   DateTime @default(now()) @map("created_at")
-  updatedAt   DateTime @updatedAt @map("updated_at")
+  id             String   @id @default(cuid())
+  organizationId String?  @map("organization_id")
+  action         String
+  category       String
+  status         String   @default("running")
+  summary        String
+  detail         String?
+  entityType     String?  @map("entity_type")
+  entityId       String?  @map("entity_id")
+  entityLabel    String?  @map("entity_label")
+  progress       Int?
+  total          Int?
+  errorCode      String?  @map("error_code")
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
 
   @@index([createdAt])
   @@index([category])
   @@index([status])
+  @@index([organizationId, createdAt])
   @@map("activity_logs")
 }
 

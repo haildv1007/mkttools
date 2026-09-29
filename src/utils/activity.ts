@@ -16,6 +16,7 @@ interface LogOptions {
   total?: number;
   status?: Status;
   errorCode?: string;
+  organizationId?: string | null;
 }
 
 const SAFE_ERROR_MAP: Record<string, string> = {
@@ -46,6 +47,7 @@ export async function logActivity(opts: LogOptions): Promise<string> {
   try {
     const record = await prisma.activityLog.create({
       data: {
+        organizationId: opts.organizationId ?? undefined,
         action: opts.action,
         category: opts.category,
         status: opts.status || 'running',

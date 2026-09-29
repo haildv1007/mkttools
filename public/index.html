@@ -122,6 +122,40 @@
       </div>
 
       <!-- Scope Selector -->
+      <!-- Organization selector (shown when user belongs to any org) -->
+      <div x-show="currentOrganization" class="px-3 py-2 border-b border-gray-100 relative" @click.outside="orgSelectorOpen=false">
+        <p class="text-[10px] text-gray-400 uppercase tracking-wider mb-1 px-1">Tổ chức</p>
+        <button @click="organizations.length>1 && (orgSelectorOpen=!orgSelectorOpen)"
+          class="w-full flex items-center gap-2 px-3 py-2 rounded-lg border border-gray-200 hover:border-brand-300 hover:bg-brand-50/30 transition text-left">
+          <i class="ri-building-2-line text-brand-500 text-sm"></i>
+          <div class="flex-1 min-w-0">
+            <p class="text-sm font-medium truncate" x-text="currentOrganization?.name || '—'"></p>
+            <p class="text-[10px] text-gray-400">
+              <span x-text="currentOrganization?.role"></span>
+              <span x-show="orgPageUsage.limit != null"> · Pages <span x-text="orgPageUsage.used"></span>/<span x-text="orgPageUsage.limit"></span></span>
+              <span x-show="orgPageUsage.limit == null"> · Pages <span x-text="orgPageUsage.used"></span>/∞</span>
+            </p>
+          </div>
+          <i x-show="organizations.length>1" class="ri-arrow-down-s-line text-gray-400 text-sm transition" :class="orgSelectorOpen && 'rotate-180'"></i>
+        </button>
+        <div x-show="orgSelectorOpen" x-cloak class="absolute left-3 right-3 top-full mt-1 bg-white rounded-xl border border-gray-200 shadow-lg z-50 max-h-[300px] overflow-y-auto">
+          <template x-for="o in organizations" :key="o.id">
+            <button @click="switchOrganization(o.id)" class="w-full text-left px-3 py-2 hover:bg-gray-50 flex items-center gap-2"
+              :class="o.id===currentOrganization?.id && 'bg-brand-50'">
+              <i class="ri-building-2-line text-brand-500"></i>
+              <div class="flex-1 min-w-0">
+                <p class="text-sm font-medium truncate" x-text="o.name"></p>
+                <p class="text-[10px] text-gray-400" x-text="o.role"></p>
+              </div>
+              <i x-show="o.id===currentOrganization?.id" class="ri-check-line text-brand-600"></i>
+            </button>
+          </template>
+        </div>
+        <button @click="openOrgSettings()" class="w-full mt-1 text-[11px] text-brand-600 hover:underline text-left px-1">
+          <i class="ri-settings-3-line"></i> Cài đặt tổ chức & thành viên
+        </button>
+      </div>
+
       <div class="px-3 py-2 border-b border-gray-100 relative" @click.outside="scopeDropdownOpen=false">
         <p class="text-[10px] text-gray-400 uppercase tracking-wider mb-1 px-1">Phạm vi làm việc</p>
         <button @click="scopeDropdownOpen=!scopeDropdownOpen"
@@ -2961,6 +2995,84 @@
     </main>
   </div>
 
+  <!-- Organization Settings Modal -->
+  <div x-show="orgSettingsOpen" x-cloak class="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" @click.self="orgSettingsOpen=false">
+    <div class="bg-white rounded-2xl shadow-xl w-full max-w-3xl max-h-[85vh] overflow-y-auto p-6 fade-in">
+      <div class="flex items-center justify-between mb-4">
+        <h3 class="text-lg font-bold">Tổ chức: <span x-text="currentOrganization?.name"></span></h3>
+        <button @click="orgSettingsOpen=false" class="text-gray-400 hover:text-gray-600"><i class="ri-close-line text-2xl"></i></button>
+      </div>
+
+      <!-- Subscription -->
+      <div class="mb-6 p-4 border border-gray-200 rounded-xl">
+        <h4 class="font-semibold text-sm mb-3">Gói dịch vụ & Giới hạn Page</h4>
+        <div class="flex items-center gap-4 mb-3">
+          <div class="flex-1">
+            <p class="text-xs text-gray-500">Gói hiện tại</p>
+            <p class="text-sm font-medium" x-text="orgSubscription?.planName || 'Chưa gán gói'"></p>
+          </div>
+          <div class="flex-1">
+            <p class="text-xs text-gray-500">Sử dụng Page</p>
+            <p class="text-sm font-medium">
+              <span x-text="orgPageUsage.used"></span> / <span x-text="orgPageUsage.limit ?? '∞'"></span>
+              <span x-show="orgPageUsage.limit != null && orgPageUsage.used > orgPageUsage.limit" class="text-red-600 text-xs ml-1">(vượt hạn mức)</span>
+            </p>
+          </div>
+        </div>
+        <div x-show="currentOrganization?.role==='OWNER'" class="flex flex-wrap gap-2">
+          <template x-for="p in orgPlans" :key="p.code">
+            <button @click="changeOrgPlan(p.code)"
+              class="px-3 py-1.5 text-xs border border-gray-200 rounded-lg hover:border-brand-400 hover:bg-brand-50"
+              :class="orgSubscription?.planCode===p.code && 'bg-brand-50 border-brand-400 text-brand-700 font-medium'">
+              <span x-text="p.name"></span> <span class="text-gray-400">(<span x-text="p.maxPages ?? '∞'"></span> pages)</span>
+            </button>
+          </template>
+        </div>
+      </div>
+
+      <!-- Members -->
+      <div class="p-4 border border-gray-200 rounded-xl">
+        <h4 class="font-semibold text-sm mb-3">Thành viên</h4>
+        <div class="space-y-1 mb-3">
+          <template x-for="m in orgMembers" :key="m.id">
+            <div class="flex items-center gap-3 py-2 border-b border-gray-100 last:border-0">
+              <div class="w-8 h-8 rounded-full bg-brand-100 flex items-center justify-center text-brand-600 text-sm font-semibold" x-text="(m.name||m.email||'?').charAt(0).toUpperCase()"></div>
+              <div class="flex-1 min-w-0">
+                <p class="text-sm font-medium truncate" x-text="m.name"></p>
+                <p class="text-xs text-gray-400 truncate" x-text="m.email"></p>
+              </div>
+              <select x-show="currentOrganization?.role==='OWNER' || (currentOrganization?.role==='ADMIN' && m.role!=='OWNER')"
+                @change="updateOrgMemberRole(m.id, $event.target.value)"
+                class="text-xs border border-gray-200 rounded px-2 py-1">
+                <template x-for="r in (currentOrganization?.role==='OWNER' ? ['OWNER','ADMIN','MANAGER','MEMBER'] : ['ADMIN','MANAGER','MEMBER'])" :key="r">
+                  <option :value="r" :selected="m.role===r" x-text="r"></option>
+                </template>
+              </select>
+              <span x-show="!(currentOrganization?.role==='OWNER' || (currentOrganization?.role==='ADMIN' && m.role!=='OWNER'))"
+                class="text-xs font-medium text-gray-500" x-text="m.role"></span>
+              <button x-show="(currentOrganization?.role==='OWNER' || (currentOrganization?.role==='ADMIN' && m.role!=='OWNER')) && m.userId!==user?.id"
+                @click="removeOrgMember(m.id)" class="text-red-500 hover:text-red-700 text-sm">
+                <i class="ri-delete-bin-line"></i>
+              </button>
+            </div>
+          </template>
+        </div>
+        <div x-show="currentOrganization?.role==='OWNER' || currentOrganization?.role==='ADMIN'"
+          class="flex gap-2 pt-3 border-t border-gray-100">
+          <input x-model="orgMemberForm.email" type="email" placeholder="email@example.com"
+            class="flex-1 px-3 py-2 text-sm border border-gray-200 rounded-lg outline-none focus:ring-1 focus:ring-brand-400">
+          <select x-model="orgMemberForm.role" class="px-3 py-2 text-sm border border-gray-200 rounded-lg">
+            <option value="ADMIN">Admin</option>
+            <option value="MANAGER">Manager</option>
+            <option value="MEMBER">Member</option>
+          </select>
+          <button @click="addOrgMember()" class="px-4 py-2 text-sm bg-brand-600 text-white rounded-lg hover:bg-brand-700">Thêm</button>
+        </div>
+        <p x-show="orgMemberError" x-text="orgMemberError" class="text-xs text-red-600 mt-2"></p>
+      </div>
+    </div>
+  </div>
+
   <!-- Toast -->
   <!-- Workspace Modal -->
   <div x-show="showWorkspaceModal" class="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" @click.self="showWorkspaceModal=false">
@@ -3029,6 +3141,16 @@ function app() {
     // Workspace / Scope
     currentScope: JSON.parse(localStorage.getItem('mkt_scope') || '{"type":"all"}'),
     workspaces: [],
+    organizations: [],
+    currentOrganization: null,
+    orgSubscription: null,
+    orgPageUsage: { used: 0, limit: null },
+    orgSelectorOpen: false,
+    orgSettingsOpen: false,
+    orgMembers: [],
+    orgPlans: [],
+    orgMemberForm: { email: '', role: 'MEMBER' },
+    orgMemberError: '',
     scopeDropdownOpen: false,
     scopeSearch: '',
     dbPageDrop: false,
@@ -3213,6 +3335,7 @@ function app() {
     async init() {
       this.dgLoadCols();
       if (this.token) {
+        await this.loadOrganizations();
         await this.loadPages();
         await this.loadWorkspaces();
         await this.validateScope();
@@ -3249,6 +3372,8 @@ function app() {
       const headers = { ...options.headers };
       if (this.token) headers['Authorization'] = `Bearer ${this.token}`;
       if (!(options.body instanceof FormData)) headers['Content-Type'] = 'application/json';
+      const orgId = this.currentOrganization?.id || localStorage.getItem('mkt_current_org');
+      if (orgId) headers['X-Organization-Id'] = orgId;
 
       const res = await fetch(`/api${path}`, { ...options, headers });
       const data = await res.json();
@@ -3273,6 +3398,7 @@ function app() {
         this.user = data.user;
         localStorage.setItem('mkt_token', data.token);
         localStorage.setItem('mkt_user', JSON.stringify(data.user));
+        await this.loadOrganizations();
         await this.loadPages();
         await this.loadWorkspaces();
         await this.validateScope();
@@ -3297,6 +3423,7 @@ function app() {
         this.user = data.user;
         localStorage.setItem('mkt_token', data.token);
         localStorage.setItem('mkt_user', JSON.stringify(data.user));
+        await this.loadOrganizations();
         await this.loadPages();
         await this.loadWorkspaces();
         await this.validateScope();
@@ -4894,7 +5021,8 @@ function app() {
     // === REALTIME MANAGER ===
     initSocket() {
       if (!this.token || this._socket) return;
-      const s = io({ auth: { token: this.token }, transports: ['websocket', 'polling'], reconnection: true, reconnectionDelay: 1000, reconnectionDelayMax: 5000 });
+      const orgId = this.currentOrganization?.id || localStorage.getItem('mkt_current_org') || '';
+      const s = io({ auth: { token: this.token, organizationId: orgId }, transports: ['websocket', 'polling'], reconnection: true, reconnectionDelay: 1000, reconnectionDelayMax: 5000 });
       this._socket = s;
 
       s.on('connect', () => {
@@ -5097,6 +5225,94 @@ function app() {
     providerLabel(name) {
       const map = { claude: 'Claude (Anthropic)', openai: 'GPT (OpenAI)', gemini: 'Gemini (Google)', dalle: 'DALL-E (OpenAI)' };
       return map[name] || name || '—';
+    },
+
+    // === Organizations ===
+    async loadOrganizations() {
+      try {
+        const stored = localStorage.getItem('mkt_current_org');
+        // Prefill so first api() call carries the header
+        if (stored) this.currentOrganization = { id: stored };
+        const data = await this.api('/organizations/current');
+        this.organizations = data.memberships || [];
+        this.currentOrganization = data.current;
+        this.orgSubscription = data.subscription;
+        this.orgPageUsage = data.pageUsage || { used: 0, limit: null };
+        if (data.current) localStorage.setItem('mkt_current_org', data.current.id);
+      } catch (e) {
+        console.warn('loadOrganizations failed', e);
+      }
+    },
+    async switchOrganization(orgId) {
+      if (!orgId || orgId === this.currentOrganization?.id) return;
+      localStorage.setItem('mkt_current_org', orgId);
+      this.orgSelectorOpen = false;
+      // Reset scope-dependent state before reload
+      this.currentScope = { type: 'all' };
+      await this.loadOrganizations();
+      await this.loadPages();
+      await this.loadWorkspaces();
+      await this.validateScope();
+      await this.loadScopePages();
+      await this.loadDashboard();
+      if (this.socket) {
+        try { this.socket.emit('subscribe:org', orgId); } catch {}
+      }
+    },
+    async refreshPageUsage() {
+      if (!this.currentOrganization) return;
+      try {
+        const d = await this.api(`/organizations/${this.currentOrganization.id}/page-usage`);
+        this.orgPageUsage = d;
+      } catch {}
+    },
+    async openOrgSettings() {
+      if (!this.currentOrganization) return;
+      this.orgSettingsOpen = true;
+      try {
+        [this.orgMembers, this.orgPlans] = await Promise.all([
+          this.api(`/organizations/${this.currentOrganization.id}/members`),
+          this.api('/organizations/plans/list'),
+        ]);
+      } catch (e) { console.warn('org settings load failed', e); }
+    },
+    async addOrgMember() {
+      this.orgMemberError = '';
+      try {
+        await this.api(`/organizations/${this.currentOrganization.id}/members`, {
+          method: 'POST',
+          body: JSON.stringify(this.orgMemberForm),
+        });
+        this.orgMemberForm = { email: '', role: 'MEMBER' };
+        this.orgMembers = await this.api(`/organizations/${this.currentOrganization.id}/members`);
+      } catch (e) { this.orgMemberError = e.message; }
+    },
+    async updateOrgMemberRole(memberId, role) {
+      try {
+        await this.api(`/organizations/${this.currentOrganization.id}/members/${memberId}`, {
+          method: 'PATCH',
+          body: JSON.stringify({ role }),
+        });
+        this.orgMembers = await this.api(`/organizations/${this.currentOrganization.id}/members`);
+      } catch (e) { alert(e.message); }
+    },
+    async removeOrgMember(memberId) {
+      if (!confirm('Xoá thành viên này khỏi tổ chức?')) return;
+      try {
+        await this.api(`/organizations/${this.currentOrganization.id}/members/${memberId}`, { method: 'DELETE' });
+        this.orgMembers = await this.api(`/organizations/${this.currentOrganization.id}/members`);
+      } catch (e) { alert(e.message); }
+    },
+    async changeOrgPlan(planCode) {
+      if (!confirm(`Đổi gói sang ${planCode}?`)) return;
+      try {
+        const sub = await this.api(`/organizations/${this.currentOrganization.id}/subscription`, {
+          method: 'PUT',
+          body: JSON.stringify({ planCode }),
+        });
+        this.orgSubscription = sub;
+        await this.refreshPageUsage();
+      } catch (e) { alert(e.message); }
     },
 
     // === Workspace / Scope ===

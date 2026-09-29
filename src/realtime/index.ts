@@ -2,6 +2,7 @@ import { Server as HttpServer } from 'http';
 import { Server, Socket } from 'socket.io';
 import jwt from 'jsonwebtoken';
 import { logger } from '../utils/logger';
+import { prisma } from '../utils/db';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'mkttools-dev-secret-change-in-production';
 
@@ -10,6 +11,7 @@ let io: Server | null = null;
 export interface ContentEvent {
   contentId: string;
   pageId: string;
+  organizationId?: string;
   campaignId?: string;
   operation: 'generate' | 'publish' | 'approve' | 'delete' | 'bulk_generate' | 'bulk_publish' | 'bulk_approve' | 'bulk_delete';
   status: 'started' | 'progress' | 'completed' | 'failed';
@@ -30,6 +32,7 @@ export interface ContentEvent {
 
 export interface ActivityEvent {
   id: string;
+  organizationId?: string;
   action: string;
   category: string;
   status: string;
@@ -66,27 +69,58 @@ export function initSocketIO(server: HttpServer): Server {
     }
   });
 
-  io.on('connection', (socket: Socket) => {
-    const userId = (socket as any).userId;
+  io.on('connection', async (socket: Socket) => {
+    const userId = (socket as any).userId as string;
     socket.join(`user:${userId}`);
     logger.debug({ userId, socketId: socket.id }, 'Socket connected');
 
-    socket.on('subscribe:page', (pageId: string) => {
-      if (typeof pageId === 'string' && pageId.length < 100) {
-        socket.join(`page:${pageId}`);
+    // Verify + join a tenant room. Client provides orgId; server validates membership.
+    async function joinOrg(orgId: string) {
+      try {
+        if (!orgId || typeof orgId !== 'string') return;
+        const m = await prisma.organizationMember.findUnique({
+          where: { organizationId_userId: { organizationId: orgId, userId } },
+          select: { status: true },
+        });
+        if (!m || m.status !== 'ACTIVE') return;
+        // Leave any prior org rooms first — one active org per socket.
+        for (const room of socket.rooms) {
+          if (room.startsWith('org:')) socket.leave(room);
+        }
+        socket.join(`org:${orgId}`);
+        (socket as any).organizationId = orgId;
+      } catch (e) {
+        logger.warn({ err: e }, 'joinOrg failed');
       }
+    }
+
+    const initialOrg = (socket.handshake.auth?.organizationId as string) || '';
+    if (initialOrg) await joinOrg(initialOrg);
+
+    socket.on('subscribe:org', (orgId: string) => joinOrg(orgId));
+
+    socket.on('subscribe:page', async (pageId: string) => {
+      if (typeof pageId !== 'string' || pageId.length >= 100) return;
+      const currentOrg = (socket as any).organizationId;
+      if (!currentOrg) return;
+      const page = await prisma.page.findUnique({ where: { id: pageId }, select: { organizationId: true } });
+      if (!page || page.organizationId !== currentOrg) return;
+      socket.join(`page:${pageId}`);
     });
 
     socket.on('unsubscribe:page', (pageId: string) => {
       socket.leave(`page:${pageId}`);
     });
 
-    socket.on('subscribe:scope', (data: { type: string; pageIds: string[] }) => {
-      if (data?.pageIds?.length) {
-        for (const pid of data.pageIds.slice(0, 500)) {
-          socket.join(`page:${pid}`);
-        }
-      }
+    socket.on('subscribe:scope', async (data: { type: string; pageIds: string[] }) => {
+      const currentOrg = (socket as any).organizationId;
+      if (!currentOrg || !data?.pageIds?.length) return;
+      const wanted = data.pageIds.slice(0, 500);
+      const pages = await prisma.page.findMany({
+        where: { id: { in: wanted }, organizationId: currentOrg },
+        select: { id: true },
+      });
+      for (const p of pages) socket.join(`page:${p.id}`);
     });
 
     socket.on('disconnect', () => {
@@ -104,15 +138,20 @@ export function getIO(): Server | null {
 
 export function emitActivity(event: ActivityEvent) {
   if (!io) return;
+  if (event.organizationId) {
+    io.to(`org:${event.organizationId}`).emit('activity:update', event);
+    return;
+  }
+  // Legacy events without org — restrict to server-side subscribers only.
   io.emit('activity:update', event);
 }
 
 export function emitContentUpdate(event: ContentEvent) {
   if (!io) return;
-  if (event.pageId) {
-    io.to(`page:${event.pageId}`).emit('content:update', event);
+  if (event.pageId) io.to(`page:${event.pageId}`).emit('content:update', event);
+  if (event.organizationId) {
+    io.to(`org:${event.organizationId}`).emit('content:update:global', event);
   }
-  io.emit('content:update:global', event);
 }
 
 export function emitStatusCounts(pageId: string, counts: Record<string, number>) {

@@ -23,6 +23,7 @@ function nextVer() { return ++_ver; }
 function emitActFromLog(id: string, opts: any, status?: string) {
   emitActivity({
     id,
+    organizationId: opts.organizationId,
     action: opts.action,
     category: opts.category,
     status: status || opts.status || 'running',
@@ -43,13 +44,15 @@ export function startWorkers() {
   const contentWorker = new Worker('content-generation', async (job) => {
     const { contentItemId } = job.data;
 
+    // Always resolve the tenant from DB, never trust job payload alone.
     const item = await prisma.contentItem.findUnique({
       where: { id: contentItemId },
       include: { page: true, campaign: true },
     });
     if (!item) throw new Error(`Content item ${contentItemId} not found`);
+    const organizationId = item.organizationId;
 
-    const actOpts = { action: 'generate', category: 'content' as const, summary: `Đang gen nội dung: ${item.topic.slice(0, 80)}`, entityType: 'content', entityId: contentItemId, entityLabel: item.topic.slice(0, 100) };
+    const actOpts = { action: 'generate', category: 'content' as const, summary: `Đang gen nội dung: ${item.topic.slice(0, 80)}`, entityType: 'content', entityId: contentItemId, entityLabel: item.topic.slice(0, 100), organizationId };
     const actId = await logActivity(actOpts);
     emitActFromLog(actId, actOpts);
 
@@ -61,6 +64,7 @@ export function startWorkers() {
     emitContentUpdate({
       contentId: contentItemId,
       pageId: item.pageId,
+      organizationId,
       campaignId: item.campaignId || undefined,
       operation: 'generate',
       status: 'started',
@@ -91,6 +95,7 @@ export function startWorkers() {
     emitContentUpdate({
       contentId: contentItemId,
       pageId: item.pageId,
+      organizationId,
       campaignId: item.campaignId || undefined,
       operation: 'generate',
       status: 'progress',
@@ -167,6 +172,7 @@ export function startWorkers() {
     emitContentUpdate({
       contentId: contentItemId,
       pageId: item.pageId,
+      organizationId,
       campaignId: item.campaignId || undefined,
       operation: 'generate',
       status: 'completed',
@@ -201,10 +207,11 @@ export function startWorkers() {
     const { contentItemId } = job.data;
     const ci = await prisma.contentItem.findUnique({
       where: { id: contentItemId },
-      select: { topic: true, pageId: true, campaignId: true, page: { select: { name: true, externalId: true, platform: true } }, campaign: { select: { name: true } } },
+      select: { topic: true, pageId: true, campaignId: true, organizationId: true, page: { select: { name: true, externalId: true, platform: true } }, campaign: { select: { name: true } } },
     });
     const label = ci?.topic?.slice(0, 80) || contentItemId;
-    const actOpts = { action: 'publish', category: 'publish' as const, summary: `Đang đăng bài: ${label}`, entityType: 'content', entityId: contentItemId, entityLabel: label };
+    const organizationId = ci?.organizationId;
+    const actOpts = { action: 'publish', category: 'publish' as const, summary: `Đang đăng bài: ${label}`, entityType: 'content', entityId: contentItemId, entityLabel: label, organizationId };
     const actId = await logActivity(actOpts);
     emitActFromLog(actId, actOpts);
 
@@ -212,6 +219,7 @@ export function startWorkers() {
       emitContentUpdate({
         contentId: contentItemId,
         pageId: ci.pageId,
+        organizationId,
         campaignId: ci.campaignId || undefined,
         operation: 'publish',
         status: 'started',
@@ -236,6 +244,7 @@ export function startWorkers() {
         emitContentUpdate({
           contentId: contentItemId,
           pageId: ci.pageId,
+          organizationId,
           operation: 'publish',
           status: 'failed',
           contentTitle: label,
@@ -255,6 +264,7 @@ export function startWorkers() {
       emitContentUpdate({
         contentId: contentItemId,
         pageId: ci.pageId,
+        organizationId,
         campaignId: ci.campaignId || undefined,
         operation: 'publish',
         status: 'completed',
@@ -342,20 +352,21 @@ export function startWorkers() {
     if (job?.data?.contentItemId) {
       const safe = sanitizeError(err);
       const cid = job.data.contentItemId;
-      const ci = await prisma.contentItem.findUnique({ where: { id: cid }, select: { pageId: true, topic: true, page: { select: { name: true } } } }).catch(() => null);
+      const ci = await prisma.contentItem.findUnique({ where: { id: cid }, select: { pageId: true, topic: true, organizationId: true, page: { select: { name: true } } } }).catch(() => null);
 
       await prisma.contentItem.update({
         where: { id: cid },
         data: { status: 'FAILED', errorMessage: err?.message || 'Generation failed' },
       }).catch(() => {});
 
-      const actId = await logActivity({ action: 'generate', category: 'content', status: 'error', summary: `Gen thất bại: ${cid.slice(0, 20)}`, detail: safe.message, errorCode: safe.code, entityType: 'content', entityId: cid });
-      emitActFromLog(actId, { action: 'generate', category: 'content', summary: `Gen thất bại: ${cid.slice(0, 20)}`, detail: safe.message, errorCode: safe.code, entityType: 'content', entityId: cid }, 'error');
+      const actId = await logActivity({ action: 'generate', category: 'content', status: 'error', summary: `Gen thất bại: ${cid.slice(0, 20)}`, detail: safe.message, errorCode: safe.code, entityType: 'content', entityId: cid, organizationId: ci?.organizationId });
+      emitActFromLog(actId, { action: 'generate', category: 'content', summary: `Gen thất bại: ${cid.slice(0, 20)}`, detail: safe.message, errorCode: safe.code, entityType: 'content', entityId: cid, organizationId: ci?.organizationId }, 'error');
 
       if (ci) {
         emitContentUpdate({
           contentId: cid,
           pageId: ci.pageId,
+          organizationId: ci.organizationId,
           operation: 'generate',
           status: 'failed',
           contentTitle: ci.topic?.slice(0, 100),
@@ -374,11 +385,12 @@ export function startWorkers() {
     if (job?.data?.contentItemId) {
       const safe = sanitizeError(err);
       const cid = job.data.contentItemId;
-      const ci = await prisma.contentItem.findUnique({ where: { id: cid }, select: { pageId: true, topic: true, page: { select: { name: true } } } }).catch(() => null);
+      const ci = await prisma.contentItem.findUnique({ where: { id: cid }, select: { pageId: true, topic: true, organizationId: true, page: { select: { name: true } } } }).catch(() => null);
       if (ci) {
         emitContentUpdate({
           contentId: cid,
           pageId: ci.pageId,
+          organizationId: ci.organizationId,
           operation: 'publish',
           status: 'failed',
           contentTitle: ci.topic?.slice(0, 100),
