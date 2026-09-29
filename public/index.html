@@ -2696,20 +2696,126 @@
             </div>
           </div>
 
-          <!-- AI configuration moved to Organization → AI Providers (org-scoped, BYOK). -->
+          <!-- Cấu hình AI — canonical, org-scoped (BYOK). Reads/writes the
+               CURRENT organization's OrganizationAiCredential /
+               OrganizationAiOperationSetting; switching organization
+               switches which org's settings this shows. -->
           <div class="bg-white rounded-xl border border-gray-100 shadow-sm p-6">
-            <div class="flex items-center gap-3">
+            <div class="flex items-center gap-3 mb-5">
               <div class="w-10 h-10 bg-amber-50 rounded-xl flex items-center justify-center">
                 <i class="ri-key-2-line text-amber-600 text-xl"></i>
               </div>
               <div>
-                <h3 class="font-semibold">Cấu hình AI (Provider, Model, API Key)</h3>
-                <p class="text-xs text-gray-400 mt-0.5">
-                  Đã chuyển sang <a href="#" @click.prevent="openOrgSettings()" class="text-brand-600 hover:underline font-medium">Organization → AI Providers</a>
-                  — mỗi tổ chức tự cấu hình provider/model/API key riêng.
-                </p>
+                <h3 class="font-semibold">Cấu hình AI</h3>
+                <p class="text-xs text-gray-400">Provider, model và API key cho tổ chức <span class="font-medium" x-text="currentOrganization?.name"></span></p>
               </div>
             </div>
+
+            <p x-show="!(currentOrganization?.role==='OWNER'||currentOrganization?.role==='ADMIN')" class="text-xs text-gray-500">
+              Chỉ Owner/Admin xem/quản lý API Key.
+            </p>
+            <template x-if="currentOrganization?.role==='OWNER'||currentOrganization?.role==='ADMIN'">
+              <div>
+                <!-- Operation configuration: which provider+model runs each operation -->
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-5">
+                  <template x-for="opDef in [{op:'TEXT_GENERATION', label:'AI Text (Viết bài)', icon:'ri-quill-pen-line', providers:['claude','openai','gemini']}, {op:'IMAGE_GENERATION', label:'AI Image (Tạo ảnh)', icon:'ri-image-line', providers:['gemini','openai']}]" :key="opDef.op">
+                    <div class="border border-gray-200 rounded-lg p-4">
+                      <p class="text-sm font-semibold text-gray-700 mb-3 flex items-center gap-1.5"><i :class="opDef.icon"></i> <span x-text="opDef.label"></span></p>
+                      <div class="space-y-2">
+                        <div>
+                          <label class="block text-xs font-medium text-gray-500 mb-1">Provider</label>
+                          <select x-model="orgOpForm[opDef.op].provider" @change="onOrgOpProviderChange(opDef.op)"
+                            class="w-full text-sm border border-gray-300 rounded-lg px-3 py-2 outline-none focus:ring-2 focus:ring-brand-500">
+                            <template x-for="p in opDef.providers" :key="p">
+                              <option :value="p" x-text="p"></option>
+                            </template>
+                          </select>
+                        </div>
+                        <div>
+                          <label class="block text-xs font-medium text-gray-500 mb-1">Model</label>
+                          <template x-if="!orgOpForm[opDef.op].useManualModel">
+                            <select x-model="orgOpForm[opDef.op].model" class="w-full text-sm border border-gray-300 rounded-lg px-3 py-2 outline-none focus:ring-2 focus:ring-brand-500">
+                              <option value="">— Chọn model —</option>
+                              <template x-for="m in orgOpModelOptions[opDef.op]" :key="m.id">
+                                <option :value="m.id" x-text="m.name || m.id"></option>
+                              </template>
+                            </select>
+                          </template>
+                          <template x-if="orgOpForm[opDef.op].useManualModel">
+                            <input x-model="orgOpForm[opDef.op].manualModel" type="text" placeholder="Model ID (vd: gpt-4.1)"
+                              class="w-full text-sm border border-gray-300 rounded-lg px-3 py-2 outline-none focus:ring-2 focus:ring-brand-500 font-mono">
+                          </template>
+                        </div>
+                        <div class="flex items-center justify-between pt-1">
+                          <button @click="orgOpForm[opDef.op].useManualModel = !orgOpForm[opDef.op].useManualModel" type="button"
+                            class="text-xs text-brand-600 hover:underline"
+                            x-text="orgOpForm[opDef.op].useManualModel ? 'Chọn từ danh sách' : 'Nhập Model ID khác'"></button>
+                          <button @click="saveOrgOpSetting(opDef.op)" class="text-xs bg-brand-600 text-white px-3 py-1.5 rounded-lg hover:bg-brand-700">Lưu</button>
+                        </div>
+                      </div>
+                      <p x-show="!orgOpCredentialConfigured[opDef.op]" class="text-[11px] text-amber-600 mt-2">
+                        <i class="ri-error-warning-line"></i> Chưa cấu hình API Key cho <span x-text="orgOpForm[opDef.op].provider"></span> — thêm key bên dưới trước khi tạo nội dung.
+                      </p>
+                      <p x-show="orgOpForm[opDef.op].model" class="text-[11px] text-gray-400 mt-1">
+                        Đang dùng: <span class="font-mono" x-text="orgOpForm[opDef.op].model"></span>
+                      </p>
+                    </div>
+                  </template>
+                </div>
+
+                <p class="text-xs font-semibold text-gray-700 mb-2 pt-2 border-t border-gray-100">API Credentials</p>
+                <div class="space-y-2 mb-3">
+                  <template x-for="p in (orgAiCreds?.supportedProviders || ['gemini','openai','claude'])" :key="p">
+                    <div class="flex items-center gap-3 py-2 border-b border-gray-100 last:border-0">
+                      <div class="w-8 h-8 rounded bg-gray-100 flex items-center justify-center text-xs font-semibold text-gray-600" x-text="p.slice(0,2).toUpperCase()"></div>
+                      <div class="flex-1 min-w-0">
+                        <p class="text-sm font-medium capitalize" x-text="p"></p>
+                        <template x-if="(orgAiCreds?.credentials || []).find(c=>c.provider===p)?.status === 'DECRYPT_ERROR'">
+                          <p class="text-xs text-red-600"><i class="ri-error-warning-line"></i> Lỗi credential — nhập lại API key</p>
+                        </template>
+                        <template x-if="(orgAiCreds?.credentials || []).find(c=>c.provider===p)?.status === 'CONFIGURED'">
+                          <p class="text-xs text-gray-500">
+                            <span x-text="(orgAiCreds.credentials.find(c=>c.provider===p) || {}).maskedKey"></span>
+                            <span class="ml-2 text-[10px] px-1.5 py-0.5 rounded"
+                              :class="{
+                                'bg-green-100 text-green-700': (orgAiCreds.credentials.find(c=>c.provider===p)||{}).validationStatus==='CONNECTED',
+                                'bg-red-100 text-red-700':   (orgAiCreds.credentials.find(c=>c.provider===p)||{}).validationStatus==='INVALID',
+                                'bg-gray-100 text-gray-600': !['CONNECTED','INVALID'].includes(((orgAiCreds.credentials.find(c=>c.provider===p)||{}).validationStatus||'')),
+                              }"
+                              x-text="(orgAiCreds.credentials.find(c=>c.provider===p)||{}).validationStatus || 'UNTESTED'"></span>
+                          </p>
+                        </template>
+                        <template x-if="!(orgAiCreds?.credentials || []).find(c=>c.provider===p)">
+                          <p class="text-xs text-gray-400">Chưa cấu hình</p>
+                        </template>
+                      </div>
+                      <template x-if="(orgAiCreds?.credentials || []).find(c=>c.provider===p)">
+                        <div class="flex gap-1">
+                          <button @click="testAiCredential(p)" class="text-xs text-brand-600 hover:underline">Kiểm tra</button>
+                          <button @click="removeAiCredential(p)" class="text-xs text-red-500 hover:underline">Xoá</button>
+                        </div>
+                      </template>
+                    </div>
+                  </template>
+                </div>
+                <div class="flex flex-wrap gap-2 items-center pt-3 border-t border-gray-100">
+                  <select x-model="orgAiForm.provider" class="text-xs border border-gray-200 rounded px-2 py-1.5">
+                    <template x-for="p in (orgAiCreds?.supportedProviders || ['gemini','openai','claude'])" :key="p">
+                      <option :value="p" x-text="p"></option>
+                    </template>
+                  </select>
+                  <input x-model="orgAiForm.apiKey" type="password" placeholder="API Key (thay/nhập mới)" class="flex-1 min-w-[200px] text-xs border border-gray-200 rounded px-2 py-1.5">
+                  <select x-model="orgAiForm.defaultQuality" class="text-xs border border-gray-200 rounded px-2 py-1.5">
+                    <option value="">Chất lượng mặc định (Cân bằng)</option>
+                    <option value="FAST">Nhanh</option>
+                    <option value="BALANCED">Cân bằng</option>
+                    <option value="QUALITY">Chất lượng cao</option>
+                  </select>
+                  <button @click="saveAiCredential()" class="text-xs bg-brand-600 text-white px-3 py-1.5 rounded hover:bg-brand-700">Lưu key</button>
+                </div>
+                <p x-show="orgAiError" x-text="orgAiError" class="text-xs text-red-600 mt-2"></p>
+              </div>
+            </template>
           </div>
 
           <!-- Facebook App -->
@@ -2934,108 +3040,6 @@
             </template>
           </div>
         </div>
-      </div>
-
-      <!-- AI Providers -->
-      <div class="mt-6 p-4 border border-gray-200 rounded-xl">
-        <h4 class="font-semibold text-sm mb-3">AI Providers</h4>
-        <p x-show="!(currentOrganization?.role==='OWNER'||currentOrganization?.role==='ADMIN')" class="text-xs text-gray-500">
-          Chỉ Owner/Admin xem/quản lý API Key.
-        </p>
-        <template x-if="currentOrganization?.role==='OWNER'||currentOrganization?.role==='ADMIN'">
-          <div>
-            <!-- Operation configuration: which provider+model runs each operation -->
-            <div class="space-y-3 mb-4">
-              <template x-for="opDef in [{op:'TEXT_GENERATION', label:'AI Text (Viết bài)', providers:['claude','openai','gemini']}, {op:'IMAGE_GENERATION', label:'AI Image (Tạo ảnh)', providers:['gemini','openai']}]" :key="opDef.op">
-                <div class="border border-gray-100 rounded-lg p-3">
-                  <p class="text-xs font-semibold text-gray-700 mb-2" x-text="opDef.label"></p>
-                  <div class="flex flex-wrap gap-2 items-center">
-                    <select x-model="orgOpForm[opDef.op].provider" @change="onOrgOpProviderChange(opDef.op)"
-                      class="text-xs border border-gray-200 rounded px-2 py-1.5">
-                      <template x-for="p in opDef.providers" :key="p">
-                        <option :value="p" x-text="p"></option>
-                      </template>
-                    </select>
-                    <template x-if="!orgOpForm[opDef.op].useManualModel">
-                      <select x-model="orgOpForm[opDef.op].model" class="flex-1 min-w-[180px] text-xs border border-gray-200 rounded px-2 py-1.5">
-                        <option value="">— Chọn model —</option>
-                        <template x-for="m in orgOpModelOptions[opDef.op]" :key="m.id">
-                          <option :value="m.id" x-text="m.name || m.id"></option>
-                        </template>
-                      </select>
-                    </template>
-                    <template x-if="orgOpForm[opDef.op].useManualModel">
-                      <input x-model="orgOpForm[opDef.op].manualModel" type="text" placeholder="Model ID (vd: gpt-4.1)"
-                        class="flex-1 min-w-[180px] text-xs border border-gray-200 rounded px-2 py-1.5 font-mono">
-                    </template>
-                    <button @click="orgOpForm[opDef.op].useManualModel = !orgOpForm[opDef.op].useManualModel" type="button"
-                      class="text-[11px] text-brand-600 hover:underline whitespace-nowrap"
-                      x-text="orgOpForm[opDef.op].useManualModel ? 'Chọn từ danh sách' : 'Nhập Model ID khác'"></button>
-                    <button @click="saveOrgOpSetting(opDef.op)" class="text-xs bg-brand-600 text-white px-3 py-1.5 rounded hover:bg-brand-700">Lưu</button>
-                  </div>
-                  <p x-show="!orgOpCredentialConfigured[opDef.op]" class="text-[11px] text-amber-600 mt-1.5">
-                    <i class="ri-error-warning-line"></i> Chưa cấu hình API Key cho <span x-text="orgOpForm[opDef.op].provider"></span> — thêm key bên dưới trước khi tạo nội dung.
-                  </p>
-                  <p x-show="orgOpForm[opDef.op].model" class="text-[11px] text-gray-400 mt-1">
-                    Đang dùng: <span class="font-mono" x-text="orgOpForm[opDef.op].model"></span>
-                  </p>
-                </div>
-              </template>
-            </div>
-
-            <p class="text-xs font-semibold text-gray-700 mb-2">API Credentials</p>
-            <div class="space-y-2 mb-3">
-              <template x-for="p in (orgAiCreds?.supportedProviders || ['gemini','openai','claude'])" :key="p">
-                <div class="flex items-center gap-3 py-2 border-b border-gray-100 last:border-0">
-                  <div class="w-8 h-8 rounded bg-gray-100 flex items-center justify-center text-xs font-semibold text-gray-600" x-text="p.slice(0,2).toUpperCase()"></div>
-                  <div class="flex-1 min-w-0">
-                    <p class="text-sm font-medium capitalize" x-text="p"></p>
-                    <template x-if="(orgAiCreds?.credentials || []).find(c=>c.provider===p)?.status === 'DECRYPT_ERROR'">
-                      <p class="text-xs text-red-600"><i class="ri-error-warning-line"></i> Lỗi credential — nhập lại API key</p>
-                    </template>
-                    <template x-if="(orgAiCreds?.credentials || []).find(c=>c.provider===p)?.status === 'CONFIGURED'">
-                      <p class="text-xs text-gray-500">
-                        <span x-text="(orgAiCreds.credentials.find(c=>c.provider===p) || {}).maskedKey"></span>
-                        <span class="ml-2 text-[10px] px-1.5 py-0.5 rounded"
-                          :class="{
-                            'bg-green-100 text-green-700': (orgAiCreds.credentials.find(c=>c.provider===p)||{}).validationStatus==='CONNECTED',
-                            'bg-red-100 text-red-700':   (orgAiCreds.credentials.find(c=>c.provider===p)||{}).validationStatus==='INVALID',
-                            'bg-gray-100 text-gray-600': !['CONNECTED','INVALID'].includes(((orgAiCreds.credentials.find(c=>c.provider===p)||{}).validationStatus||'')),
-                          }"
-                          x-text="(orgAiCreds.credentials.find(c=>c.provider===p)||{}).validationStatus || 'UNTESTED'"></span>
-                      </p>
-                    </template>
-                    <template x-if="!(orgAiCreds?.credentials || []).find(c=>c.provider===p)">
-                      <p class="text-xs text-gray-400">Chưa cấu hình</p>
-                    </template>
-                  </div>
-                  <template x-if="(orgAiCreds?.credentials || []).find(c=>c.provider===p)">
-                    <div class="flex gap-1">
-                      <button @click="testAiCredential(p)" class="text-xs text-brand-600 hover:underline">Kiểm tra</button>
-                      <button @click="removeAiCredential(p)" class="text-xs text-red-500 hover:underline">Xoá</button>
-                    </div>
-                  </template>
-                </div>
-              </template>
-            </div>
-            <div class="flex flex-wrap gap-2 items-center pt-3 border-t border-gray-100">
-              <select x-model="orgAiForm.provider" class="text-xs border border-gray-200 rounded px-2 py-1.5">
-                <template x-for="p in (orgAiCreds?.supportedProviders || ['gemini','openai','claude'])" :key="p">
-                  <option :value="p" x-text="p"></option>
-                </template>
-              </select>
-              <input x-model="orgAiForm.apiKey" type="password" placeholder="API Key" class="flex-1 min-w-[200px] text-xs border border-gray-200 rounded px-2 py-1.5">
-              <select x-model="orgAiForm.defaultQuality" class="text-xs border border-gray-200 rounded px-2 py-1.5">
-                <option value="">Chất lượng mặc định (Cân bằng)</option>
-                <option value="FAST">Nhanh</option>
-                <option value="BALANCED">Cân bằng</option>
-                <option value="QUALITY">Chất lượng cao</option>
-              </select>
-              <button @click="saveAiCredential()" class="text-xs bg-brand-600 text-white px-3 py-1.5 rounded hover:bg-brand-700">Lưu key</button>
-            </div>
-            <p x-show="orgAiError" x-text="orgAiError" class="text-xs text-red-600 mt-2"></p>
-          </div>
-        </template>
       </div>
     </div>
   </div>
@@ -4428,12 +4432,18 @@ function app() {
     async loadSettings() {
       try {
         const data = await this.api('/dashboard/settings');
-        // AI provider/model/key fields are no longer edited on this page —
-        // see Organization → AI Providers. Non-AI fields (Telegram,
-        // Facebook, timezone) still live here.
+        // Telegram/Facebook/timezone only — AI fields are no longer read
+        // from here (see "Cấu hình AI" below, org-scoped).
         this.settingsForm = data.settings || {};
         this.showKeys = { anthropic: false, openai: false, gemini: false, telegram: false, fbSecret: false };
       } catch {}
+      // "Cấu hình AI" reads/writes the CURRENT organization's settings —
+      // reload whenever this page opens so switching org shows that org's
+      // own AI config, never a stale one from a previously viewed org.
+      try {
+        this.orgAiCreds = await this.api('/ai-credentials');
+        await this.loadOrgAiOperations();
+      } catch (e) { console.warn('load AI settings failed', e); }
     },
 
     async saveSettings() {
@@ -5302,6 +5312,7 @@ function app() {
       await this.validateScope();
       await this.loadScopePages();
       await this.loadDashboard();
+      if (this.page === 'settings') await this.loadSettings(); // reload THIS org's AI config
       if (this.socket) {
         try { this.socket.emit('subscribe:org', orgId); } catch {}
       }
@@ -5314,13 +5325,13 @@ function app() {
       } catch {}
     },
     async openOrgSettings() {
+      // Organization & member management only (plan/limits, members,
+      // invitations, access). AI configuration lives in Cài đặt hệ thống.
       if (!this.currentOrganization) return;
       this.orgSettingsOpen = true;
       try {
         this.orgMembers = await this.api(`/organizations/${this.currentOrganization.id}/members`);
-        this.orgAiCreds = await this.api('/ai-credentials');
         this.orgInvitations = await this.api('/organizations-invitations');
-        await this.loadOrgAiOperations();
       } catch (e) { console.warn('org settings load failed', e); }
     },
     // ---------------- AI operation settings (canonical AI config UI) ----------------
