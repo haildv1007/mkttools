@@ -99,12 +99,6 @@ enum InvitationStatus {
   EXPIRED
 }
 
-enum AiQualityTier {
-  FAST
-  BALANCED
-  QUALITY
-}
-
 model User {
   id             String   @id @default(cuid())
   email          String   @unique
@@ -234,7 +228,6 @@ model OrganizationAiCredential {
   source            AiCredentialSource     @default(ORGANIZATION_KEY)
   encryptedApiKey   String                 @map("encrypted_api_key")
   defaultModel      String?                @map("default_model")
-  defaultQuality    AiQualityTier?         @map("default_quality")
   config            Json?
   isActive          Boolean                @default(true) @map("is_active")
   validationStatus  AiCredentialValidation @default(UNTESTED) @map("validation_status")

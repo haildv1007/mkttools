@@ -59,14 +59,12 @@ async function attachCredential(
     operation: ctx.operation || operation,
     explicitProvider: ctx.provider ?? null,
     explicitModel: ctx.model ?? null,
-    qualityTier: ctx.qualityTier ?? null,
     actorUserId: ctx.actorUserId,
   });
   ctx.provider = resolved.provider;
   ctx.model = resolved.model;
   ctx.apiKey = resolved.apiKey;
   ctx.operation = resolved.operation;
-  ctx.qualityTier = resolved.quality;
   return ctx;
 }
 

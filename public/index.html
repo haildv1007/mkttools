@@ -2759,6 +2759,9 @@
                       <p x-show="orgOpForm[opDef.op].model" class="text-[11px] text-gray-400 mt-1">
                         Đang dùng: <span class="font-mono" x-text="orgOpForm[opDef.op].model"></span>
                       </p>
+                      <p x-show="!orgOpForm[opDef.op].model" class="text-[11px] text-red-500 mt-1">
+                        <i class="ri-error-warning-line"></i> Chưa cấu hình model
+                      </p>
                     </div>
                   </template>
                 </div>
@@ -2805,12 +2808,6 @@
                     </template>
                   </select>
                   <input x-model="orgAiForm.apiKey" type="password" placeholder="API Key (thay/nhập mới)" class="flex-1 min-w-[200px] text-xs border border-gray-200 rounded px-2 py-1.5">
-                  <select x-model="orgAiForm.defaultQuality" class="text-xs border border-gray-200 rounded px-2 py-1.5">
-                    <option value="">Chất lượng mặc định (Cân bằng)</option>
-                    <option value="FAST">Nhanh</option>
-                    <option value="BALANCED">Cân bằng</option>
-                    <option value="QUALITY">Chất lượng cao</option>
-                  </select>
                   <button @click="saveAiCredential()" class="text-xs bg-brand-600 text-white px-3 py-1.5 rounded hover:bg-brand-700">Lưu key</button>
                 </div>
                 <p x-show="orgAiError" x-text="orgAiError" class="text-xs text-red-600 mt-2"></p>
@@ -3248,7 +3245,7 @@ function app() {
     orgMemberForm: { email: '', role: 'MEMBER' },
     orgMemberError: '',
     orgAiCreds: null,
-    orgAiForm: { provider: 'gemini', apiKey: '', defaultModel: '', defaultQuality: '' },
+    orgAiForm: { provider: 'gemini', apiKey: '', defaultModel: '' },
     orgAiError: '',
     // Canonical AI configuration: one provider+model per operation.
     orgOpForm: {
@@ -5503,7 +5500,6 @@ function app() {
           body: JSON.stringify({
             apiKey: this.orgAiForm.apiKey,
             defaultModel: this.orgAiForm.defaultModel || null,
-            defaultQuality: this.orgAiForm.defaultQuality || null,
           }),
         });
         this.orgAiForm.apiKey = '';

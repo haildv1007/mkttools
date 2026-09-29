@@ -3,7 +3,7 @@ import { prisma } from '../../utils/db';
 import { AuthRequest } from '../../middleware/auth';
 import { encryptSecret, decryptSecret, maskSecret } from '../../utils/crypto';
 import { roleAtLeast, OrgRole } from '../organization';
-import { PROVIDER_MODELS, QUALITY_TIERS, providerSupports, Operation, Quality } from './provider-models';
+import { PROVIDER_MODELS, providerSupports, Operation } from './provider-models';
 
 export type CredentialSource = 'ORGANIZATION_KEY' | 'PERSONAL_KEY' | 'PLATFORM_API';
 export const ENABLED_SOURCES: CredentialSource[] = ['ORGANIZATION_KEY'];
@@ -19,8 +19,9 @@ export interface ResolvedCredential {
   source: CredentialSource;
   provider: string;
   apiKey: string;
+  /** Optional provider-level fallback model, only used when the operation
+   *  has no explicit model configured. Never overrides an operation setting. */
   defaultModel: string | null;
-  defaultQuality: Quality | null;
   config: Record<string, unknown> | null;
 }
 
@@ -50,6 +51,15 @@ export class AiModelNotAvailableError extends Error {
   constructor(msg = 'Model không khả dụng cho provider này.') { super(msg); }
 }
 
+/** Provider is configured and reachable, but no explicit model was ever
+ *  selected for this operation. BYOK: we never guess a model on the
+ *  customer's behalf — this must be surfaced, not silently resolved. */
+export class AiModelNotConfiguredError extends Error {
+  status = 400 as const;
+  code = 'AI_MODEL_NOT_CONFIGURED' as const;
+  constructor(msg = 'Chưa cấu hình model.') { super(msg); }
+}
+
 /**
  * Resolve the credential a generation call should use for this org+provider.
  * Credentials are strictly organization-scoped — there is no cross-org or
@@ -76,7 +86,6 @@ export async function resolveCredential(args: { organizationId: string; provider
     provider: providerLower,
     apiKey,
     defaultModel: existing.defaultModel,
-    defaultQuality: (existing.defaultQuality as Quality | null) ?? null,
     config: (existing.config as Record<string, unknown> | null) ?? null,
   };
 }
@@ -99,19 +108,20 @@ export async function credentialStatus(args: { organizationId: string; provider:
 
 // ---------------- Model resolver ----------------
 
-export { AiModelNotSupportedError, PROVIDER_MODELS, QUALITY_TIERS, providerSupports } from './provider-models';
-export type { Operation, Quality } from './provider-models';
+export { PROVIDER_MODELS, providerSupports, recommendedModels } from './provider-models';
+export type { Operation } from './provider-models';
 
 export interface ResolvedGeneration {
   provider: string;
   operation: Operation;
   model: string;
   apiKey: string;
-  quality?: Quality;
 }
 
 /**
  * Single source of truth for "what do we actually call the provider with".
+ * BYOK: the customer explicitly picks provider + model; there is no
+ * quality-tier system and generation never guesses a model on its behalf.
  *
  * Priority (per operation):
  *   1. Explicit override passed by the caller (rare — e.g. an internal test
@@ -120,18 +130,19 @@ export interface ResolvedGeneration {
  *      (TEXT_REVISION inherits TEXT_GENERATION's setting, IMAGE_REVISION
  *      inherits IMAGE_GENERATION's — customers don't configure revision
  *      separately).
- *   3. The provider credential's defaultModel, if the customer set one.
- *   4. A quality-tier fallback from the recommended catalog.
+ *   3. The provider credential's defaultModel, if the customer set one, as
+ *      a provider-level fallback only (it never overrides an operation
+ *      setting that already names a model).
  *
- * An explicitly selected model is never silently swapped for another one —
- * if step 1 or 2 name a model, that exact string reaches the provider call.
+ * If no model is resolved by that point, this throws
+ * AiModelNotConfiguredError rather than picking one — an explicitly
+ * selected model is never silently swapped for another.
  */
 export async function resolveGeneration(args: {
   organizationId: string;
   operation: Operation;
   explicitProvider?: string | null;
   explicitModel?: string | null;
-  qualityTier?: Quality | null;
   actorUserId?: string;
 }): Promise<ResolvedGeneration> {
   const { organizationId, operation } = args;
@@ -160,21 +171,9 @@ export async function resolveGeneration(args: {
 
   if (!model && opSetting && opSetting.provider === provider) model = opSetting.model;
   if (!model && cred.defaultModel) model = cred.defaultModel;
+  if (!model) throw new AiModelNotConfiguredError(`Chưa cấu hình model cho ${provider}/${operation}.`);
 
-  let quality: Quality | undefined;
-  if (!model) {
-    quality = args.qualityTier || cred.defaultQuality || 'BALANCED';
-    const table = PROVIDER_MODELS[provider]?.[operation];
-    model = table?.[quality] ?? null;
-    if (!model) {
-      for (const q of QUALITY_TIERS) {
-        if (table?.[q]) { quality = q; model = table[q]; break; }
-      }
-    }
-    if (!model) throw new AiModelNotAvailableError(`Không có model khả dụng cho ${provider}/${operation}.`);
-  }
-
-  return { provider, operation, model, apiKey: cred.apiKey, quality };
+  return { provider, operation, model, apiKey: cred.apiKey };
 }
 
 function serialize(row: any) {
@@ -193,7 +192,6 @@ function serialize(row: any) {
     provider: row.provider,
     source: row.source,
     defaultModel: row.defaultModel,
-    defaultQuality: row.defaultQuality,
     config: row.config,
     isActive: row.isActive,
     status,
@@ -223,7 +221,6 @@ router.get('/', async (req: AuthRequest, res: Response) => {
   const providerCatalog = SUPPORTED_PROVIDERS.map((p) => ({
     provider: p,
     operations: PROVIDER_MODELS[p] || {},
-    qualityTiers: QUALITY_TIERS,
   }));
   if (requireOrgAdmin(req.organizationRole)) {
     res.json({ enabledSources: ENABLED_SOURCES, supportedProviders: SUPPORTED_PROVIDERS, providerCatalog, credentials: creds.map(serialize) });
@@ -241,26 +238,26 @@ router.put('/:provider', async (req: AuthRequest, res: Response) => {
   if (!requireOrgAdmin(req.organizationRole)) return res.status(403).json({ error: 'FORBIDDEN' });
   const provider = String(req.params.provider).toLowerCase();
   if (!SUPPORTED_PROVIDERS.includes(provider as ProviderName)) return res.status(400).json({ error: 'UNSUPPORTED_PROVIDER' });
-  const { apiKey, defaultModel, defaultQuality, config, source } = req.body || {};
+  const { apiKey, defaultModel, config, source } = req.body || {};
   const wantedSource: CredentialSource = source && ENABLED_SOURCES.includes(source) ? source : 'ORGANIZATION_KEY';
   if (!apiKey || typeof apiKey !== 'string' || apiKey.length < 6) {
     return res.status(400).json({ error: 'INVALID_KEY', message: 'API key không hợp lệ.' });
   }
   // BYOK: defaultModel is a free-form provider model id, not restricted to
   // the recommended catalog — the customer pays the provider directly and
-  // may use any model their key supports.
-  const wantedQuality = defaultQuality && QUALITY_TIERS.includes(defaultQuality) ? defaultQuality : null;
+  // may use any model their key supports. It is only a provider-level
+  // fallback and never overrides an operation's explicit model.
   const enc = encryptSecret(apiKey.trim());
   const row = await prisma.organizationAiCredential.upsert({
     where: { organizationId_provider: { organizationId: req.organizationId!, provider } },
     update: {
-      encryptedApiKey: enc, defaultModel: defaultModel || null, defaultQuality: wantedQuality,
+      encryptedApiKey: enc, defaultModel: defaultModel || null,
       config: config ?? undefined, source: wantedSource, isActive: true,
       validationStatus: 'UNTESTED', validationMessage: null, lastValidatedAt: null,
     },
     create: {
       organizationId: req.organizationId!, provider,
-      encryptedApiKey: enc, defaultModel: defaultModel || null, defaultQuality: wantedQuality,
+      encryptedApiKey: enc, defaultModel: defaultModel || null,
       config: config ?? undefined, source: wantedSource, isActive: true,
     },
   });

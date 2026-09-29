@@ -89,8 +89,7 @@ export function startWorkers() {
     });
 
     const actorUserId = (job.data.actorUserId as string) || undefined;
-    const qualityTier = (job.data.qualityTier as 'FAST' | 'BALANCED' | 'QUALITY' | undefined);
-    const credentialCtx = { organizationId, actorUserId, qualityTier };
+    const credentialCtx = { organizationId, actorUserId };
     const textResult = await generateText({
       topic: item.topic,
       pageName: item.page.name,

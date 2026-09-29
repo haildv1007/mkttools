@@ -36,10 +36,8 @@ export interface CredentialContext {
    *  use this apiKey/model rather than reading global settings. */
   apiKey?: string;
   model?: string;
-  /** Optional operation for AiModelResolver. Defaults per generateX() call. */
+  /** Optional operation for resolveGeneration(). Defaults per generateX() call. */
   operation?: 'TEXT_GENERATION' | 'TEXT_REVISION' | 'IMAGE_GENERATION' | 'IMAGE_REVISION' | 'VIDEO_GENERATION';
-  /** Optional quality tier override. */
-  qualityTier?: 'FAST' | 'BALANCED' | 'QUALITY';
 }
 
 export interface TextGeneratorOptions {

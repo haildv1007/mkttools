@@ -143,6 +143,24 @@ async function main() {
     'resolveGeneration surfaces AI_CREDENTIAL_INVALID rather than throwing a raw decrypt error',
   );
 
+  // ─── H. Provider configured, but no explicit model anywhere → AI_MODEL_NOT_CONFIGURED ───
+  console.log('\nH. No explicit model configured');
+  const { org: orgNoModel } = await seedOrg('ai-settings-nomodel@example.com', 'AI Settings No Model Org');
+  await prisma.organizationAiCredential.create({
+    data: { organizationId: orgNoModel.id, provider: 'gemini', encryptedApiKey: encryptSecret('AIza-fake-key-nomodel'), isActive: true },
+  });
+  await prisma.organizationAiOperationSetting.create({
+    // Operation setting exists (so provider resolves) but was seeded without
+    // a model the same way a raw DB row could end up — resolveGeneration
+    // must still refuse to guess, never fall back to a quality tier.
+    data: { organizationId: orgNoModel.id, operation: 'TEXT_GENERATION', provider: 'gemini', model: '' },
+  });
+  await assertThrows(
+    () => resolveGeneration({ organizationId: orgNoModel.id, operation: 'TEXT_GENERATION' }),
+    'AI_MODEL_NOT_CONFIGURED',
+    'credential configured but no explicit model -> AI_MODEL_NOT_CONFIGURED, not a guessed model',
+  );
+
   // ─── G. Tenant isolation: org B never sees org A's key or settings ───
   console.log('\nG. Tenant isolation');
   await assertThrows(
