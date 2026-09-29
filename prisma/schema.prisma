@@ -69,6 +69,7 @@ enum OrgMemberStatus {
 
 enum SubscriptionStatus {
   ACTIVE
+  TRIAL
   EXPIRED
   CANCELLED
 }
@@ -121,6 +122,7 @@ model User {
   approvalLogs  ApprovalLog[]
   ownedOrganizations Organization[] @relation("OrgOwner")
   memberships   OrganizationMember[]
+  trialEntitlement UserTrialEntitlement?
 
   @@map("users")
 }
@@ -263,6 +265,8 @@ model OrganizationSubscription {
   expiresAt        DateTime?          @map("expires_at")
   customMaxPages   Int?               @map("custom_max_pages")
   customMaxMembers Int?               @map("custom_max_members")
+  trialStartedAt   DateTime?          @map("trial_started_at")
+  trialEndsAt      DateTime?          @map("trial_ends_at")
   createdAt        DateTime           @default(now()) @map("created_at")
   updatedAt        DateTime           @updatedAt @map("updated_at")
 
@@ -271,6 +275,29 @@ model OrganizationSubscription {
 
   @@index([organizationId, status])
   @@map("organization_subscriptions")
+}
+
+model TrialPolicy {
+  id              String   @id @default(cuid())
+  trialEnabled    Boolean  @default(true) @map("trial_enabled")
+  trialDays       Int      @default(7) @map("trial_days")
+  trialMaxPages   Int      @default(2) @map("trial_max_pages")
+  trialMaxMembers Int      @default(2) @map("trial_max_members")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  @@map("trial_policy")
+}
+
+model UserTrialEntitlement {
+  id             String   @id @default(cuid())
+  userId         String   @unique @map("user_id")
+  organizationId String   @map("organization_id")
+  startedAt      DateTime @default(now()) @map("started_at")
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("user_trial_entitlements")
 }
 
 model Page {

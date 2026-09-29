@@ -141,10 +141,11 @@
             <p class="text-sm font-medium truncate" x-text="currentOrganization?.name || '—'"></p>
             <p class="text-[10px] text-gray-400">
               <span x-text="currentOrganization?.role"></span>
+              <span x-show="orgSubscription?.isTrial && orgSubscription?.subscriptionStatus === 'TRIAL'" class="text-amber-500"> · Dùng thử còn <span x-text="orgSubscription?.trialDaysRemaining"></span>d</span>
+              <span x-show="orgSubscription?.subscriptionStatus === 'EXPIRED'" class="text-red-500"> · Hết hạn</span>
               <span x-show="orgPageUsage.limit != null"> · Pages <span x-text="orgPageUsage.used"></span>/<span x-text="orgPageUsage.limit"></span></span>
               <span x-show="orgPageUsage.limit == null"> · Pages <span x-text="orgPageUsage.used"></span>/∞</span>
-              <span x-show="orgMemberUsage.limit != null"> · Thành viên <span x-text="orgMemberUsage.used"></span>/<span x-text="orgMemberUsage.limit"></span></span>
-              <span x-show="orgMemberUsage.limit == null"> · Thành viên <span x-text="orgMemberUsage.used"></span>/∞</span>
+              <span x-show="orgMemberUsage.limit != null"> · TV <span x-text="orgMemberUsage.used"></span>/<span x-text="orgMemberUsage.limit"></span></span>
             </p>
           </div>
           <i x-show="organizations.length>1" class="ri-arrow-down-s-line text-gray-400 text-sm transition" :class="orgSelectorOpen && 'rotate-180'"></i>
@@ -3015,30 +3016,72 @@
       </div>
 
       <!-- Subscription -->
-      <div class="mb-6 p-4 border border-gray-200 rounded-xl">
-        <h4 class="font-semibold text-sm mb-3">Gói dịch vụ & Giới hạn Page</h4>
-        <div class="flex items-center gap-4 mb-3">
-          <div class="flex-1">
+      <div class="mb-6 p-4 rounded-xl"
+           :class="orgSubscription?.subscriptionStatus === 'EXPIRED' ? 'border-2 border-red-300 bg-red-50' : orgSubscription?.isTrial ? 'border border-amber-300 bg-amber-50' : 'border border-gray-200'">
+        <div class="flex items-center gap-2 mb-3">
+          <h4 class="font-semibold text-sm">Gói dịch vụ & Giới hạn</h4>
+          <!-- Trial badge -->
+          <span x-show="orgSubscription?.isTrial && orgSubscription?.subscriptionStatus !== 'EXPIRED'"
+                class="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-amber-200 text-amber-800">Dùng thử</span>
+          <!-- Expiring soon badge -->
+          <span x-show="orgSubscription?.isTrial && orgSubscription?.subscriptionStatus === 'TRIAL' && orgSubscription?.trialDaysRemaining != null && orgSubscription?.trialDaysRemaining <= 2 && orgSubscription?.trialDaysRemaining > 0"
+                class="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-red-200 text-red-800">Sắp hết hạn</span>
+          <!-- Expired badge -->
+          <span x-show="orgSubscription?.subscriptionStatus === 'EXPIRED'"
+                class="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-red-200 text-red-800">Đã hết hạn</span>
+        </div>
+
+        <!-- Trial active -->
+        <template x-if="orgSubscription?.isTrial && orgSubscription?.subscriptionStatus === 'TRIAL'">
+          <div class="mb-3">
+            <p class="text-sm font-medium text-amber-700">
+              Dùng thử · Còn
+              <span x-text="orgSubscription?.trialDaysRemaining"></span>
+              ngày
+            </p>
+            <p class="text-xs text-amber-600 mt-0.5" x-text="'Kết thúc: ' + (orgSubscription?.trialEndsAt ? new Date(orgSubscription.trialEndsAt).toLocaleDateString('vi-VN') : '—')"></p>
+          </div>
+        </template>
+
+        <!-- Expired trial -->
+        <template x-if="orgSubscription?.subscriptionStatus === 'EXPIRED'">
+          <div class="mb-3">
+            <p class="text-sm font-semibold text-red-700">Dùng thử đã hết hạn</p>
+            <p class="text-xs text-red-500 mt-0.5">Dữ liệu của bạn vẫn còn. Vui lòng liên hệ để nâng cấp.</p>
+            <a href="mailto:support@mkttools.local?subject=Nâng cấp gói"
+               class="inline-block mt-2 px-3 py-1.5 rounded-lg bg-red-600 text-white text-xs font-semibold hover:bg-red-700">
+              Liên hệ nâng cấp
+            </a>
+          </div>
+        </template>
+
+        <!-- Active paid plan name -->
+        <template x-if="!orgSubscription?.isTrial && orgSubscription?.subscriptionStatus === 'ACTIVE'">
+          <div class="mb-3">
             <p class="text-xs text-gray-500">Gói hiện tại</p>
             <p class="text-sm font-medium" x-text="orgSubscription?.planName || 'Chưa gán gói'"></p>
           </div>
+        </template>
+
+        <div class="flex items-center gap-4 mb-2">
           <div class="flex-1">
-            <p class="text-xs text-gray-500">Sử dụng Page</p>
+            <p class="text-xs text-gray-500">Pages</p>
             <p class="text-sm font-medium">
               <span x-text="orgPageUsage.used"></span> / <span x-text="orgPageUsage.limit ?? '∞'"></span>
               <span x-show="orgPageUsage.limit != null && orgPageUsage.used > orgPageUsage.limit" class="text-red-600 text-xs ml-1">(vượt hạn mức)</span>
             </p>
           </div>
           <div class="flex-1">
-            <p class="text-xs text-gray-500">Sử dụng Thành viên</p>
+            <p class="text-xs text-gray-500">Thành viên</p>
             <p class="text-sm font-medium">
               <span x-text="orgMemberUsage.used"></span> / <span x-text="orgMemberUsage.limit ?? '∞'"></span>
               <span x-show="orgMemberUsage.limit != null && orgMemberUsage.used >= orgMemberUsage.limit" class="text-amber-600 text-xs ml-1">(đã đầy)</span>
             </p>
           </div>
         </div>
-        <p class="text-xs text-gray-500">Giới hạn: <span class="font-medium" x-text="(orgPageUsage.limit ?? '∞') + ' Page · ' + (orgMemberUsage.limit ?? '∞') + ' Thành viên'"></span></p>
-        <a href="mailto:support@mkttools.local?subject=Nâng cấp gói" class="inline-block mt-2 text-xs text-brand-600 hover:underline">Nâng cấp gói</a>
+        <template x-if="orgSubscription?.subscriptionStatus !== 'EXPIRED'">
+          <a href="mailto:support@mkttools.local?subject=Nâng cấp gói" class="inline-block mt-1 text-xs text-brand-600 hover:underline">Nâng cấp gói</a>
+        </template>
       </div>
 
       <!-- Members -->
@@ -5465,7 +5508,7 @@ function app() {
         }
         this.organizations = data.memberships || [];
         this.currentOrganization = data.current;
-        this.orgSubscription = data.subscription;
+        this.orgSubscription = data.subscription;   // { subscriptionStatus, isTrial, trialDaysRemaining, ... }
         this.orgPageUsage = data.pageUsage || { used: 0, limit: null };
         this.orgMemberUsage = data.memberUsage || { used: 0, limit: null };
         if (data.current) localStorage.setItem('mkt_current_org', data.current.id);

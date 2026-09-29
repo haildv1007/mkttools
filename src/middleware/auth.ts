@@ -140,7 +140,7 @@ authRouter.post('/register', async (req: Request, res: Response) => {
     data: { email, passwordHash, name, role: 'ADMIN' },
   });
 
-  // Auto-provision a personal organization + STARTER plan so the user isn't stranded.
+  // Auto-provision a personal organization. Start a trial if eligible.
   const orgName = String(organizationName || `${name} Organization`).trim();
   const org = await prisma.organization.create({
     data: {
@@ -150,8 +150,24 @@ authRouter.post('/register', async (req: Request, res: Response) => {
       members: { create: { userId: user.id, role: 'OWNER', status: 'ACTIVE' } },
     },
   });
+
+  // Trial eligibility: policy must be enabled AND this owner has never consumed a trial.
+  const { getTrialPolicy } = await import('../modules/organization');
+  const trialPolicy = await getTrialPolicy();
+  const existingEntitlement = await prisma.userTrialEntitlement.findUnique({ where: { userId: user.id } });
   const starter = await prisma.subscriptionPlan.findUnique({ where: { code: 'STARTER_3' } });
-  if (starter) {
+
+  if (trialPolicy.trialEnabled && !existingEntitlement && starter) {
+    const now = new Date();
+    const trialEndsAt = new Date(now.getTime() + trialPolicy.trialDays * 24 * 3600 * 1000);
+    await prisma.organizationSubscription.create({
+      data: { organizationId: org.id, planId: starter.id, status: 'TRIAL', trialStartedAt: now, trialEndsAt },
+    });
+    await prisma.userTrialEntitlement.create({
+      data: { id: `ute_${user.id}`, userId: user.id, organizationId: org.id, startedAt: now },
+    });
+  } else if (starter) {
+    // Trial not available — assign STARTER ACTIVE (no trial)
     await prisma.organizationSubscription.create({
       data: { organizationId: org.id, planId: starter.id, status: 'ACTIVE' },
     });

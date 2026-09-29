@@ -2,7 +2,7 @@ import { Router, Request, Response } from 'express';
 import crypto from 'crypto';
 import { prisma } from '../../utils/db';
 import { AuthRequest, authMiddleware } from '../../middleware/auth';
-import { roleAtLeast, OrgRole, OrganizationQuota } from '../organization';
+import { roleAtLeast, OrgRole, OrganizationQuota, resolveSubscriptionContext } from '../organization';
 
 const TOKEN_LEN = 32;
 const DEFAULT_TTL_DAYS = 14;
@@ -45,6 +45,12 @@ orgRouter.post('/', async (req: AuthRequest, res: Response) => {
   if (!requireAdmin(req, res)) return;
   const email = normalizeEmail(req.body?.email);
   if (!email || !email.includes('@')) return res.status(400).json({ error: 'INVALID_EMAIL' });
+
+  // Block if subscription expired
+  const subCtx = await resolveSubscriptionContext(req.organizationId!);
+  if (subCtx.status === 'EXPIRED' || subCtx.status === 'NONE') {
+    return res.status(402).json({ error: 'SUBSCRIPTION_EXPIRED', message: 'Thời gian dùng thử đã kết thúc. Vui lòng nâng cấp gói để tiếp tục sử dụng.' });
+  }
 
   const role = ['ADMIN', 'MANAGER', 'MEMBER'].includes(req.body?.role) ? req.body.role : 'MEMBER';
   const accessMode = req.body?.accessMode === 'RESTRICTED' ? 'RESTRICTED' : 'ALL';

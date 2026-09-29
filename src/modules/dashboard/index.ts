@@ -9,7 +9,7 @@ import { contentQueue, publishQueue } from '../../queues';
 import { getSetting, getSettings, setSettings } from '../settings';
 import { resolvePageIds } from '../workspace';
 import { AuthRequest } from '../../middleware/auth';
-import { OrganizationQuota } from '../organization';
+import { OrganizationQuota, resolveSubscriptionContext } from '../organization';
 import { tryResolveCredential } from '../ai-credentials';
 import { getAccessContext, getAccessiblePageIds, getAccessibleWorkspaceIds, canAccessPage, intersectPageIds } from '../access';
 import { logActivity, updateActivity, sanitizeError } from '../../utils/activity';
@@ -951,6 +951,11 @@ router.post('/pages', async (req: AuthRequest, res: Response) => {
     if (!['OWNER', 'ADMIN'].includes(req.organizationRole || '')) {
       return res.status(403).json({ error: 'FORBIDDEN', message: 'Chỉ Owner/Admin được kết nối Page.' });
     }
+    // Block if subscription expired
+    const subCtx = await resolveSubscriptionContext(req.organizationId!);
+    if (subCtx.status === 'EXPIRED' || subCtx.status === 'NONE') {
+      return res.status(402).json({ error: 'SUBSCRIPTION_EXPIRED', message: 'Thời gian dùng thử đã kết thúc. Vui lòng nâng cấp gói để tiếp tục sử dụng.' });
+    }
     // Enforce quota before creation
     const check = await OrganizationQuota.canAddPage(req.organizationId!);
     if (!check.ok) {
@@ -1280,6 +1285,10 @@ router.get('/content/campaigns-for-pages', async (req: AuthRequest, res: Respons
 });
 
 router.post('/content/generate-all-drafts', async (req: AuthRequest, res: Response) => {
+  const subCtx = await resolveSubscriptionContext(req.organizationId!);
+  if (subCtx.status === 'EXPIRED' || subCtx.status === 'NONE') {
+    return res.status(402).json({ error: 'SUBSCRIPTION_EXPIRED', message: 'Thời gian dùng thử đã kết thúc. Vui lòng nâng cấp gói để tiếp tục sử dụng.' });
+  }
   const drafts = await prisma.contentItem.findMany({
     where: { organizationId: req.organizationId, status: 'DRAFT' },
     take: 50,
@@ -1298,6 +1307,10 @@ router.post('/content/generate-all-drafts', async (req: AuthRequest, res: Respon
 });
 
 router.post('/content/:id/regenerate', async (req: AuthRequest, res: Response) => {
+  const subCtx = await resolveSubscriptionContext(req.organizationId!);
+  if (subCtx.status === 'EXPIRED' || subCtx.status === 'NONE') {
+    return res.status(402).json({ error: 'SUBSCRIPTION_EXPIRED', message: 'Thời gian dùng thử đã kết thúc. Vui lòng nâng cấp gói để tiếp tục sử dụng.' });
+  }
   const id = req.params.id as string;
   const owned = await loadContentInOrg(id, req.organizationId, req);
   if (!owned) return res.status(404).json({ error: 'Content not found' });
@@ -1311,6 +1324,10 @@ router.post('/content/:id/regenerate', async (req: AuthRequest, res: Response) =
 });
 
 router.post('/content/:id/publish-now', async (req: AuthRequest, res: Response) => {
+  const subCtx = await resolveSubscriptionContext(req.organizationId!);
+  if (subCtx.status === 'EXPIRED' || subCtx.status === 'NONE') {
+    return res.status(402).json({ error: 'SUBSCRIPTION_EXPIRED', message: 'Thời gian dùng thử đã kết thúc. Vui lòng nâng cấp gói để tiếp tục sử dụng.' });
+  }
   const id = req.params.id as string;
   const owned = await loadContentInOrg(id, req.organizationId, req);
   if (!owned) return res.status(404).json({ success: false, error: 'Not found' });

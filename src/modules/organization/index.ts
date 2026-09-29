@@ -103,18 +103,115 @@ export function assertResourceOrganization(
   return true;
 }
 
+// ---------------- Trial policy ----------------
+
+export interface TrialPolicyConfig {
+  trialEnabled: boolean;
+  trialDays: number;
+  trialMaxPages: number;
+  trialMaxMembers: number;
+}
+
+export async function getTrialPolicy(): Promise<TrialPolicyConfig> {
+  const row = (await prisma.trialPolicy.findUnique({ where: { id: 'trial_policy_singleton' } })) as any;
+  if (!row) return { trialEnabled: true, trialDays: 7, trialMaxPages: 2, trialMaxMembers: 2 };
+  return {
+    trialEnabled: row.trialEnabled,
+    trialDays: row.trialDays,
+    trialMaxPages: row.trialMaxPages,
+    trialMaxMembers: row.trialMaxMembers,
+  };
+}
+
+// ---------------- Subscription context ----------------
+
+export interface SubscriptionContext {
+  status: 'ACTIVE' | 'TRIAL' | 'EXPIRED' | 'NONE';
+  isTrial: boolean;
+  pageLimit: number | null;   // null = unlimited; 0 = fully blocked
+  memberLimit: number | null;
+  trialStartedAt: Date | null;
+  trialEndsAt: Date | null;
+  trialDaysRemaining: number | null;
+  planCode: string | null;
+  planName: string | null;
+}
+
+export async function resolveSubscriptionContext(orgId: string): Promise<SubscriptionContext> {
+  const sub = (await prisma.organizationSubscription.findFirst({
+    where: { organizationId: orgId, status: { in: ['ACTIVE', 'TRIAL'] } },
+    include: { plan: true },
+    orderBy: { startedAt: 'desc' },
+  })) as any;
+
+  if (!sub) {
+    // Check for a recently-expired sub for display purposes
+    const expired = (await prisma.organizationSubscription.findFirst({
+      where: { organizationId: orgId, status: { in: ['EXPIRED', 'CANCELLED'] } },
+      include: { plan: true },
+      orderBy: { startedAt: 'desc' },
+    })) as any;
+    return {
+      status: 'EXPIRED',
+      isTrial: !!(expired?.trialStartedAt),
+      pageLimit: 0,
+      memberLimit: 0,
+      trialStartedAt: expired?.trialStartedAt ?? null,
+      trialEndsAt: expired?.trialEndsAt ?? null,
+      trialDaysRemaining: null,
+      planCode: expired?.plan?.code ?? null,
+      planName: expired?.plan?.name ?? null,
+    };
+  }
+
+  if (sub.status === 'TRIAL') {
+    const now = new Date();
+    if (sub.trialEndsAt && sub.trialEndsAt <= now) {
+      // Lazily mark as expired — no cron needed
+      await prisma.organizationSubscription.update({ where: { id: sub.id }, data: { status: 'EXPIRED' } });
+      return {
+        status: 'EXPIRED', isTrial: true,
+        pageLimit: 0, memberLimit: 0,
+        trialStartedAt: sub.trialStartedAt, trialEndsAt: sub.trialEndsAt,
+        trialDaysRemaining: 0,
+        planCode: null, planName: 'Dùng thử',
+      };
+    }
+    const policy = await getTrialPolicy();
+    const daysRemaining = sub.trialEndsAt
+      ? Math.max(0, Math.ceil((sub.trialEndsAt.getTime() - now.getTime()) / (24 * 3600 * 1000)))
+      : null;
+    return {
+      status: 'TRIAL', isTrial: true,
+      pageLimit: policy.trialMaxPages,
+      memberLimit: policy.trialMaxMembers,
+      trialStartedAt: sub.trialStartedAt,
+      trialEndsAt: sub.trialEndsAt,
+      trialDaysRemaining: daysRemaining,
+      planCode: null, planName: 'Dùng thử',
+    };
+  }
+
+  // ACTIVE paid subscription
+  const pageLimit = sub.customMaxPages != null ? sub.customMaxPages : (sub.plan?.maxPages ?? null);
+  const memberLimit = sub.customMaxMembers != null ? sub.customMaxMembers : (sub.plan?.maxMembers ?? null);
+  return {
+    status: 'ACTIVE', isTrial: false,
+    pageLimit, memberLimit,
+    trialStartedAt: sub.trialStartedAt ?? null,
+    trialEndsAt: sub.trialEndsAt ?? null,
+    trialDaysRemaining: null,
+    planCode: sub.plan?.code ?? null,
+    planName: sub.plan?.name ?? null,
+  };
+}
+
 // ---------------- Quota service ----------------
 
 export const OrganizationQuota = {
   async getPageLimit(orgId: string): Promise<number | null> {
-    const sub = (await prisma.organizationSubscription.findFirst({
-      where: { organizationId: orgId, status: 'ACTIVE' },
-      include: { plan: true },
-      orderBy: { startedAt: 'desc' },
-    })) as any;
-    if (!sub) return 0;
-    if (sub.customMaxPages != null) return sub.customMaxPages;
-    return sub.plan?.maxPages ?? null;
+    const ctx = await resolveSubscriptionContext(orgId);
+    return ctx.pageLimit;
   },
 
   async getPageUsage(orgId: string): Promise<number> {
@@ -141,14 +238,8 @@ export const OrganizationQuota = {
   },
 
   async getMemberLimit(orgId: string): Promise<number | null> {
-    const sub = (await prisma.organizationSubscription.findFirst({
-      where: { organizationId: orgId, status: 'ACTIVE' },
-      include: { plan: true },
-      orderBy: { startedAt: 'desc' },
-    })) as any;
-    if (!sub) return null;
-    if (sub.customMaxMembers != null) return sub.customMaxMembers;
-    return sub.plan?.maxMembers ?? null;
+    const ctx = await resolveSubscriptionContext(orgId);
+    return ctx.memberLimit;
   },
 
   async getMemberUsage(orgId: string): Promise<number> {
@@ -170,6 +261,15 @@ export const OrganizationQuota = {
     if (!check.ok) {
       const err = new Error('Bạn đã sử dụng hết số thành viên của gói hiện tại.') as Error & { code?: string };
       err.code = 'MEMBER_LIMIT_REACHED';
+      throw err;
+    }
+  },
+
+  async assertSubscriptionActive(orgId: string): Promise<void> {
+    const ctx = await resolveSubscriptionContext(orgId);
+    if (ctx.status === 'EXPIRED' || ctx.status === 'NONE') {
+      const err = new Error('Thời gian dùng thử đã kết thúc. Vui lòng nâng cấp gói để tiếp tục sử dụng.') as Error & { code?: string };
+      err.code = 'SUBSCRIPTION_EXPIRED';
       throw err;
     }
   },
@@ -197,18 +297,11 @@ router.get('/current', async (req: AuthRequest, res: Response) => {
   const { memberships, current, denied } = await resolveCurrentOrganization(req.userId, readRequestedOrgId(req));
   if (denied) return sendOrgDenied(res);
   if (!current) return res.json({ current: null, memberships: [] });
-  const [pageLimit, pageUsed, memberLimit, memberUsed, subRaw] = await Promise.all([
-    OrganizationQuota.getPageLimit(current.organizationId),
+  const [subCtx, pageUsed, memberUsed] = await Promise.all([
+    resolveSubscriptionContext(current.organizationId),
     OrganizationQuota.getPageUsage(current.organizationId),
-    OrganizationQuota.getMemberLimit(current.organizationId),
     OrganizationQuota.getMemberUsage(current.organizationId),
-    prisma.organizationSubscription.findFirst({
-      where: { organizationId: current.organizationId, status: 'ACTIVE' },
-      include: { plan: true },
-      orderBy: { startedAt: 'desc' },
-    }),
   ]);
-  const sub = subRaw as any;
   res.json({
     current: {
       id: current.organization.id,
@@ -223,16 +316,17 @@ router.get('/current', async (req: AuthRequest, res: Response) => {
       role: m.role,
       status: m.organization.status,
     })),
-    subscription: sub ? {
-      planCode: sub.plan.code,
-      planName: sub.plan.name,
-      status: sub.status,
-      expiresAt: sub.expiresAt,
-      customMaxPages: sub.customMaxPages,
-      customMaxMembers: sub.customMaxMembers,
-    } : null,
-    pageUsage: { used: pageUsed, limit: pageLimit },
-    memberUsage: { used: memberUsed, limit: memberLimit },
+    subscription: {
+      subscriptionStatus: subCtx.status,
+      isTrial: subCtx.isTrial,
+      trialStartedAt: subCtx.trialStartedAt,
+      trialEndsAt: subCtx.trialEndsAt,
+      trialDaysRemaining: subCtx.trialDaysRemaining,
+      planCode: subCtx.planCode,
+      planName: subCtx.planName,
+    },
+    pageUsage: { used: pageUsed, limit: subCtx.pageLimit },
+    memberUsage: { used: memberUsed, limit: subCtx.memberLimit },
   });
 });
 
@@ -309,6 +403,11 @@ router.post('/:id/members', async (req: AuthRequest, res: Response) => {
   const wantedRole: OrgRole = ['ADMIN', 'MANAGER', 'MEMBER'].includes(role) ? role : 'MEMBER';
   const user = await prisma.user.findUnique({ where: { email: String(email || '').trim().toLowerCase() } });
   if (!user) return res.status(404).json({ error: 'USER_NOT_FOUND', message: 'Không tìm thấy user với email này.' });
+  // Block if subscription expired
+  const subCtxForAdd = await resolveSubscriptionContext(id);
+  if (subCtxForAdd.status === 'EXPIRED' || subCtxForAdd.status === 'NONE') {
+    return res.status(402).json({ error: 'SUBSCRIPTION_EXPIRED', message: 'Thời gian dùng thử đã kết thúc. Vui lòng nâng cấp gói để tiếp tục sử dụng.' });
+  }
   const existing = await prisma.organizationMember.findUnique({
     where: { organizationId_userId: { organizationId: id, userId: user.id } },
   });
@@ -424,7 +523,52 @@ router.patch('/plans/:planId', async (req: AuthRequest, res: Response) => {
   res.json(updated);
 });
 
+// Customer subscription summary (any org member)
+router.get('/:id/subscription', async (req: AuthRequest, res: Response) => {
+  if (!req.userId) return res.status(401).json({ error: 'Unauthorized' });
+  const id = String(req.params.id);
+  const member = await prisma.organizationMember.findUnique({
+    where: { organizationId_userId: { organizationId: id, userId: req.userId } },
+    select: { role: true, status: true },
+  });
+  if (!member || member.status !== 'ACTIVE') return res.status(403).json({ error: 'FORBIDDEN' });
+  const [ctx, pageUsed, memberUsed] = await Promise.all([
+    resolveSubscriptionContext(id),
+    OrganizationQuota.getPageUsage(id),
+    OrganizationQuota.getMemberUsage(id),
+  ]);
+  res.json({
+    subscriptionStatus: ctx.status,
+    isTrial: ctx.isTrial,
+    trialStartedAt: ctx.trialStartedAt,
+    trialEndsAt: ctx.trialEndsAt,
+    trialDaysRemaining: ctx.trialDaysRemaining,
+    planCode: ctx.planCode,
+    planName: ctx.planName,
+    pageUsage: { used: pageUsed, limit: ctx.pageLimit },
+    memberUsage: { used: memberUsed, limit: ctx.memberLimit },
+  });
+});
+
+// Platform Admin: edit trial policy
+router.patch('/trial-policy', async (req: AuthRequest, res: Response) => {
+  if (!(await isPlatformAdmin(req.userId))) return res.status(403).json({ error: 'FORBIDDEN' });
+  const { trialEnabled, trialDays, trialMaxPages, trialMaxMembers } = req.body || {};
+  const data: Record<string, unknown> = {};
+  if (trialEnabled != null) data.trialEnabled = Boolean(trialEnabled);
+  if (trialDays != null) data.trialDays = Number(trialDays);
+  if (trialMaxPages != null) data.trialMaxPages = Number(trialMaxPages);
+  if (trialMaxMembers != null) data.trialMaxMembers = Number(trialMaxMembers);
+  const policy = await (prisma.trialPolicy as any).upsert({
+    where: { id: 'trial_policy_singleton' },
+    update: data,
+    create: { id: 'trial_policy_singleton', trialEnabled: true, trialDays: 7, trialMaxPages: 2, trialMaxMembers: 2, ...data },
+  });
+  res.json(policy);
+});
+
 // Plan / custom limit mutation: PLATFORM ADMIN only (no billing yet; never customer-facing)
+// Also upgrades TRIAL → ACTIVE; trial entitlement is preserved (no second trial granted).
 router.put('/:id/subscription', async (req: AuthRequest, res: Response) => {
   if (!(await isPlatformAdmin(req.userId))) return res.status(403).json({ error: 'FORBIDDEN' });
   const id = String(req.params.id);
@@ -433,8 +577,9 @@ router.put('/:id/subscription', async (req: AuthRequest, res: Response) => {
   const { planCode, customMaxPages, customMaxMembers, expiresAt } = req.body || {};
   const plan = await prisma.subscriptionPlan.findUnique({ where: { code: String(planCode) } });
   if (!plan) return res.status(404).json({ error: 'PLAN_NOT_FOUND' });
+  // Cancel both ACTIVE and TRIAL subscriptions before assigning new paid plan
   await prisma.organizationSubscription.updateMany({
-    where: { organizationId: id, status: 'ACTIVE' },
+    where: { organizationId: id, status: { in: ['ACTIVE', 'TRIAL'] } },
     data: { status: 'CANCELLED' },
   });
   const sub = (await prisma.organizationSubscription.create({
