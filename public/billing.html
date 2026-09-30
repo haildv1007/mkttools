@@ -1,0 +1,541 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Gói & thanh toán — MKT Tools</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://cdn.jsdelivr.net/npm/remixicon@4.2.0/fonts/remixicon.css" rel="stylesheet">
+  <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+  <script src="/socket.io/socket.io.js"></script>
+  <script>tailwind.config={theme:{extend:{colors:{brand:{'50':'#eff6ff','100':'#dbeafe','200':'#bfdbfe','300':'#93c5fd','400':'#60a5fa','500':'#3b82f6','600':'#2563eb','700':'#1d4ed8','800':'#1e40af','900':'#1e3a8a'}}}}}</script>
+  <style>
+    [x-cloak] { display: none !important; }
+    .plan-card { transition: all .15s; }
+    .plan-card:hover { transform: translateY(-2px); box-shadow: 0 4px 12px rgba(0,0,0,.08); }
+    .plan-card.current { border-color: #3b82f6; }
+    .plan-card.selected { border-color: #2563eb; background: #eff6ff; }
+    @keyframes pulse-dot { 0%,100% { opacity:1 } 50% { opacity:.4 } }
+    .pulse-dot { animation: pulse-dot 1.5s infinite; }
+  </style>
+</head>
+<body class="bg-gray-50 min-h-screen" x-data="billingApp()" x-init="init()">
+  <!-- Header -->
+  <header class="bg-white border-b border-gray-200 sticky top-0 z-30">
+    <div class="max-w-5xl mx-auto px-4 sm:px-6 py-3 flex items-center justify-between">
+      <div class="flex items-center gap-3">
+        <a href="/" class="text-brand-600 hover:text-brand-700"><i class="ri-arrow-left-line text-xl"></i></a>
+        <h1 class="text-lg font-semibold text-gray-900">Gói & thanh toán</h1>
+      </div>
+      <div class="text-sm text-gray-500" x-text="orgName"></div>
+    </div>
+  </header>
+
+  <main class="max-w-5xl mx-auto px-4 sm:px-6 py-6 space-y-6" x-cloak>
+    <!-- Loading -->
+    <div x-show="loading" class="text-center py-12 text-gray-400">
+      <i class="ri-loader-4-line text-2xl animate-spin"></i>
+      <p class="mt-2 text-sm">Đang tải...</p>
+    </div>
+
+    <!-- Not authenticated -->
+    <div x-show="!loading && !authenticated" class="text-center py-12">
+      <p class="text-gray-500 mb-4">Vui lòng đăng nhập để xem thông tin gói.</p>
+      <a href="/login" class="text-brand-600 hover:underline">Đăng nhập</a>
+    </div>
+
+    <template x-if="!loading && authenticated">
+      <div class="space-y-6">
+
+        <!-- Current Plan -->
+        <div class="bg-white rounded-xl border border-gray-200 p-5">
+          <h2 class="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-3">Gói hiện tại</h2>
+          <div class="flex flex-wrap items-start gap-6">
+            <div class="flex-1 min-w-[200px]">
+              <div class="flex items-center gap-2 mb-2">
+                <span class="text-xl font-bold text-gray-900" x-text="ctx.subscription?.planName || 'Chưa có gói'"></span>
+                <span x-show="ctx.subscription?.isTrial"
+                  class="px-2 py-0.5 text-xs font-medium bg-amber-100 text-amber-700 rounded-full">DÙNG THỬ</span>
+                <span x-show="ctx.subscription?.status==='ACTIVE' && !ctx.subscription?.isTrial"
+                  class="px-2 py-0.5 text-xs font-medium bg-green-100 text-green-700 rounded-full">Đang hoạt động</span>
+                <span x-show="ctx.subscription?.status==='EXPIRED'"
+                  class="px-2 py-0.5 text-xs font-medium bg-red-100 text-red-700 rounded-full">Hết hạn</span>
+              </div>
+              <div x-show="ctx.subscription?.isTrial && ctx.subscription?.trialDaysRemaining != null" class="text-sm text-amber-600 mb-1">
+                Còn <span x-text="ctx.subscription?.trialDaysRemaining"></span> ngày dùng thử
+              </div>
+              <div x-show="ctx.subscription?.expiresAt && !ctx.subscription?.isTrial" class="text-sm text-gray-500">
+                Hết hạn: <span x-text="fmtDate(ctx.subscription?.expiresAt)"></span>
+              </div>
+            </div>
+            <div class="flex gap-6 text-sm">
+              <div>
+                <span class="text-gray-500">Pages</span>
+                <div class="font-semibold text-gray-900">
+                  <span x-text="ctx.pageUsage?.used ?? '—'"></span>
+                  <span class="text-gray-400">/</span>
+                  <span x-text="ctx.pageUsage?.limit ?? '∞'"></span>
+                </div>
+              </div>
+              <div>
+                <span class="text-gray-500">Thành viên</span>
+                <div class="font-semibold text-gray-900">
+                  <span x-text="ctx.memberUsage?.used ?? '—'"></span>
+                  <span class="text-gray-400">/</span>
+                  <span x-text="ctx.memberUsage?.limit ?? '∞'"></span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Active Checkout (if pending order exists) -->
+        <template x-if="activeCheckout">
+          <div class="bg-white rounded-xl border border-brand-200 p-5">
+            <div class="flex items-center justify-between mb-4">
+              <h2 class="text-sm font-semibold text-brand-600 uppercase tracking-wider">
+                <i class="ri-bank-card-line mr-1"></i> Thanh toán đơn <span x-text="activeCheckout.orderCode"></span>
+              </h2>
+              <button @click="activeCheckout=null" class="text-gray-400 hover:text-gray-600"><i class="ri-close-line text-lg"></i></button>
+            </div>
+
+            <!-- Pending state -->
+            <div x-show="activeCheckout.status==='PENDING'" class="space-y-4">
+              <div class="flex flex-col sm:flex-row gap-6">
+                <div class="flex-1 space-y-2 text-sm">
+                  <div class="flex justify-between"><span class="text-gray-500">Gói</span><span class="font-medium" x-text="activeCheckout.planNameSnapshot"></span></div>
+                  <div class="flex justify-between"><span class="text-gray-500">Chu kỳ</span><span class="font-medium" x-text="activeCheckout.billingMonths + ' tháng'"></span></div>
+                  <div class="flex justify-between"><span class="text-gray-500">Số tiền</span><span class="font-bold text-lg text-brand-600" x-text="fmtVND(activeCheckout.amount)"></span></div>
+                  <div class="flex justify-between"><span class="text-gray-500">Nội dung CK</span><span class="font-mono font-medium text-brand-700" x-text="activeCheckout.checkout?.transferContent"></span></div>
+                  <div class="flex justify-between"><span class="text-gray-500">Ngân hàng</span><span class="font-medium" x-text="activeCheckout.checkout?.bankName"></span></div>
+                  <div class="flex justify-between"><span class="text-gray-500">STK</span><span class="font-mono font-medium" x-text="activeCheckout.checkout?.bankAccount"></span></div>
+                  <div class="flex justify-between"><span class="text-gray-500">Chủ TK</span><span class="font-medium" x-text="activeCheckout.checkout?.accountName"></span></div>
+                </div>
+                <div class="flex flex-col items-center">
+                  <img :src="activeCheckout.checkout?.qrUrl" alt="QR thanh toán" class="w-48 h-48 rounded-lg border" x-show="activeCheckout.checkout?.qrUrl">
+                  <p class="text-xs text-gray-500 mt-1">Quét mã QR để thanh toán</p>
+                </div>
+              </div>
+
+              <div class="flex items-center gap-2 text-sm">
+                <span class="w-2 h-2 bg-amber-400 rounded-full pulse-dot"></span>
+                <span class="text-amber-600">Đang chờ thanh toán</span>
+                <span class="text-gray-400 ml-auto" x-text="'Hết hạn: ' + countdown"></span>
+              </div>
+              <p class="text-xs text-gray-500">Hoàn tất thanh toán trên ứng dụng ngân hàng. Trạng thái sẽ tự cập nhật khi nhận được xác nhận.</p>
+              <div class="flex gap-2">
+                <button @click="checkOrderStatus()" class="px-3 py-1.5 text-sm border border-gray-300 rounded-lg hover:bg-gray-50" :disabled="checking">
+                  <i class="ri-refresh-line" :class="checking && 'animate-spin'"></i> Kiểm tra
+                </button>
+                <button @click="activeCheckout=null; stopPolling()" class="px-3 py-1.5 text-sm text-gray-500 hover:text-gray-700">Đóng</button>
+              </div>
+            </div>
+
+            <!-- Success state -->
+            <div x-show="activeCheckout.status==='PAID'" class="text-center py-4">
+              <div class="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-3">
+                <i class="ri-check-line text-3xl text-green-600"></i>
+              </div>
+              <h3 class="text-lg font-semibold text-gray-900 mb-1">Thanh toán thành công</h3>
+              <p class="text-sm text-gray-500 mb-4">
+                Gói <span class="font-medium" x-text="activeCheckout.planNameSnapshot"></span> đã được kích hoạt.
+              </p>
+              <button @click="activeCheckout=null; loadContext()" class="px-4 py-2 bg-brand-600 text-white rounded-lg text-sm hover:bg-brand-700">
+                Vào MKT Tools
+              </button>
+            </div>
+
+            <!-- Expired state -->
+            <div x-show="activeCheckout.status==='EXPIRED'" class="text-center py-4">
+              <div class="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-3">
+                <i class="ri-time-line text-3xl text-gray-400"></i>
+              </div>
+              <h3 class="text-lg font-semibold text-gray-900 mb-1">Đơn thanh toán đã hết hạn</h3>
+              <button @click="activeCheckout=null" class="px-4 py-2 bg-brand-600 text-white rounded-lg text-sm hover:bg-brand-700 mt-2">
+                Thanh toán lại
+              </button>
+            </div>
+
+            <!-- Failed state -->
+            <div x-show="activeCheckout.status==='FAILED' || activeCheckout.status==='CANCELLED'" class="text-center py-4">
+              <div class="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-3">
+                <i class="ri-close-circle-line text-3xl text-red-500"></i>
+              </div>
+              <h3 class="text-lg font-semibold text-gray-900 mb-1">Thanh toán chưa hoàn tất</h3>
+              <button @click="activeCheckout=null" class="px-4 py-2 bg-brand-600 text-white rounded-lg text-sm hover:bg-brand-700 mt-2">
+                Thử lại
+              </button>
+            </div>
+          </div>
+        </template>
+
+        <!-- Plan Selection -->
+        <div x-show="!activeCheckout">
+          <div class="flex items-center justify-between mb-3">
+            <h2 class="text-sm font-semibold text-gray-500 uppercase tracking-wider">Chọn gói</h2>
+            <!-- Period selector -->
+            <div class="flex bg-gray-100 rounded-lg p-0.5 text-sm">
+              <template x-for="p in availablePeriods" :key="p">
+                <button @click="selectedPeriod=p"
+                  :class="selectedPeriod===p ? 'bg-white shadow text-brand-600 font-medium' : 'text-gray-500 hover:text-gray-700'"
+                  class="px-3 py-1 rounded-md transition" x-text="p + ' tháng'">
+                </button>
+              </template>
+            </div>
+          </div>
+
+          <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+            <template x-for="plan in plans" :key="plan.id">
+              <div class="plan-card bg-white rounded-xl border-2 p-4 cursor-pointer"
+                :class="{
+                  'current': ctx.subscription?.planCode === plan.code,
+                  'selected': selectedPlan?.id === plan.id && ctx.subscription?.planCode !== plan.code,
+                  'border-gray-200': ctx.subscription?.planCode !== plan.code && selectedPlan?.id !== plan.id,
+                }"
+                @click="selectedPlan = plan">
+                <div class="flex items-center justify-between mb-2">
+                  <h3 class="font-semibold text-gray-900" x-text="plan.name"></h3>
+                  <span x-show="ctx.subscription?.planCode === plan.code"
+                    class="text-xs bg-brand-100 text-brand-600 px-2 py-0.5 rounded-full">Hiện tại</span>
+                </div>
+                <div class="text-sm text-gray-500 mb-3 space-y-1">
+                  <div><i class="ri-pages-line mr-1"></i><span x-text="plan.maxPages ? plan.maxPages + ' Pages' : 'Không giới hạn'"></span></div>
+                  <div><i class="ri-team-line mr-1"></i><span x-text="plan.maxMembers ? plan.maxMembers + ' thành viên' : 'Không giới hạn'"></span></div>
+                </div>
+                <div class="text-lg font-bold text-gray-900" x-text="planPrice(plan) ? fmtVND(planPrice(plan)) : '—'"></div>
+                <div class="text-xs text-gray-400" x-text="'/' + selectedPeriod + ' tháng'"></div>
+              </div>
+            </template>
+          </div>
+        </div>
+
+        <!-- Checkout Summary -->
+        <div x-show="selectedPlan && !activeCheckout && ctx.canCheckout">
+          <div class="bg-white rounded-xl border border-gray-200 p-5">
+            <h2 class="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-3">Tóm tắt đơn hàng</h2>
+            <div class="space-y-2 text-sm mb-4">
+              <div class="flex justify-between"><span class="text-gray-500">Gói</span><span class="font-medium" x-text="selectedPlan?.name"></span></div>
+              <div class="flex justify-between"><span class="text-gray-500">Chu kỳ</span><span class="font-medium" x-text="selectedPeriod + ' tháng'"></span></div>
+              <div class="flex justify-between"><span class="text-gray-500">Giới hạn</span>
+                <span class="font-medium" x-text="(selectedPlan?.maxPages || '∞') + ' Pages, ' + (selectedPlan?.maxMembers || '∞') + ' thành viên'"></span>
+              </div>
+              <!-- Downgrade warning -->
+              <div x-show="isDowngrade()" class="bg-amber-50 border border-amber-200 rounded-lg p-3 text-amber-700 text-xs">
+                <i class="ri-alert-line mr-1"></i>
+                Bạn đang sử dụng nhiều tài nguyên hơn giới hạn của gói mới.
+                Dữ liệu hiện tại sẽ không bị xóa, nhưng bạn sẽ không thể thêm mới cho tới khi usage trở lại trong giới hạn.
+              </div>
+              <div class="border-t pt-2 flex justify-between">
+                <span class="text-gray-700 font-medium">Tổng</span>
+                <span class="text-xl font-bold text-brand-600" x-text="fmtVND(planPrice(selectedPlan))"></span>
+              </div>
+            </div>
+
+            <div x-show="!ctx.paymentEnabled" class="text-center py-3 text-sm text-gray-500 bg-gray-50 rounded-lg">
+              <i class="ri-information-line mr-1"></i> Thanh toán trực tuyến đang tạm thời chưa khả dụng.
+            </div>
+
+            <button x-show="ctx.paymentEnabled" @click="startCheckout()" :disabled="checkingOut"
+              class="w-full py-2.5 bg-brand-600 text-white rounded-lg font-medium hover:bg-brand-700 disabled:opacity-50 transition">
+              <i class="ri-bank-card-line mr-1"></i>
+              <span x-text="checkingOut ? 'Đang xử lý...' : 'Thanh toán'"></span>
+            </button>
+          </div>
+        </div>
+
+        <div x-show="selectedPlan && !ctx.canCheckout && !activeCheckout" class="bg-amber-50 border border-amber-200 rounded-xl p-4 text-sm text-amber-700">
+          <i class="ri-lock-line mr-1"></i> Chỉ Owner hoặc Admin được thực hiện thanh toán.
+        </div>
+
+        <!-- Payment History -->
+        <div class="bg-white rounded-xl border border-gray-200 p-5">
+          <h2 class="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-3">Lịch sử thanh toán</h2>
+          <div x-show="!history.length" class="text-sm text-gray-400 py-4 text-center">Chưa có lịch sử thanh toán.</div>
+          <div x-show="history.length" class="overflow-x-auto">
+            <table class="w-full text-sm">
+              <thead>
+                <tr class="text-left text-gray-500 border-b">
+                  <th class="pb-2 font-medium">Mã đơn</th>
+                  <th class="pb-2 font-medium">Gói</th>
+                  <th class="pb-2 font-medium hidden sm:table-cell">Chu kỳ</th>
+                  <th class="pb-2 font-medium">Số tiền</th>
+                  <th class="pb-2 font-medium">Trạng thái</th>
+                  <th class="pb-2 font-medium hidden sm:table-cell">Ngày tạo</th>
+                </tr>
+              </thead>
+              <tbody>
+                <template x-for="o in history" :key="o.id">
+                  <tr class="border-b border-gray-50 hover:bg-gray-50 cursor-pointer" @click="showOrderDetail(o)">
+                    <td class="py-2 font-mono text-xs" x-text="o.orderCode"></td>
+                    <td class="py-2" x-text="o.planNameSnapshot"></td>
+                    <td class="py-2 hidden sm:table-cell" x-text="o.billingMonths + ' tháng'"></td>
+                    <td class="py-2 font-medium" x-text="fmtVND(o.amount)"></td>
+                    <td class="py-2"><span class="px-2 py-0.5 rounded-full text-xs font-medium" :class="statusClass(o.status)" x-text="statusLabel(o.status)"></span></td>
+                    <td class="py-2 hidden sm:table-cell text-gray-500" x-text="fmtDate(o.createdAt)"></td>
+                  </tr>
+                </template>
+              </tbody>
+            </table>
+          </div>
+          <div x-show="historyTotal > history.length" class="text-center mt-3">
+            <button @click="loadHistory(historyPage+1)" class="text-sm text-brand-600 hover:underline">Xem thêm</button>
+          </div>
+        </div>
+
+        <!-- Order Detail Modal -->
+        <div x-show="detailOrder" x-cloak class="fixed inset-0 bg-black/30 flex items-center justify-center z-50 p-4" @click.self="detailOrder=null">
+          <div class="bg-white rounded-xl max-w-md w-full p-5 shadow-xl">
+            <div class="flex justify-between items-center mb-4">
+              <h3 class="font-semibold text-gray-900">Chi tiết đơn hàng</h3>
+              <button @click="detailOrder=null" class="text-gray-400 hover:text-gray-600"><i class="ri-close-line text-lg"></i></button>
+            </div>
+            <div class="space-y-2 text-sm" x-show="detailOrder">
+              <div class="flex justify-between"><span class="text-gray-500">Mã đơn</span><span class="font-mono font-medium" x-text="detailOrder?.orderCode"></span></div>
+              <div class="flex justify-between"><span class="text-gray-500">Gói</span><span class="font-medium" x-text="detailOrder?.planNameSnapshot"></span></div>
+              <div class="flex justify-between"><span class="text-gray-500">Chu kỳ</span><span x-text="detailOrder?.billingMonths + ' tháng'"></span></div>
+              <div class="flex justify-between"><span class="text-gray-500">Số tiền</span><span class="font-bold" x-text="fmtVND(detailOrder?.amount)"></span></div>
+              <div class="flex justify-between"><span class="text-gray-500">Trạng thái</span>
+                <span class="px-2 py-0.5 rounded-full text-xs font-medium" :class="statusClass(detailOrder?.status)" x-text="statusLabel(detailOrder?.status)"></span>
+              </div>
+              <div class="flex justify-between"><span class="text-gray-500">Ngày tạo</span><span x-text="fmtDate(detailOrder?.createdAt)"></span></div>
+              <div class="flex justify-between" x-show="detailOrder?.expiresAt"><span class="text-gray-500">Hết hạn</span><span x-text="fmtDate(detailOrder?.expiresAt)"></span></div>
+              <div class="flex justify-between" x-show="detailOrder?.paidAt"><span class="text-gray-500">Thanh toán</span><span x-text="fmtDate(detailOrder?.paidAt)"></span></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Toast -->
+        <div x-show="toast" x-transition class="fixed bottom-4 right-4 bg-gray-900 text-white px-4 py-2 rounded-lg text-sm shadow-lg z-50" x-text="toast"></div>
+
+      </div>
+    </template>
+  </main>
+
+  <script>
+    function billingApp() {
+      return {
+        loading: true,
+        authenticated: false,
+        token: '',
+        orgId: '',
+        orgName: '',
+        ctx: {},
+        plans: [],
+        availablePeriods: [1, 3, 12],
+        selectedPeriod: 3,
+        selectedPlan: null,
+        activeCheckout: null,
+        checkingOut: false,
+        checking: false,
+        countdown: '',
+        countdownInterval: null,
+        pollInterval: null,
+        history: [],
+        historyTotal: 0,
+        historyPage: 1,
+        detailOrder: null,
+        toast: '',
+        socket: null,
+
+        async init() {
+          this.token = localStorage.getItem('token') || '';
+          this.orgId = localStorage.getItem('currentOrganizationId') || '';
+          if (!this.token) { this.loading = false; return; }
+          this.authenticated = true;
+          try {
+            const orgRes = await this.api('/api/organizations');
+            if (orgRes.current) {
+              this.orgName = orgRes.current.name;
+              this.orgId = orgRes.current.id;
+            }
+          } catch {}
+          await Promise.all([this.loadContext(), this.loadPlans(), this.loadHistory(1)]);
+          this.loading = false;
+          this.connectSocket();
+
+          // Check if returning from payment
+          const params = new URLSearchParams(location.search);
+          const orderCode = params.get('order');
+          if (orderCode) {
+            history.replaceState({}, '', '/billing');
+            await this.resumeOrder(orderCode);
+          }
+        },
+
+        connectSocket() {
+          if (!this.token) return;
+          this.socket = io({ auth: { token: this.token, organizationId: this.orgId }, transports: ['websocket', 'polling'] });
+          this.socket.on('payment:updated', (data) => {
+            if (this.activeCheckout && this.activeCheckout.orderCode === data.orderCode) {
+              this.activeCheckout.status = data.status;
+              if (data.status === 'PAID') {
+                this.stopPolling();
+                this.showToast('Thanh toán thành công!');
+                this.loadContext();
+                this.loadHistory(1);
+              }
+            }
+          });
+        },
+
+        async api(url, opts = {}) {
+          const headers = { 'Content-Type': 'application/json' };
+          if (this.token) headers['Authorization'] = 'Bearer ' + this.token;
+          if (this.orgId) headers['x-organization-id'] = this.orgId;
+          const r = await fetch(url, { ...opts, headers: { ...headers, ...opts.headers } });
+          if (r.status === 401) { this.authenticated = false; throw new Error('Unauthorized'); }
+          return r.json();
+        },
+
+        async loadContext() {
+          try { this.ctx = await this.api('/api/billing/context'); } catch {}
+        },
+
+        async loadPlans() {
+          try {
+            this.plans = await this.api('/api/billing/plans');
+            const periods = [...new Set(this.plans.flatMap(p => p.prices.map(pr => pr.billingMonths)))].sort((a, b) => a - b);
+            if (periods.length) this.availablePeriods = periods;
+          } catch {}
+        },
+
+        async loadHistory(page) {
+          try {
+            const r = await this.api(`/api/billing/orders?page=${page}&pageSize=10`);
+            if (page === 1) { this.history = r.items; } else { this.history = [...this.history, ...r.items]; }
+            this.historyTotal = r.total;
+            this.historyPage = page;
+          } catch {}
+        },
+
+        planPrice(plan) {
+          if (!plan) return 0;
+          const pr = plan.prices.find(p => p.billingMonths === this.selectedPeriod);
+          return pr ? pr.amount : 0;
+        },
+
+        isDowngrade() {
+          if (!this.selectedPlan || !this.ctx.pageUsage) return false;
+          const newPageLimit = this.selectedPlan.maxPages;
+          const newMemberLimit = this.selectedPlan.maxMembers;
+          return (newPageLimit && this.ctx.pageUsage.used > newPageLimit) ||
+                 (newMemberLimit && this.ctx.memberUsage.used > newMemberLimit);
+        },
+
+        async startCheckout() {
+          if (!this.selectedPlan || this.checkingOut) return;
+          const priceId = this.selectedPlan.prices.find(p => p.billingMonths === this.selectedPeriod)?.id;
+          if (!priceId) { this.showToast('Kỳ hạn này chưa có giá.'); return; }
+          this.checkingOut = true;
+          try {
+            const order = await this.api('/api/billing/orders', { method: 'POST', body: JSON.stringify({ planPriceId: priceId }) });
+            if (order.error) { this.showToast(order.message || order.error); return; }
+            const checkout = await this.api(`/api/billing/orders/${order.id}/checkout`, { method: 'POST' });
+            if (checkout.error) { this.showToast(checkout.message || checkout.error); return; }
+            this.activeCheckout = checkout;
+            this.activeCheckout.status = 'PENDING';
+            this.startCountdown(new Date(checkout.expiresAt));
+            this.startPolling(checkout.orderCode);
+          } catch (e) {
+            this.showToast('Có lỗi xảy ra.');
+          } finally {
+            this.checkingOut = false;
+          }
+        },
+
+        async resumeOrder(orderCode) {
+          try {
+            const order = await this.api(`/api/billing/orders/code/${orderCode}`);
+            if (order.error) return;
+            if (order.status === 'PENDING') {
+              const checkout = await this.api(`/api/billing/orders/${order.id}/checkout`, { method: 'POST' });
+              if (!checkout.error) {
+                this.activeCheckout = checkout;
+                this.activeCheckout.status = 'PENDING';
+                this.startCountdown(new Date(checkout.expiresAt));
+                this.startPolling(checkout.orderCode);
+              }
+            } else if (order.status === 'PAID') {
+              this.activeCheckout = { ...order, checkout: null };
+            }
+          } catch {}
+        },
+
+        async checkOrderStatus() {
+          if (!this.activeCheckout || this.checking) return;
+          this.checking = true;
+          try {
+            const o = await this.api(`/api/billing/orders/code/${this.activeCheckout.orderCode}`);
+            if (!o.error && o.status !== 'PENDING') {
+              this.activeCheckout.status = o.status;
+              if (o.status === 'PAID') {
+                this.stopPolling();
+                this.showToast('Thanh toán thành công!');
+                this.loadContext();
+                this.loadHistory(1);
+              }
+            }
+          } catch {} finally { this.checking = false; }
+        },
+
+        startCountdown(expiresAt) {
+          this.stopCountdown();
+          const tick = () => {
+            const diff = expiresAt - Date.now();
+            if (diff <= 0) { this.countdown = 'Hết hạn'; this.stopCountdown(); if (this.activeCheckout) this.activeCheckout.status = 'EXPIRED'; return; }
+            const m = Math.floor(diff / 60000);
+            const s = Math.floor((diff % 60000) / 1000);
+            this.countdown = `${m}:${String(s).padStart(2, '0')}`;
+          };
+          tick();
+          this.countdownInterval = setInterval(tick, 1000);
+        },
+
+        stopCountdown() {
+          if (this.countdownInterval) { clearInterval(this.countdownInterval); this.countdownInterval = null; }
+        },
+
+        startPolling(orderCode) {
+          this.stopPolling();
+          this.pollInterval = setInterval(() => this.checkOrderStatus(), 5000);
+        },
+
+        stopPolling() {
+          if (this.pollInterval) { clearInterval(this.pollInterval); this.pollInterval = null; }
+        },
+
+        showOrderDetail(o) { this.detailOrder = o; },
+
+        fmtVND(n) {
+          if (!n) return '—';
+          return new Intl.NumberFormat('vi-VN').format(n) + 'đ';
+        },
+
+        fmtDate(d) {
+          if (!d) return '—';
+          return new Date(d).toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric' });
+        },
+
+        statusLabel(s) {
+          return { PENDING: 'Đang chờ', PAID: 'Đã thanh toán', EXPIRED: 'Hết hạn', CANCELLED: 'Đã hủy', FAILED: 'Thất bại' }[s] || s;
+        },
+
+        statusClass(s) {
+          return {
+            PENDING: 'bg-amber-100 text-amber-700',
+            PAID: 'bg-green-100 text-green-700',
+            EXPIRED: 'bg-gray-100 text-gray-500',
+            CANCELLED: 'bg-gray-100 text-gray-500',
+            FAILED: 'bg-red-100 text-red-700',
+          }[s] || 'bg-gray-100 text-gray-500';
+        },
+
+        showToast(msg) {
+          this.toast = msg;
+          setTimeout(() => this.toast = '', 3000);
+        },
+      };
+    }
+  </script>
+</body>
+</html>

@@ -46,7 +46,10 @@ const FIELDS: Record<string, FieldDef[]> = {
     { key: 'payment.provider', type: 'string', default: 'SEPAY' },
     { key: 'payment.mode', type: 'string', default: 'SANDBOX' },
     { key: 'payment.orderTtlMinutes', type: 'int', default: '30' },
-    { key: 'payment.sepaySecretKey', type: 'string', secret: true },
+    { key: 'payment.sepayApiKey', type: 'string', secret: true },
+    { key: 'payment.sepayBankAccount', type: 'string' },
+    { key: 'payment.sepayBankName', type: 'string' },
+    { key: 'payment.sepayAccountName', type: 'string' },
   ],
   billing: [
     { key: 'billing.currency', type: 'string', default: 'VND' },
@@ -171,11 +174,7 @@ router.get('/', async (_req: AuthRequest, res: Response) => {
     general: { ...serializeSection('general'), trialEnabled: trial?.trialEnabled ?? true },
     auth: serializeSection('auth'),
     email: serializeSection('email'),
-    payment: {
-      ...serializeSection('payment'),
-      webhookUrl: `${getAppUrl()}/api/billing/webhook/sepay`,
-      webhookConfigured: false, // M2.8 wires the actual webhook receiver
-    },
+    payment: serializePaymentSection(),
     billing: {
       ...serializeSection('billing'),
       allowedPeriods: getPlatformSetting('billing.allowedPeriods').split(',').map((s) => Number(s.trim())).filter(Boolean),
@@ -295,13 +294,11 @@ router.post('/email/test', async (req: AuthRequest, res: Response) => {
 router.put('/payment', async (req: AuthRequest, res: Response) => {
   await saveFields('payment', req.body || {}, req.userId);
   await logActivity({ organizationId: null, category: 'admin', status: 'success', action: 'admin.platform_settings', summary: 'Cập nhật cấu hình thanh toán', detail: `by ${req.userId}` });
-  res.json({
-    payment: { ...serializeSection('payment'), webhookUrl: `${getAppUrl()}/api/billing/webhook/sepay`, webhookConfigured: false },
-  });
+  res.json({ payment: serializePaymentSection() });
 });
-router.delete('/payment/sepay-secret', async (req: AuthRequest, res: Response) => {
-  await clearSecret('payment.sepaySecretKey', req.userId);
-  res.json({ payment: serializeSection('payment') });
+router.delete('/payment/sepay-api-key', async (req: AuthRequest, res: Response) => {
+  await clearSecret('payment.sepayApiKey', req.userId);
+  res.json({ payment: serializePaymentSection() });
 });
 
 router.put('/billing', async (req: AuthRequest, res: Response) => {
@@ -319,5 +316,31 @@ router.put('/billing', async (req: AuthRequest, res: Response) => {
   await logActivity({ organizationId: null, category: 'admin', status: 'success', action: 'admin.platform_settings', summary: 'Cập nhật cấu hình billing', detail: `by ${req.userId}` });
   res.json({ billing: { ...serializeSection('billing'), allowedPeriods: getPlatformSetting('billing.allowedPeriods').split(',').map((s) => Number(s.trim())).filter(Boolean) } });
 });
+
+function serializePaymentSection() {
+  const apiKeyConfigured = !!cache['payment.sepayApiKey'];
+  const bankAccount = getPlatformSetting('payment.sepayBankAccount');
+  const configured = apiKeyConfigured && !!bankAccount;
+  return {
+    ...serializeSection('payment'),
+    webhookUrl: `${getAppUrl()}/api/payments/sepay/webhook`,
+    webhookConfigured: configured,
+    sepayConfigured: configured,
+  };
+}
+
+export function getSePayConfig() {
+  const apiKey = getPlatformSetting('payment.sepayApiKey');
+  const bankAccount = getPlatformSetting('payment.sepayBankAccount');
+  const bankName = getPlatformSetting('payment.sepayBankName');
+  const accountName = getPlatformSetting('payment.sepayAccountName');
+  const mode = getPlatformSetting('payment.mode') as 'SANDBOX' | 'PRODUCTION';
+  const enabled = getPlatformSettingBool('payment.enabled');
+  return { apiKey, bankAccount, bankName, accountName, mode, enabled, configured: !!apiKey && !!bankAccount };
+}
+
+export function getOrderTtlMs(): number {
+  return (Number(getPlatformSetting('payment.orderTtlMinutes')) || 30) * 60 * 1000;
+}
 
 export { router as platformSettingsAdminRouter };

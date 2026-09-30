@@ -311,22 +311,27 @@
 
         <!-- THANH TOÁN -->
         <div x-show="psTab==='payment'" class="bg-white border border-gray-200 rounded-lg p-4 max-w-xl space-y-3">
-          <p class="text-xs text-gray-500">Nền tảng cấu hình cho SePay (M2.8). Chưa có logic thanh toán được kích hoạt ở milestone này.</p>
-          <label class="flex items-center gap-2"><input type="checkbox" x-model="ps.payment.enabled">Bật thanh toán</label>
+          <label class="flex items-center gap-2"><input type="checkbox" x-model="ps.payment.enabled">Bật thanh toán trực tuyến</label>
           <label class="block text-xs">Provider<input value="SEPAY" disabled class="border rounded-lg px-2 py-1.5 w-full mt-1 bg-gray-50 text-gray-500"></label>
           <label class="block text-xs">Mode<select x-model="ps.payment.mode" class="border rounded-lg px-2 py-1.5 w-full mt-1"><option value="SANDBOX">Sandbox</option><option value="PRODUCTION">Production</option></select></label>
+          <label class="block text-xs">Tên ngân hàng (BIN/alias)<input x-model="ps.payment.sepayBankName" placeholder="MBBank" class="border rounded-lg px-2 py-1.5 w-full mt-1"></label>
+          <label class="block text-xs">Số tài khoản ngân hàng<input x-model="ps.payment.sepayBankAccount" placeholder="0010000000355" class="border rounded-lg px-2 py-1.5 w-full mt-1"></label>
+          <label class="block text-xs">Tên chủ tài khoản<input x-model="ps.payment.sepayAccountName" placeholder="CONG TY ABC" class="border rounded-lg px-2 py-1.5 w-full mt-1"></label>
           <div class="text-xs">
-            <p class="mb-1">SePay Secret Key
-              <span x-show="ps.payment.sepaySecretKey.configured" class="ml-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-green-100 text-green-700">Đã cấu hình</span>
-              <span x-show="!ps.payment.sepaySecretKey.configured" class="ml-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-gray-100 text-gray-600">Chưa cấu hình</span>
+            <p class="mb-1">SePay API Key
+              <span x-show="ps.payment.sepayApiKey?.configured" class="ml-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-green-100 text-green-700">Đã cấu hình</span>
+              <span x-show="!ps.payment.sepayApiKey?.configured" class="ml-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-gray-100 text-gray-600">Chưa cấu hình</span>
             </p>
-            <div class="flex gap-1"><input x-model="psSecret.sepaySecretKey" type="password" placeholder="Nhập để thay đổi" class="border rounded-lg px-2 py-1.5 flex-1">
-              <button x-show="ps.payment.sepaySecretKey.configured" @click="deletePS('/payment/sepay-secret')" class="px-2 py-1.5 border border-red-300 text-red-600 rounded-lg text-xs">Xóa</button></div>
+            <div class="flex gap-1"><input x-model="psSecret.sepayApiKey" type="password" placeholder="Nhập API Key từ my.sepay.vn" class="border rounded-lg px-2 py-1.5 flex-1">
+              <button x-show="ps.payment.sepayApiKey?.configured" @click="deletePS('/payment/sepay-api-key')" class="px-2 py-1.5 border border-red-300 text-red-600 rounded-lg text-xs">Xóa</button></div>
           </div>
-          <label class="block text-xs">Order TTL (phút) <span class="text-gray-400">— chưa áp dụng vào logic đơn hàng hiện tại (mặc định 30 phút)</span><input type="number" min="1" x-model.number="ps.payment.orderTtlMinutes" class="border rounded-lg px-2 py-1.5 w-full mt-1"></label>
+          <label class="block text-xs">Order TTL (phút)<input type="number" min="1" x-model.number="ps.payment.orderTtlMinutes" class="border rounded-lg px-2 py-1.5 w-full mt-1"></label>
           <div class="text-xs bg-gray-50 rounded-lg p-2 space-y-1">
-            <p>Webhook URL: <span class="font-mono" x-text="ps.payment.webhookUrl"></span></p>
-            <p>Trạng thái: <span class="px-2 py-0.5 rounded-full text-[10px] font-semibold" :class="ps.payment.webhookConfigured?'bg-green-100 text-green-700':'bg-gray-100 text-gray-600'" x-text="ps.payment.webhookConfigured?'Đã cấu hình':'Chưa cấu hình'"></span></p>
+            <p>Webhook URL: <span class="font-mono select-all" x-text="ps.payment.webhookUrl"></span>
+              <button @click="navigator.clipboard.writeText(ps.payment.webhookUrl)" class="ml-1 text-brand-500 hover:text-brand-700"><i class="ri-file-copy-line"></i></button>
+            </p>
+            <p class="text-gray-400">Cấu hình URL này trong SePay dashboard → Webhook</p>
+            <p>Trạng thái: <span class="px-2 py-0.5 rounded-full text-[10px] font-semibold" :class="ps.payment.sepayConfigured?'bg-green-100 text-green-700':'bg-gray-100 text-gray-600'" x-text="ps.payment.sepayConfigured?'Đã cấu hình':'Chưa cấu hình (cần API Key + STK)'"></span></p>
           </div>
           <button @click="savePS('payment')" class="px-4 py-1.5 bg-brand-600 text-white rounded-lg">Lưu</button>
 
@@ -492,7 +497,7 @@ function adminApp(){ return {
   plans:[], planPrices:{}, trial:{trialEnabled:true,trialDays:7,trialMaxPages:2,trialMaxMembers:2},
   of:{q:'',orgStatus:'',subStatus:'',plan:'',trial:'',overPages:'',overMembers:'',sort:'created',dir:'desc',pageSize:25}, uf:{q:''}, sf:{status:'',plan:'',trial:'',expired:'',expiresWithin:''}, pf:{q:'',status:''}, pmf:{q:'',status:'',planCode:''},
   org:null, userDetail:null, modal:'', form:{}, toast:'', toastErr:false,
-  ps:null, psTab:'general', psSecret:{googleClientSecret:'',smtpPassword:'',sepaySecretKey:''}, integrations:{}, testEmailTo:'',
+  ps:null, psTab:'general', psSecret:{googleClientSecret:'',smtpPassword:'',sepayApiKey:''}, integrations:{}, testEmailTo:'',
 
   async api(path, opts={}){
     const r = await fetch('/api/admin'+path,{method:opts.method||'GET',headers:{'Content-Type':'application/json',Authorization:'Bearer '+this.token},body:opts.body?JSON.stringify(opts.body):undefined});
@@ -566,9 +571,9 @@ function adminApp(){ return {
       const body={...this.ps[section]};
       if(section==='auth'){ body.googleClientSecret=this.psSecret.googleClientSecret||undefined; }
       if(section==='email'){ body.smtpPassword=this.psSecret.smtpPassword||undefined; }
-      if(section==='payment'){ body.sepaySecretKey=this.psSecret.sepaySecretKey||undefined; delete body.webhookUrl; delete body.webhookConfigured; }
+      if(section==='payment'){ body.sepayApiKey=this.psSecret.sepayApiKey||undefined; delete body.webhookUrl; delete body.webhookConfigured; delete body.sepayConfigured; }
       // Secret placeholder objects ({configured,masked}) must not be sent back as values.
-      for(const k of ['googleClientSecret','smtpPassword','sepaySecretKey']) if(typeof body[k]==='object') delete body[k];
+      for(const k of ['googleClientSecret','smtpPassword','sepayApiKey']) if(typeof body[k]==='object') delete body[k];
       const r=await this.api('/settings/'+section,{method:'PUT',body});
       Object.assign(this.ps,r);
       this.psSecret={googleClientSecret:'',smtpPassword:'',sepaySecretKey:''};

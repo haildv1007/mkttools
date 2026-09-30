@@ -17,7 +17,7 @@ import { organizationRouter } from './modules/organization';
 import { adminRouter } from './modules/admin';
 import { aiCredentialRouter } from './modules/ai-credentials';
 import { organizationInvitationRouter, publicInvitationRouter } from './modules/invitations';
-import { billingPublicRouter, billingCustomerRouter, billingAdminRouter } from './modules/billing';
+import { billingPublicRouter, billingCustomerRouter, billingAdminRouter, billingWebhookRouter } from './modules/billing';
 import { refreshPlatformSettingsCache } from './modules/platform-settings';
 import { getBot } from './modules/telegram-bot';
 import { startWorkers, startScheduler } from './queues';
@@ -63,6 +63,7 @@ app.get('/api/health', async (_req, res) => {
 app.use('/api/auth', authRouter);
 
 app.use('/api/billing', billingPublicRouter);
+app.use('/api/payments', billingWebhookRouter);
 app.use('/api/admin', authMiddleware, adminRouter);
 app.use('/api/organizations', authMiddleware, organizationRouter);
 app.use('/api/ai-credentials', authMiddleware, attachOrganization, requireOrganization, aiCredentialRouter);
@@ -78,6 +79,9 @@ const authPage = (_req: express.Request, res: express.Response) => res.sendFile(
 app.get(['/login', '/register', '/forgot-password', '/reset-password/:token', '/verify-email/:token', '/auth/callback', '/onboarding', '/join/:token'], authPage);
 app.get(['/admin', '/admin/*'], (_req, res) => {
   res.sendFile(path.join(__dirname, '../public/admin.html'));
+});
+app.get('/billing', (_req, res) => {
+  res.sendFile(path.join(__dirname, '../public/billing.html'));
 });
 app.get('*', (_req, res) => {
   res.sendFile(path.join(__dirname, '../public/index.html'));

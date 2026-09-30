@@ -1,10 +1,14 @@
-import { Router, Response } from 'express';
+import { Router, Request, Response } from 'express';
 import crypto from 'crypto';
 import { prisma } from '../../utils/db';
 import { AuthRequest } from '../../middleware/auth';
-import { roleAtLeast, OrgRole, pickCurrentSubscription } from '../organization';
+import { roleAtLeast, OrgRole, pickCurrentSubscription, resolveSubscriptionContext, OrganizationQuota } from '../organization';
+import { getPlatformSettingBool, getOrderTtlMs, getSePayConfig } from '../platform-settings';
+import { SePayProvider } from './sepay';
+import { logger } from '../../utils/logger';
+import { getIO } from '../../realtime';
 
-const ORDER_TTL_MS = 30 * 60 * 1000; // 30 minutes
+const ORDER_TTL_MS = 30 * 60 * 1000; // 30 minutes — default, overridden by platform setting
 const DAY_MS = 24 * 3600 * 1000;
 
 // ─── Order code generation ───
@@ -85,7 +89,8 @@ export const BillingService = {
     }
 
     const orderCode = generateOrderCode();
-    const expiresAt = new Date(now.getTime() + ORDER_TTL_MS);
+    const ttl = getOrderTtlMs() || ORDER_TTL_MS;
+    const expiresAt = new Date(now.getTime() + ttl);
 
     const order = await prisma.paymentOrder.create({
       data: {
@@ -459,8 +464,181 @@ adminRouter.get('/payments/:id', async (req: AuthRequest, res: Response) => {
   });
 });
 
+// ─── Checkout endpoint ───
+
+customerRouter.post('/orders/:id/checkout', async (req: AuthRequest, res: Response) => {
+  if (!requireBillingRole(req, res)) return;
+  if (!getPlatformSettingBool('payment.enabled')) {
+    return res.status(503).json({ error: 'PAYMENTS_DISABLED', message: 'Thanh toán trực tuyến đang tạm thời chưa khả dụng.' });
+  }
+  const order = await BillingService.getPaymentOrder(String(req.params.id));
+  if (!order || order.organizationId !== req.organizationId) {
+    return res.status(404).json({ error: 'NOT_FOUND' });
+  }
+  if (order.status !== 'PENDING') {
+    return res.status(400).json({ error: 'ORDER_NOT_PAYABLE', message: `Đơn hàng ở trạng thái ${order.status}.` });
+  }
+  const checkout = SePayProvider.buildCheckoutInfo(order.orderCode, order.amount);
+  if (!checkout) {
+    return res.status(503).json({ error: 'PAYMENT_NOT_CONFIGURED', message: 'Cấu hình thanh toán chưa hoàn tất.' });
+  }
+  // Bind provider to order if not already
+  if (!order.provider) {
+    await prisma.paymentOrder.update({ where: { id: order.id }, data: { provider: 'SEPAY' } });
+  }
+  res.json({
+    orderCode: order.orderCode,
+    amount: order.amount,
+    currency: order.currency,
+    planNameSnapshot: order.planNameSnapshot,
+    billingMonths: order.billingMonths,
+    expiresAt: order.expiresAt,
+    checkout,
+  });
+});
+
+// ─── Customer billing context ───
+
+customerRouter.get('/context', async (req: AuthRequest, res: Response) => {
+  if (!req.organizationId) return res.status(403).json({ error: 'NO_ORGANIZATION' });
+  const [subCtx, pageUsed, memberUsed] = await Promise.all([
+    resolveSubscriptionContext(req.organizationId),
+    OrganizationQuota.getPageUsage(req.organizationId),
+    OrganizationQuota.getMemberUsage(req.organizationId),
+  ]);
+  res.json({
+    subscription: subCtx,
+    pageUsage: { used: pageUsed, limit: subCtx.pageLimit },
+    memberUsage: { used: memberUsed, limit: subCtx.memberLimit },
+    paymentEnabled: getPlatformSettingBool('payment.enabled'),
+    canCheckout: roleAtLeast(req.organizationRole, 'ADMIN'),
+  });
+});
+
+// Lookup by orderCode (for customer billing page status polling)
+customerRouter.get('/orders/code/:code', async (req: AuthRequest, res: Response) => {
+  if (!req.organizationId) return res.status(403).json({ error: 'NO_ORGANIZATION' });
+  const order = await prisma.paymentOrder.findUnique({ where: { orderCode: String(req.params.code) } });
+  if (!order || order.organizationId !== req.organizationId) {
+    return res.status(404).json({ error: 'NOT_FOUND' });
+  }
+  // Lazy expiration
+  if (order.status === 'PENDING' && order.expiresAt <= new Date()) {
+    await prisma.paymentOrder.update({ where: { id: order.id }, data: { status: 'EXPIRED' } }).catch(() => {});
+    return res.json({ ...safeOrderResponse(order), status: 'EXPIRED' });
+  }
+  res.json(safeOrderResponse(order));
+});
+
+function safeOrderResponse(order: any) {
+  return {
+    id: order.id, orderCode: order.orderCode, amount: order.amount, currency: order.currency,
+    billingMonths: order.billingMonths, planCodeSnapshot: order.planCodeSnapshot,
+    planNameSnapshot: order.planNameSnapshot, status: order.status, provider: order.provider,
+    expiresAt: order.expiresAt, paidAt: order.paidAt, appliedAt: order.appliedAt, createdAt: order.createdAt,
+  };
+}
+
+// ─── SePay Webhook ───
+
+const webhookRouter = Router();
+
+webhookRouter.post('/sepay/webhook', async (req: Request, res: Response) => {
+  if (!SePayProvider.verifyWebhookAuth(req.headers.authorization)) {
+    logger.warn({ ip: req.ip }, 'SEPAY_WEBHOOK_AUTH_FAILED');
+    return res.status(403).json({ success: false });
+  }
+
+  const { valid, payload, error } = SePayProvider.validatePayload(req.body);
+  if (!valid || !payload) {
+    logger.warn({ error }, 'SEPAY_WEBHOOK_INVALID_PAYLOAD');
+    return res.json({ success: true }); // ACK to prevent retries
+  }
+
+  const orderCode = SePayProvider.extractOrderCode(payload);
+  if (!orderCode) {
+    logger.info({ content: payload.content?.substring(0, 100) }, 'SEPAY_WEBHOOK_NO_ORDER_CODE');
+    return res.json({ success: true });
+  }
+
+  const order = await prisma.paymentOrder.findUnique({ where: { orderCode } });
+  if (!order) {
+    logger.warn({ orderCode }, 'SEPAY_WEBHOOK_UNKNOWN_ORDER');
+    return res.json({ success: true });
+  }
+
+  // Idempotency: check if this event was already processed
+  const externalEventId = SePayProvider.buildExternalEventId(payload);
+  const existingEvent = await prisma.paymentEvent.findUnique({
+    where: { provider_externalEventId: { provider: 'SEPAY', externalEventId } },
+  });
+  if (existingEvent) {
+    logger.info({ orderCode, externalEventId }, 'SEPAY_WEBHOOK_DUPLICATE');
+    return res.json({ success: true });
+  }
+
+  // Amount verification — critical security check
+  if (payload.transferAmount !== order.amount) {
+    logger.error({
+      orderCode,
+      expected: order.amount,
+      received: payload.transferAmount,
+    }, 'SEPAY_WEBHOOK_AMOUNT_MISMATCH');
+    await prisma.paymentEvent.create({
+      data: {
+        paymentOrderId: order.id,
+        provider: 'SEPAY',
+        externalEventId,
+        eventType: 'AMOUNT_MISMATCH',
+        payload: { transferAmount: payload.transferAmount, expected: order.amount, referenceCode: payload.referenceCode },
+      },
+    });
+    return res.json({ success: true });
+  }
+
+  // Record the payment event
+  await prisma.paymentEvent.create({
+    data: {
+      paymentOrderId: order.id,
+      provider: 'SEPAY',
+      externalEventId,
+      eventType: 'PAYMENT_CONFIRMED',
+      payload: {
+        gateway: payload.gateway,
+        transactionDate: payload.transactionDate,
+        referenceCode: payload.referenceCode,
+        accountNumber: payload.accountNumber,
+        transferAmount: payload.transferAmount,
+      },
+    },
+  });
+
+  // Mark paid via BillingService (idempotent, transactional)
+  const result = await BillingService.markPaymentPaid(order.id, {
+    provider: 'SEPAY',
+    transactionId: payload.referenceCode || String(payload.id),
+  });
+
+  if (result && 'ok' in result && result.ok) {
+    logger.info({ orderCode, alreadyPaid: result.alreadyPaid }, 'SEPAY_PAYMENT_APPLIED');
+    // Emit realtime event for billing UI
+    const io = getIO();
+    if (io && order.organizationId) {
+      io.to(`org:${order.organizationId}`).emit('payment:updated', {
+        orderCode: order.orderCode,
+        status: 'PAID',
+      });
+    }
+  } else {
+    logger.warn({ orderCode, result }, 'SEPAY_PAYMENT_APPLY_FAILED');
+  }
+
+  res.json({ success: true });
+});
+
 export {
   publicRouter as billingPublicRouter,
   customerRouter as billingCustomerRouter,
   adminRouter as billingAdminRouter,
+  webhookRouter as billingWebhookRouter,
 };
