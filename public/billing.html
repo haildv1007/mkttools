@@ -338,8 +338,8 @@
         socket: null,
 
         async init() {
-          this.token = localStorage.getItem('token') || '';
-          this.orgId = localStorage.getItem('currentOrganizationId') || '';
+          this.token = localStorage.getItem('mkt_token') || '';
+          this.orgId = localStorage.getItem('mkt_current_org') || '';
           if (!this.token) { this.loading = false; return; }
           this.authenticated = true;
           try {
