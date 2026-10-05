@@ -62,14 +62,12 @@ export const SePayProvider = {
 
   extractOrderCode(payload: SePayWebhookPayload): string | null {
     // SePay extracts structured codes into `code` field. Our order codes
-    // follow MKT-XXXXXXX pattern. Try `code` first, then parse `content`.
-    if (payload.code) {
-      const match = payload.code.match(/MKT-[A-Z2-9]{7}/);
-      if (match) return match[0];
-    }
-    if (payload.content) {
-      const match = payload.content.match(/MKT-[A-Z2-9]{7}/);
-      if (match) return match[0];
+    // follow MKT-XXXXXXX pattern. Some banks strip punctuation from transfer
+    // descriptions, so also accept MKTXXXXXXX and normalize it before lookup.
+    for (const value of [payload.code, payload.content]) {
+      if (!value) continue;
+      const match = value.toUpperCase().match(/MKT-?([A-Z2-9]{7})/);
+      if (match) return `MKT-${match[1]}`;
     }
     return null;
   },

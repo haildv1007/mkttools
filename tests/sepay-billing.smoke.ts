@@ -101,6 +101,8 @@ async function main() {
   assert(SePayProvider.extractOrderCode(p1) === 'MKT-ABCDEFG', 'Extract from code field');
   const p2 = { code: null, content: 'thanh toan MKT-XYZW234 cho don hang' } as any;
   assert(SePayProvider.extractOrderCode(p2) === 'MKT-XYZW234', 'Extract from content field');
+  const p2NoDash = { code: null, content: 'MBVCB MKTXYZW234 chuyen tien' } as any;
+  assert(SePayProvider.extractOrderCode(p2NoDash) === 'MKT-XYZW234', 'Normalize bank-stripped order code');
   const p3 = { code: null, content: 'random transfer no code' } as any;
   assert(SePayProvider.extractOrderCode(p3) === null, 'No code → null');
 
