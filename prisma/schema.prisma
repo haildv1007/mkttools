@@ -100,70 +100,71 @@ enum InvitationStatus {
 }
 
 model User {
-  id             String   @id @default(cuid())
-  email          String   @unique
-  name           String
-  passwordHash   String?  @map("password_hash")
-  emailVerifiedAt DateTime? @map("email_verified_at")
-  termsAcceptedAt DateTime? @map("terms_accepted_at")
+  id                    String    @id @default(cuid())
+  email                 String    @unique
+  name                  String
+  passwordHash          String?   @map("password_hash")
+  emailVerifiedAt       DateTime? @map("email_verified_at")
+  termsAcceptedAt       DateTime? @map("terms_accepted_at")
   onboardingCompletedAt DateTime? @map("onboarding_completed_at")
-  role           UserRole @default(ADMIN)
-  telegramChatId String?  @map("telegram_chat_id")
-  isActive       Boolean  @default(true) @map("is_active")
-  isPlatformAdmin Boolean @default(false) @map("is_platform_admin")
-  createdAt      DateTime @default(now()) @map("created_at")
-  updatedAt      DateTime @updatedAt @map("updated_at")
+  role                  UserRole  @default(ADMIN)
+  telegramChatId        String?   @map("telegram_chat_id")
+  isActive              Boolean   @default(true) @map("is_active")
+  isPlatformAdmin       Boolean   @default(false) @map("is_platform_admin")
+  createdAt             DateTime  @default(now()) @map("created_at")
+  updatedAt             DateTime  @updatedAt @map("updated_at")
 
-  pages         Page[]
-  campaigns     Campaign[]
-  approvalLogs  ApprovalLog[]
-  ownedOrganizations Organization[] @relation("OrgOwner")
-  memberships   OrganizationMember[]
-  trialEntitlement UserTrialEntitlement?
-  authIdentities UserAuthIdentity[]
-  authTokens     AuthToken[]
-  sessions       UserSession[]
-  paymentOrders  PaymentOrder[] @relation("PaymentOrderCreator")
+  pages              Page[]
+  campaigns          Campaign[]
+  approvalLogs       ApprovalLog[]
+  ownedOrganizations Organization[]        @relation("OrgOwner")
+  memberships        OrganizationMember[]
+  trialEntitlement   UserTrialEntitlement?
+  authIdentities     UserAuthIdentity[]
+  authTokens         AuthToken[]
+  sessions           UserSession[]
+  paymentOrders      PaymentOrder[]        @relation("PaymentOrderCreator")
 
   @@map("users")
 }
 
 model Organization {
-  id           String             @id @default(cuid())
-  name         String
-  slug         String?            @unique
-  ownerUserId  String?            @map("owner_user_id")
-  status       OrganizationStatus @default(ACTIVE)
-  createdAt    DateTime           @default(now()) @map("created_at")
-  updatedAt    DateTime           @updatedAt @map("updated_at")
+  id          String             @id @default(cuid())
+  name        String
+  slug        String?            @unique
+  ownerUserId String?            @map("owner_user_id")
+  status      OrganizationStatus @default(ACTIVE)
+  createdAt   DateTime           @default(now()) @map("created_at")
+  updatedAt   DateTime           @updatedAt @map("updated_at")
 
-  owner        User?              @relation("OrgOwner", fields: [ownerUserId], references: [id])
-  members      OrganizationMember[]
-  pages        Page[]
-  workspaces   Workspace[]
-  campaigns    Campaign[]
-  contentItems ContentItem[]
-  subscriptions OrganizationSubscription[]
-  aiCredentials OrganizationAiCredential[]
+  owner               User?                            @relation("OrgOwner", fields: [ownerUserId], references: [id])
+  members             OrganizationMember[]
+  pages               Page[]
+  workspaces          Workspace[]
+  campaigns           Campaign[]
+  contentItems        ContentItem[]
+  subscriptions       OrganizationSubscription[]
+  aiCredentials       OrganizationAiCredential[]
   aiOperationSettings OrganizationAiOperationSetting[]
-  invitations   OrganizationInvitation[]
-  paymentOrders PaymentOrder[]
+  settings            OrganizationSetting[]
+  invitations         OrganizationInvitation[]
+  paymentOrders       PaymentOrder[]
 
   @@map("organizations")
 }
 
 model OrganizationMember {
-  id             String            @id @default(cuid())
-  organizationId String            @map("organization_id")
-  userId         String            @map("user_id")
-  role           OrgMemberRole     @default(MEMBER)
-  status         OrgMemberStatus   @default(ACTIVE)
-  accessMode     MemberAccessMode  @default(ALL) @map("access_mode")
-  createdAt      DateTime          @default(now()) @map("created_at")
-  updatedAt      DateTime          @updatedAt @map("updated_at")
+  id             String           @id @default(cuid())
+  organizationId String           @map("organization_id")
+  userId         String           @map("user_id")
+  role           OrgMemberRole    @default(MEMBER)
+  status         OrgMemberStatus  @default(ACTIVE)
+  accessMode     MemberAccessMode @default(ALL) @map("access_mode")
+  createdAt      DateTime         @default(now()) @map("created_at")
+  updatedAt      DateTime         @updatedAt @map("updated_at")
 
-  organization    Organization                    @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  user            User                            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  organization    Organization                  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user            User                          @relation(fields: [userId], references: [id], onDelete: Cascade)
   workspaceGrants OrganizationMemberWorkspace[]
   pageGrants      OrganizationMemberPage[]
 
@@ -201,18 +202,18 @@ model OrganizationMemberPage {
 }
 
 model OrganizationInvitation {
-  id                String           @id @default(cuid())
-  organizationId    String           @map("organization_id")
-  email             String
-  role              OrgMemberRole    @default(MEMBER)
-  accessMode        MemberAccessMode @default(ALL) @map("access_mode")
-  invitedByUserId   String?          @map("invited_by_user_id")
-  tokenHash         String           @unique @map("token_hash")
-  status            InvitationStatus @default(PENDING)
-  expiresAt         DateTime         @map("expires_at")
-  acceptedAt        DateTime?        @map("accepted_at")
-  createdAt         DateTime         @default(now()) @map("created_at")
-  updatedAt         DateTime         @updatedAt @map("updated_at")
+  id              String           @id @default(cuid())
+  organizationId  String           @map("organization_id")
+  email           String
+  role            OrgMemberRole    @default(MEMBER)
+  accessMode      MemberAccessMode @default(ALL) @map("access_mode")
+  invitedByUserId String?          @map("invited_by_user_id")
+  tokenHash       String           @unique @map("token_hash")
+  status          InvitationStatus @default(PENDING)
+  expiresAt       DateTime         @map("expires_at")
+  acceptedAt      DateTime?        @map("accepted_at")
+  createdAt       DateTime         @default(now()) @map("created_at")
+  updatedAt       DateTime         @updatedAt @map("updated_at")
 
   organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
 
@@ -335,22 +336,22 @@ model UserTrialEntitlement {
 }
 
 model Page {
-  id          String   @id @default(cuid())
-  organizationId String @map("organization_id")
-  platform    Platform
-  name        String
-  externalId  String   @map("external_id")
-  accessToken String   @map("access_token")
+  id              String   @id @default(cuid())
+  organizationId  String   @map("organization_id")
+  platform        Platform
+  name            String
+  externalId      String   @map("external_id")
+  accessToken     String   @map("access_token")
   context         String?
   isActive        Boolean  @default(true) @map("is_active")
   metadata        Json?
   telegramGroupId String?  @map("telegram_group_id")
   userId          String   @map("user_id")
-  createdAt   DateTime @default(now()) @map("created_at")
-  updatedAt   DateTime @updatedAt @map("updated_at")
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
 
-  user           User            @relation(fields: [userId], references: [id])
-  organization   Organization    @relation(fields: [organizationId], references: [id])
+  user           User                     @relation(fields: [userId], references: [id])
+  organization   Organization             @relation(fields: [organizationId], references: [id])
   campaigns      Campaign[]
   contentItems   ContentItem[]
   workspacePages WorkspacePage[]
@@ -362,19 +363,19 @@ model Page {
 }
 
 model Campaign {
-  id          String    @id @default(cuid())
-  organizationId String @map("organization_id")
-  name        String
-  description String?
-  pageId        String    @map("page_id")
-  startDate   DateTime  @map("start_date")
-  endDate     DateTime? @map("end_date")
-  isActive      Boolean   @default(true) @map("is_active")
-  genLeadTime   Int       @default(30) @map("gen_lead_time")
-  autoApprove   Boolean   @default(false) @map("auto_approve")
-  userId        String    @map("user_id")
-  createdAt     DateTime  @default(now()) @map("created_at")
-  updatedAt     DateTime  @updatedAt @map("updated_at")
+  id             String    @id @default(cuid())
+  organizationId String    @map("organization_id")
+  name           String
+  description    String?
+  pageId         String    @map("page_id")
+  startDate      DateTime  @map("start_date")
+  endDate        DateTime? @map("end_date")
+  isActive       Boolean   @default(true) @map("is_active")
+  genLeadTime    Int       @default(30) @map("gen_lead_time")
+  autoApprove    Boolean   @default(false) @map("auto_approve")
+  userId         String    @map("user_id")
+  createdAt      DateTime  @default(now()) @map("created_at")
+  updatedAt      DateTime  @updatedAt @map("updated_at")
 
   page         Page          @relation(fields: [pageId], references: [id])
   user         User          @relation(fields: [userId], references: [id])
@@ -386,31 +387,31 @@ model Campaign {
 }
 
 model ContentItem {
-  id               String        @id @default(cuid())
-  organizationId   String        @map("organization_id")
-  campaignId       String        @map("campaign_id")
-  pageId           String        @map("page_id")
-  scheduledAt      DateTime      @map("scheduled_at")
-  topic            String
-  notes            String?
-  contentType      ContentType   @default(IMAGE) @map("content_type")
-  aiModel          String?       @map("ai_model")
-  aiImageModel     String?       @map("ai_image_model")
-  generatedText    String?       @map("generated_text")
-  generatedImageUrl String?      @map("generated_image_url")
-  generatedImages   Json?        @map("generated_images")
-  imageDescriptions String?      @map("image_descriptions")
-  generatedVideoUrl String?      @map("generated_video_url")
-  source           ContentSource @default(AI)
-  status           ContentStatus @default(DRAFT)
-  telegramMsgId    String?       @map("telegram_msg_id")
-  socialPostId     String?       @map("social_post_id")
-  publishedAt      DateTime?     @map("published_at")
-  metrics          Json?
-  retryCount       Int           @default(0) @map("retry_count")
-  errorMessage     String?       @map("error_message")
-  createdAt        DateTime      @default(now()) @map("created_at")
-  updatedAt        DateTime      @updatedAt @map("updated_at")
+  id                String        @id @default(cuid())
+  organizationId    String        @map("organization_id")
+  campaignId        String        @map("campaign_id")
+  pageId            String        @map("page_id")
+  scheduledAt       DateTime      @map("scheduled_at")
+  topic             String
+  notes             String?
+  contentType       ContentType   @default(IMAGE) @map("content_type")
+  aiModel           String?       @map("ai_model")
+  aiImageModel      String?       @map("ai_image_model")
+  generatedText     String?       @map("generated_text")
+  generatedImageUrl String?       @map("generated_image_url")
+  generatedImages   Json?         @map("generated_images")
+  imageDescriptions String?       @map("image_descriptions")
+  generatedVideoUrl String?       @map("generated_video_url")
+  source            ContentSource @default(AI)
+  status            ContentStatus @default(DRAFT)
+  telegramMsgId     String?       @map("telegram_msg_id")
+  socialPostId      String?       @map("social_post_id")
+  publishedAt       DateTime?     @map("published_at")
+  metrics           Json?
+  retryCount        Int           @default(0) @map("retry_count")
+  errorMessage      String?       @map("error_message")
+  createdAt         DateTime      @default(now()) @map("created_at")
+  updatedAt         DateTime      @updatedAt @map("updated_at")
 
   campaign         Campaign          @relation(fields: [campaignId], references: [id])
   page             Page              @relation(fields: [pageId], references: [id])
@@ -453,7 +454,7 @@ model Workspace {
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 
-  organization   Organization    @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  organization   Organization                  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   workspacePages WorkspacePage[]
   memberGrants   OrganizationMemberWorkspace[]
 
@@ -523,6 +524,27 @@ model AppSetting {
 }
 
 /**
+ * Customer-owned integration settings. These rows are strictly scoped to an
+ * organization; AppSetting remains legacy/platform-global and must never be
+ * exposed through normal customer APIs.
+ */
+model OrganizationSetting {
+  id             String   @id @default(cuid())
+  organizationId String   @map("organization_id")
+  key            String
+  value          String
+  isSecret       Boolean  @default(false) @map("is_secret")
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, key])
+  @@index([organizationId])
+  @@map("organization_settings")
+}
+
+/**
  * Platform-global configuration (Platform Admin only) — distinct from
  * AppSetting (legacy, still used for Telegram/Facebook/timezone in the
  * per-install "Cài đặt hệ thống" page) and from OrganizationAiCredential
@@ -566,14 +588,14 @@ model ActivityLog {
 }
 
 model ContentRevision {
-  id              String      @id @default(cuid())
-  contentItemId   String      @map("content_item_id")
+  id              String   @id @default(cuid())
+  contentItemId   String   @map("content_item_id")
   version         Int
-  generatedText   String?     @map("generated_text")
-  generatedImages Json?       @map("generated_images")
+  generatedText   String?  @map("generated_text")
+  generatedImages Json?    @map("generated_images")
   feedback        String?
-  source          String      @default("WEB")
-  createdAt       DateTime    @default(now()) @map("created_at")
+  source          String   @default("WEB")
+  createdAt       DateTime @default(now()) @map("created_at")
 
   contentItem ContentItem @relation(fields: [contentItemId], references: [id])
 
@@ -660,30 +682,30 @@ model SubscriptionPlanPrice {
 }
 
 model PaymentOrder {
-  id                     String             @id @default(cuid())
-  organizationId         String             @map("organization_id")
-  createdByUserId        String             @map("created_by_user_id")
-  planId                 String             @map("plan_id")
-  planPriceId            String?            @map("plan_price_id")
-  orderCode              String             @unique @map("order_code")
-  status                 PaymentOrderStatus @default(PENDING)
-  amount                 Int
-  currency               String             @default("VND")
-  billingMonths          Int                @map("billing_months")
-  planCodeSnapshot       String             @map("plan_code_snapshot")
-  planNameSnapshot       String             @map("plan_name_snapshot")
-  provider               String?
-  providerOrderId        String?            @map("provider_order_id")
-  providerTransactionId  String?            @map("provider_transaction_id")
-  expiresAt              DateTime           @map("expires_at")
-  paidAt                 DateTime?          @map("paid_at")
-  appliedAt              DateTime?          @map("applied_at")
-  createdAt              DateTime           @default(now()) @map("created_at")
-  updatedAt              DateTime           @updatedAt @map("updated_at")
+  id                    String             @id @default(cuid())
+  organizationId        String             @map("organization_id")
+  createdByUserId       String             @map("created_by_user_id")
+  planId                String             @map("plan_id")
+  planPriceId           String?            @map("plan_price_id")
+  orderCode             String             @unique @map("order_code")
+  status                PaymentOrderStatus @default(PENDING)
+  amount                Int
+  currency              String             @default("VND")
+  billingMonths         Int                @map("billing_months")
+  planCodeSnapshot      String             @map("plan_code_snapshot")
+  planNameSnapshot      String             @map("plan_name_snapshot")
+  provider              String?
+  providerOrderId       String?            @map("provider_order_id")
+  providerTransactionId String?            @map("provider_transaction_id")
+  expiresAt             DateTime           @map("expires_at")
+  paidAt                DateTime?          @map("paid_at")
+  appliedAt             DateTime?          @map("applied_at")
+  createdAt             DateTime           @default(now()) @map("created_at")
+  updatedAt             DateTime           @updatedAt @map("updated_at")
 
-  organization Organization     @relation(fields: [organizationId], references: [id])
-  createdByUser User             @relation("PaymentOrderCreator", fields: [createdByUserId], references: [id])
-  plan          SubscriptionPlan @relation(fields: [planId], references: [id])
+  organization  Organization           @relation(fields: [organizationId], references: [id])
+  createdByUser User                   @relation("PaymentOrderCreator", fields: [createdByUserId], references: [id])
+  plan          SubscriptionPlan       @relation(fields: [planId], references: [id])
   planPrice     SubscriptionPlanPrice? @relation(fields: [planPriceId], references: [id])
   events        PaymentEvent[]
 

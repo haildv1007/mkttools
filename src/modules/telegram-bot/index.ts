@@ -12,6 +12,8 @@ import {
 import type { TelegramApprovalPayload } from '../../types';
 import { extractCleanText } from '../../utils/clean-text';
 import type { RevisionType } from '@prisma/client';
+import { getOrganizationSettings } from '../settings/organization-settings';
+import { getAccessContext, getAccessiblePageIds, canAccessPage } from '../access';
 
 let bot: TelegramBot | null = null;
 
@@ -79,10 +81,11 @@ function setupHandlers(bot: TelegramBot) {
   });
 
   bot.onText(/\/pending/, async (msg) => {
-    if (!(await isAdmin(msg.chat.id))) return;
+    const scope = await resolveTelegramScope(msg.chat.id, msg.from?.id);
+    if (!scope) return;
 
     const items = await prisma.contentItem.findMany({
-      where: { status: 'PENDING_REVIEW' },
+      where: { organizationId: scope.organizationId, pageId: { in: scope.pageIds }, status: 'PENDING_REVIEW' },
       include: { page: true, campaign: true },
       orderBy: { scheduledAt: 'asc' },
       take: 10,
@@ -100,7 +103,8 @@ function setupHandlers(bot: TelegramBot) {
   });
 
   bot.onText(/\/stats/, async (msg) => {
-    if (!(await isAdmin(msg.chat.id))) return;
+    const scope = await resolveTelegramScope(msg.chat.id, msg.from?.id);
+    if (!scope) return;
 
     const today = new Date();
     today.setHours(0, 0, 0, 0);
@@ -109,7 +113,7 @@ function setupHandlers(bot: TelegramBot) {
 
     const stats = await prisma.contentItem.groupBy({
       by: ['status'],
-      where: { scheduledAt: { gte: today, lt: tomorrow } },
+      where: { organizationId: scope.organizationId, pageId: { in: scope.pageIds }, scheduledAt: { gte: today, lt: tomorrow } },
       _count: true,
     });
 
@@ -132,7 +136,12 @@ function setupHandlers(bot: TelegramBot) {
 
     const chatId = query.message.chat.id;
     const messageId = query.message.message_id;
-    const userId = await findUserByTelegramChat(String(chatId));
+    const scope = await resolveTelegramScope(chatId, query.from.id);
+    if (!scope) {
+      bot.answerCallbackQuery(query.id, { text: 'Bạn không có quyền thao tác nội dung này.' });
+      return;
+    }
+    const userId = scope.userId;
 
     // Handle noop
     if (action === 'noop') {
@@ -147,6 +156,10 @@ function setupHandlers(bot: TelegramBot) {
     });
     if (!item) {
       bot.answerCallbackQuery(query.id, { text: 'Content không tồn tại' });
+      return;
+    }
+    if (item.organizationId !== scope.organizationId || !scope.pageIds.includes(item.pageId)) {
+      bot.answerCallbackQuery(query.id, { text: 'Bạn không có quyền thao tác nội dung này.' });
       return;
     }
 
@@ -294,7 +307,8 @@ function setupHandlers(bot: TelegramBot) {
   // Reply handler — route feedback by reply_to_message_id
   bot.on('message', async (msg) => {
     if (!msg.reply_to_message || !msg.text) return;
-    if (!(await isAdmin(msg.chat.id))) return;
+    const scope = await resolveTelegramScope(msg.chat.id, msg.from?.id);
+    if (!scope) return;
 
     const replyToId = msg.reply_to_message.message_id;
     const chatIdStr = String(msg.chat.id);
@@ -310,12 +324,17 @@ function setupHandlers(bot: TelegramBot) {
 
       const partialId = match[1];
       const legacyItem = await prisma.contentItem.findFirst({
-        where: { id: { endsWith: partialId }, status: 'REVISION_REQUESTED' },
+        where: {
+          id: { endsWith: partialId },
+          organizationId: scope.organizationId,
+          pageId: { in: scope.pageIds },
+          status: 'REVISION_REQUESTED',
+        },
         include: { page: true },
       });
       if (!legacyItem) return;
 
-      const userId = await findUserByTelegramChat(chatIdStr);
+      const userId = scope.userId;
       if (userId) {
         await prisma.approvalLog.create({
           data: { contentItemId: legacyItem.id, userId, action: 'REQUEST_EDIT', feedback: msg.text },
@@ -326,6 +345,12 @@ function setupHandlers(bot: TelegramBot) {
       return;
     }
 
+    const sessionItem = await prisma.contentItem.findUnique({
+      where: { id: session.contentItemId },
+      select: { organizationId: true, pageId: true },
+    });
+    if (!sessionItem || sessionItem.organizationId !== scope.organizationId || !scope.pageIds.includes(sessionItem.pageId)) return;
+
     // Check expiry
     if (session.expiresAt && session.expiresAt < new Date()) {
       await prisma.revisionSession.update({ where: { id: session.id }, data: { status: 'EXPIRED' } });
@@ -335,7 +360,7 @@ function setupHandlers(bot: TelegramBot) {
       return;
     }
 
-    const userId = await findUserByTelegramChat(chatIdStr);
+    const userId = scope.userId;
 
     // Delete prompt message if exists
     if (session.promptMessageId) {
@@ -470,6 +495,10 @@ async function handleRegenerate(contentItemId: string, chatId: number, feedback?
       contentType: item.contentType,
       notes: item.notes || undefined,
       previousFeedback: feedback,
+      credential: {
+        organizationId: item.organizationId,
+        actorUserId: await findUserByTelegramChat(String(chatId)) || undefined,
+      },
     });
 
     let fullText = result.text +
@@ -594,22 +623,61 @@ export async function sendContentForApproval(payload: TelegramApprovalPayload) {
   if (!item) return;
 
   const pageGroupId = item.page?.telegramGroupId;
-  const chatIds = pageGroupId ? [pageGroupId] : config.telegram.adminChatIds;
+  const settings = await getOrganizationSettings(item.organizationId);
+  const organizationAdminIds = settings.TELEGRAM_ADMIN_CHAT_IDS
+    .split(',')
+    .map((id) => id.trim())
+    .filter(Boolean);
+  const chatIds = pageGroupId ? [pageGroupId] : organizationAdminIds;
 
   for (const chatId of chatIds) {
     await sendApprovalMessage(Number(chatId), item);
   }
 }
 
-async function isAdmin(chatId: number): Promise<boolean> {
-  if (config.telegram.adminChatIds.includes(String(chatId))) return true;
-  const page = await prisma.page.findFirst({ where: { telegramGroupId: String(chatId) } });
-  return !!page;
-}
-
 async function findUserByTelegramChat(chatId: string): Promise<string | null> {
   const user = await prisma.user.findFirst({ where: { telegramChatId: chatId } });
   return user?.id || null;
+}
+
+async function resolveTelegramScope(
+  chatId: number,
+  telegramUserId?: number,
+): Promise<{ organizationId: string; pageIds: string[]; userId: string } | null> {
+  if (!telegramUserId) return null;
+  const userId = await findUserByTelegramChat(String(telegramUserId));
+  if (!userId) return null;
+
+  const groupPage = await prisma.page.findFirst({
+    where: { telegramGroupId: String(chatId), isActive: true },
+    select: { id: true, organizationId: true },
+  });
+  if (groupPage) {
+    const ctx = await getAccessContext(groupPage.organizationId, userId);
+    if (!ctx || !(await canAccessPage(ctx, groupPage.id))) return null;
+    return { organizationId: groupPage.organizationId, pageIds: [groupPage.id], userId };
+  }
+
+  const memberships = await prisma.organizationMember.findMany({
+    where: { userId, status: 'ACTIVE' },
+    select: { organizationId: true },
+  });
+  for (const membership of memberships) {
+    const settings = await getOrganizationSettings(membership.organizationId);
+    const adminIds = settings.TELEGRAM_ADMIN_CHAT_IDS
+      .split(',')
+      .map((id) => id.trim())
+      .filter(Boolean);
+    if (!adminIds.includes(String(chatId))) continue;
+    const ctx = await getAccessContext(membership.organizationId, userId);
+    if (!ctx) continue;
+    return {
+      organizationId: membership.organizationId,
+      pageIds: await getAccessiblePageIds(ctx),
+      userId,
+    };
+  }
+  return null;
 }
 
 function statusEmoji(status: string): string {

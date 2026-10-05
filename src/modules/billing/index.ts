@@ -125,8 +125,10 @@ export const BillingService = {
     };
   },
 
-  async getPaymentOrder(orderId: string) {
-    const order = await prisma.paymentOrder.findUnique({ where: { id: orderId } });
+  async getPaymentOrder(orderId: string, organizationId?: string) {
+    const order = organizationId
+      ? await prisma.paymentOrder.findFirst({ where: { id: orderId, organizationId } })
+      : await prisma.paymentOrder.findUnique({ where: { id: orderId } });
     if (!order) return null;
     // Lazy expiration
     if (order.status === 'PENDING' && order.expiresAt <= new Date()) {
@@ -318,8 +320,8 @@ customerRouter.get('/orders', async (req: AuthRequest, res: Response) => {
 
 customerRouter.get('/orders/:id', async (req: AuthRequest, res: Response) => {
   if (!req.organizationId) return res.status(403).json({ error: 'NO_ORGANIZATION' });
-  const order = await BillingService.getPaymentOrder(String(req.params.id));
-  if (!order || order.organizationId !== req.organizationId) {
+  const order = await BillingService.getPaymentOrder(String(req.params.id), req.organizationId);
+  if (!order) {
     return res.status(404).json({ error: 'NOT_FOUND' });
   }
   res.json({
@@ -471,8 +473,8 @@ customerRouter.post('/orders/:id/checkout', async (req: AuthRequest, res: Respon
   if (!getPlatformSettingBool('payment.enabled')) {
     return res.status(503).json({ error: 'PAYMENTS_DISABLED', message: 'Thanh toán trực tuyến đang tạm thời chưa khả dụng.' });
   }
-  const order = await BillingService.getPaymentOrder(String(req.params.id));
-  if (!order || order.organizationId !== req.organizationId) {
+  const order = await BillingService.getPaymentOrder(String(req.params.id), req.organizationId);
+  if (!order) {
     return res.status(404).json({ error: 'NOT_FOUND' });
   }
   if (order.status !== 'PENDING') {

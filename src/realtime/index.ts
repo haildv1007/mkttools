@@ -47,6 +47,22 @@ export interface ActivityEvent {
   updatedAt: string;
 }
 
+export async function canUserJoinOrganizationRoom(userId: string, organizationId: string): Promise<boolean> {
+  const membership = await prisma.organizationMember.findUnique({
+    where: { organizationId_userId: { organizationId, userId } },
+    select: { status: true },
+  });
+  return membership?.status === 'ACTIVE';
+}
+
+export async function canUserJoinPageRoom(userId: string, organizationId: string, pageId: string): Promise<boolean> {
+  const page = await prisma.page.findUnique({ where: { id: pageId }, select: { organizationId: true } });
+  if (!page || page.organizationId !== organizationId) return false;
+  const { getAccessContext, canAccessPage } = await import('../modules/access');
+  const ctx = await getAccessContext(organizationId, userId);
+  return !!ctx && canAccessPage(ctx, pageId);
+}
+
 export function initSocketIO(server: HttpServer): Server {
   io = new Server(server, {
     cors: { origin: '*' },
@@ -113,22 +129,7 @@ export function initSocketIO(server: HttpServer): Server {
     async function canJoinPage(pageId: string): Promise<boolean> {
       const currentOrg = (socket as any).organizationId as string | undefined;
       if (!currentOrg) return false;
-      const page = await prisma.page.findUnique({ where: { id: pageId }, select: { organizationId: true } });
-      if (!page || page.organizationId !== currentOrg) return false;
-      // Restricted members: enforce access before allowing a page room join.
-      const m = await prisma.organizationMember.findUnique({
-        where: { organizationId_userId: { organizationId: currentOrg, userId } },
-        select: { id: true, role: true, accessMode: true, status: true },
-      });
-      if (!m || m.status !== 'ACTIVE') return false;
-      const isAllAccess = m.role === 'OWNER' || m.role === 'ADMIN' || m.accessMode === 'ALL';
-      if (isAllAccess) return true;
-      const { getAccessiblePageIds } = await import('../modules/access');
-      const ids = await getAccessiblePageIds({
-        organizationId: currentOrg, userId, role: m.role as any, accessMode: m.accessMode as any,
-        memberId: m.id, isAllAccess: false,
-      });
-      return ids.includes(pageId);
+      return canUserJoinPageRoom(userId, currentOrg, pageId);
     }
 
     socket.on('subscribe:page', async (pageId: string) => {
@@ -166,10 +167,8 @@ export function emitActivity(event: ActivityEvent) {
   if (!io) return;
   if (event.organizationId) {
     io.to(`org:${event.organizationId}`).emit('activity:update', event);
-    return;
   }
-  // Legacy events without org — restrict to server-side subscribers only.
-  io.emit('activity:update', event);
+  // Never broadcast unscoped legacy activity to customer sockets.
 }
 
 export function emitContentUpdate(event: ContentEvent) {

@@ -77,7 +77,10 @@ router.get('/resolve-scope', async (req: AuthRequest, res: Response) => {
   try {
     const { type, id } = req.query;
     const pageIds = await resolvePageIds(String(type || 'all'), id ? String(id) : undefined, req.organizationId!);
-    res.json({ pageIds });
+    if (req.isAllAccess) return res.json({ pageIds });
+    const ctx = await getAccessContext(req.organizationId!, req.userId!);
+    const accessible = ctx ? new Set(await getAccessiblePageIds(ctx)) : new Set<string>();
+    res.json({ pageIds: pageIds.filter((pageId) => accessible.has(pageId)) });
   } catch (err) {
     res.status(400).json({ error: err instanceof Error ? err.message : 'Failed to resolve scope' });
   }

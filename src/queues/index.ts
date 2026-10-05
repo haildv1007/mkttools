@@ -9,6 +9,8 @@ import { publishContent } from '../modules/publisher';
 import { extractCleanText } from '../utils/clean-text';
 import { logActivity, updateActivity, sanitizeError } from '../utils/activity';
 import { emitContentUpdate, emitActivity } from '../realtime';
+import { assertQueueOrganization } from './security';
+export { assertQueueOrganization } from './security';
 
 const connection = new IORedis(config.redis.url, { maxRetriesPerRequest: null });
 
@@ -51,12 +53,16 @@ export function startWorkers() {
     });
     if (!item) throw new Error(`Content item ${contentItemId} not found`);
     const organizationId = item.organizationId;
+    assertQueueOrganization(organizationId, job.data.organizationId);
+    if (item.page.organizationId !== organizationId || (item.campaign && item.campaign.organizationId !== organizationId)) {
+      throw new Error('Content relationship organization mismatch');
+    }
     // Re-validate actor access at execution time so that a revocation between
     // enqueue and run stops unauthorized work.
     if (job.data.actorUserId) {
       const { getAccessContext, canAccessPage } = await import('../modules/access');
       const ctx = await getAccessContext(organizationId, job.data.actorUserId);
-      if (ctx && !ctx.isAllAccess && !(await canAccessPage(ctx, item.pageId))) {
+      if (!ctx || (!ctx.isAllAccess && !(await canAccessPage(ctx, item.pageId)))) {
         throw new Error('Actor no longer has access to this content');
       }
     }
@@ -222,7 +228,16 @@ export function startWorkers() {
       select: { topic: true, pageId: true, campaignId: true, organizationId: true, page: { select: { name: true, externalId: true, platform: true } }, campaign: { select: { name: true } } },
     });
     const label = ci?.topic?.slice(0, 80) || contentItemId;
-    const organizationId = ci?.organizationId;
+    if (!ci) throw new Error(`Content item ${contentItemId} not found`);
+    const organizationId = ci.organizationId;
+    assertQueueOrganization(organizationId, job.data.organizationId);
+    if (job.data.actorUserId) {
+      const { getAccessContext, canAccessPage } = await import('../modules/access');
+      const ctx = await getAccessContext(organizationId, job.data.actorUserId);
+      if (!ctx || (!ctx.isAllAccess && !(await canAccessPage(ctx, ci.pageId)))) {
+        throw new Error('Actor no longer has access to this content');
+      }
+    }
     const actOpts = { action: 'publish', category: 'publish' as const, summary: `Đang đăng bài: ${label}`, entityType: 'content', entityId: contentItemId, entityLabel: label, organizationId };
     const actId = await logActivity(actOpts);
     emitActFromLog(actId, actOpts);
@@ -247,7 +262,7 @@ export function startWorkers() {
       });
     }
 
-    const result = await publishContent(contentItemId);
+    const result = await publishContent(contentItemId, organizationId);
     if (!result.success) {
       const safe = sanitizeError(result.error);
       await updateActivity(actId, { status: 'error', summary: `Đăng thất bại: ${label}`, detail: safe.message, errorCode: safe.code });
@@ -318,7 +333,7 @@ export function startWorkers() {
         allFuture = false;
 
         await prisma.contentItem.update({ where: { id: item.id }, data: { status: 'QUEUED' } });
-        await contentQueue.add('generate', { contentItemId: item.id }, {
+        await contentQueue.add('generate', { contentItemId: item.id, organizationId: item.organizationId }, {
           jobId: `gen-${item.id}-${Date.now()}`,
           attempts: 3,
           backoff: { type: 'exponential', delay: 5000 },
@@ -343,7 +358,7 @@ export function startWorkers() {
       pubCursor = approvedItems[approvedItems.length - 1].id;
 
       for (const item of approvedItems) {
-        await publishQueue.add('publish', { contentItemId: item.id }, {
+        await publishQueue.add('publish', { contentItemId: item.id, organizationId: item.organizationId }, {
           jobId: `pub-${item.id}-${Date.now()}`,
           attempts: 3,
           backoff: { type: 'exponential', delay: 10000 },

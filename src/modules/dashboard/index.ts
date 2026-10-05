@@ -6,7 +6,7 @@ import fs from 'fs';
 import { prisma } from '../../utils/db';
 import { listProviders, setTextProvider, setImageProvider, generateText, testConnection } from '../content-generator';
 import { contentQueue, publishQueue } from '../../queues';
-import { getSetting, getSettings, setSettings } from '../settings';
+import { getOrganizationSettings, setOrganizationSettings } from '../settings/organization-settings';
 import { resolvePageIds } from '../workspace';
 import { AuthRequest } from '../../middleware/auth';
 import { OrganizationQuota, resolveSubscriptionContext } from '../organization';
@@ -49,6 +49,26 @@ const imageUpload = multer({
 });
 
 const router = Router();
+
+function isOrganizationAdmin(req: AuthRequest): boolean {
+  return req.organizationRole === 'OWNER' || req.organizationRole === 'ADMIN';
+}
+
+async function accessiblePageIdsFor(req: AuthRequest): Promise<string[] | null> {
+  if (req.isAllAccess) return null;
+  if (!req.organizationId || !req.userId) return [];
+  const ctx = await getAccessContext(req.organizationId, req.userId);
+  return ctx ? getAccessiblePageIds(ctx) : [];
+}
+
+async function scopedContentWhere(req: AuthRequest, extra: Record<string, unknown> = {}): Promise<Record<string, unknown>> {
+  const ids = await accessiblePageIdsFor(req);
+  return {
+    organizationId: req.organizationId,
+    ...(ids ? { pageId: { in: ids } } : {}),
+    ...extra,
+  };
+}
 
 // Tenant guard: fetches contentItem, asserts org match, and (if the caller is
 // a restricted member) that the caller has access to the content's page.
@@ -129,6 +149,8 @@ router.get('/stats', async (req: AuthRequest, res: Response) => {
     const tomorrow = new Date(today);
     tomorrow.setDate(tomorrow.getDate() + 1);
     const orgId = req.organizationId;
+    const contentWhere = await scopedContentWhere(req);
+    const accessiblePageIds = await accessiblePageIdsFor(req);
 
     const [
       totalPages,
@@ -141,14 +163,14 @@ router.get('/stats', async (req: AuthRequest, res: Response) => {
       todayPublished,
       providers,
     ] = await Promise.all([
-      prisma.page.count({ where: { organizationId: orgId, isActive: true } }),
-      prisma.campaign.count({ where: { organizationId: orgId, isActive: true } }),
-      prisma.contentItem.count({ where: { organizationId: orgId } }),
-      prisma.contentItem.groupBy({ by: ['status'], where: { organizationId: orgId }, _count: true }),
-      prisma.contentItem.groupBy({ by: ['source'], where: { organizationId: orgId }, _count: true }),
-      prisma.contentItem.groupBy({ by: ['contentType'], where: { organizationId: orgId }, _count: true }),
-      prisma.contentItem.count({ where: { organizationId: orgId, createdAt: { gte: today, lt: tomorrow } } }),
-      prisma.contentItem.count({ where: { organizationId: orgId, publishedAt: { gte: today, lt: tomorrow } } }),
+      prisma.page.count({ where: { organizationId: orgId, isActive: true, ...(accessiblePageIds ? { id: { in: accessiblePageIds } } : {}) } }),
+      prisma.campaign.count({ where: { organizationId: orgId, isActive: true, ...(accessiblePageIds ? { pageId: { in: accessiblePageIds } } : {}) } }),
+      prisma.contentItem.count({ where: contentWhere }),
+      prisma.contentItem.groupBy({ by: ['status'], where: contentWhere, _count: true }),
+      prisma.contentItem.groupBy({ by: ['source'], where: contentWhere, _count: true }),
+      prisma.contentItem.groupBy({ by: ['contentType'], where: contentWhere, _count: true }),
+      prisma.contentItem.count({ where: { ...contentWhere, createdAt: { gte: today, lt: tomorrow } } }),
+      prisma.contentItem.count({ where: { ...contentWhere, publishedAt: { gte: today, lt: tomorrow } } }),
       listProviders(),
     ]);
 
@@ -204,19 +226,25 @@ router.get('/stats/dashboard', async (req: AuthRequest, res: Response) => {
     // Resolve scope to allowed page IDs
     const sType = String(scopeType || 'all');
     const sId = scopeId ? String(scopeId) : undefined;
-    const scopePageIds = sType !== 'all' ? await resolvePageIds(sType, sId, req.organizationId!) : null;
+    const rawScopePageIds = sType !== 'all' ? await resolvePageIds(sType, sId, req.organizationId!) : null;
+    const accessible = await accessiblePageIdsFor(req);
+    const scopePageIds = rawScopePageIds && accessible
+      ? rawScopePageIds.filter((id) => accessible.includes(id))
+      : rawScopePageIds;
 
     // Base content filter — always tenant scoped
     const baseWhere: Record<string, unknown> = { organizationId: req.organizationId };
     if (pageId) {
       // Sub-filter: validate against scope
       const pid = String(pageId);
-      if (scopePageIds && !scopePageIds.includes(pid)) {
+      if ((scopePageIds && !scopePageIds.includes(pid)) || (accessible && !accessible.includes(pid))) {
         return res.status(400).json({ error: 'Page not in current scope' });
       }
       baseWhere.pageId = pid;
     } else if (scopePageIds) {
       baseWhere.pageId = { in: scopePageIds };
+    } else if (accessible) {
+      baseWhere.pageId = { in: accessible };
     }
     if (campaignId) baseWhere.campaignId = String(campaignId);
 
@@ -406,7 +434,7 @@ router.get('/stats/dashboard', async (req: AuthRequest, res: Response) => {
     const campMap = new Map<string, { id: string; name: string; totalPosts: number; viewers: number; engagement: number }>();
     const campIds = [...new Set(fbCurrent.map(m => m.campaignId).filter(Boolean))];
     const campaigns = campIds.length > 0
-      ? await prisma.campaign.findMany({ where: { id: { in: campIds } }, select: { id: true, name: true } })
+      ? await prisma.campaign.findMany({ where: { id: { in: campIds }, organizationId: req.organizationId }, select: { id: true, name: true } })
       : [];
     const campNameMap = new Map(campaigns.map(c => [c.id, c.name]));
     for (const m of fbCurrent) {
@@ -508,10 +536,14 @@ router.get('/stats/dashboard', async (req: AuthRequest, res: Response) => {
   }
 });
 
-router.get('/stats/timeline', async (req: Request, res: Response) => {
+router.get('/stats/timeline', async (req: AuthRequest, res: Response) => {
   try {
     const days = Math.max(1, Math.min(365, parseInt(req.query.days as string, 10) || 30));
 
+    const accessible = await accessiblePageIdsFor(req);
+    const pagePredicate = accessible
+      ? Prisma.sql`AND "page_id" IN (${Prisma.join(accessible.length ? accessible : ['__none__'])})`
+      : Prisma.empty;
     const rows = await prisma.$queryRaw<Array<{ date: string; created: number; published: number }>>(
       Prisma.sql`
         SELECT DATE("created_at") as date,
@@ -519,6 +551,8 @@ router.get('/stats/timeline', async (req: Request, res: Response) => {
                SUM(CASE WHEN status = 'PUBLISHED' THEN 1 ELSE 0 END)::int as published
         FROM content_items
         WHERE "created_at" >= NOW() - make_interval(days => ${days})
+          AND "organization_id" = ${req.organizationId}
+          ${pagePredicate}
         GROUP BY DATE("created_at")
         ORDER BY date
       `
@@ -638,11 +672,10 @@ router.get('/stats/upcoming', async (req: AuthRequest, res: Response) => {
     nextWeek.setDate(nextWeek.getDate() + 7);
 
     const items = await prisma.contentItem.findMany({
-      where: {
-        organizationId: req.organizationId,
+      where: await scopedContentWhere(req, {
         scheduledAt: { gte: now, lte: nextWeek },
         status: { in: ['DRAFT', 'QUEUED', 'PENDING_REVIEW', 'APPROVED', 'GENERATING'] },
-      },
+      }),
       include: {
         page: { select: { id: true, name: true, platform: true } },
         campaign: { select: { id: true, name: true } },
@@ -660,7 +693,7 @@ router.get('/stats/upcoming', async (req: AuthRequest, res: Response) => {
 router.get('/stats/recent-published', async (req: AuthRequest, res: Response) => {
   try {
     const items = await prisma.contentItem.findMany({
-      where: { organizationId: req.organizationId, status: 'PUBLISHED' },
+      where: await scopedContentWhere(req, { status: 'PUBLISHED' }),
       include: {
         page: { select: { id: true, name: true, platform: true } },
         campaign: { select: { id: true, name: true } },
@@ -679,11 +712,10 @@ router.get('/stats/fb-insights', async (req: AuthRequest, res: Response) => {
   try {
     // Get all published content with socialPostId (tenant scoped)
     const publishedItems = await prisma.contentItem.findMany({
-      where: {
-        organizationId: req.organizationId,
+      where: await scopedContentWhere(req, {
         status: 'PUBLISHED',
         socialPostId: { not: null },
-      },
+      }),
       select: {
         id: true,
         socialPostId: true,
@@ -996,7 +1028,7 @@ router.post('/pages', async (req: AuthRequest, res: Response) => {
         metadata: metadata ?? undefined,
         telegramGroupId: telegramGroupId || null,
         isActive: isActive !== false,
-        userId: req.body.userId || req.userId!,
+        userId: req.userId!,
       },
     });
     res.json(page);
@@ -1006,6 +1038,7 @@ router.post('/pages', async (req: AuthRequest, res: Response) => {
 });
 
 router.put('/pages/:id', async (req: AuthRequest, res: Response) => {
+  if (!isOrganizationAdmin(req)) return res.status(403).json({ error: 'FORBIDDEN' });
   const id = String(req.params.id);
   const existing = await prisma.page.findUnique({ where: { id } });
   if (!existing || existing.organizationId !== req.organizationId) return res.status(404).json({ error: 'Page not found' });
@@ -1021,6 +1054,7 @@ router.put('/pages/:id', async (req: AuthRequest, res: Response) => {
 });
 
 router.delete('/pages/:id', async (req: AuthRequest, res: Response) => {
+  if (!isOrganizationAdmin(req)) return res.status(403).json({ error: 'FORBIDDEN' });
   const id = String(req.params.id);
   const existing = await prisma.page.findUnique({ where: { id } });
   if (!existing || existing.organizationId !== req.organizationId) return res.status(404).json({ error: 'Page not found' });
@@ -1029,12 +1063,13 @@ router.delete('/pages/:id', async (req: AuthRequest, res: Response) => {
 });
 
 // Facebook token exchange: short-lived → long-lived → page tokens
-router.post('/pages/fb-token-exchange', async (req: Request, res: Response) => {
+router.post('/pages/fb-token-exchange', async (req: AuthRequest, res: Response) => {
   try {
+    if (!isOrganizationAdmin(req)) return res.status(403).json({ error: 'FORBIDDEN' });
     const { shortToken } = req.body;
     if (!shortToken) return res.status(400).json({ error: 'Thiếu short-lived token' });
 
-    const settings = await getSettings();
+    const settings = await getOrganizationSettings(req.organizationId!);
     const appId = settings.FACEBOOK_APP_ID;
     const appSecret = settings.FACEBOOK_APP_SECRET;
     if (!appId || !appSecret) {
@@ -1276,8 +1311,10 @@ router.get('/content/campaigns-for-pages', async (req: AuthRequest, res: Respons
   if (!pageIds || !pageIds.length) {
     return res.json([]);
   }
+  const accessible = await accessiblePageIdsFor(req);
+  const allowedPageIds = accessible ? pageIds.filter((id) => accessible.includes(id)) : pageIds;
   const campaigns = await prisma.campaign.findMany({
-    where: { organizationId: (req as AuthRequest).organizationId, pageId: { in: pageIds } },
+    where: { organizationId: req.organizationId, pageId: { in: allowedPageIds } },
     select: { id: true, name: true },
     orderBy: { name: 'asc' },
   });
@@ -1290,13 +1327,13 @@ router.post('/content/generate-all-drafts', async (req: AuthRequest, res: Respon
     return res.status(402).json({ error: 'SUBSCRIPTION_EXPIRED', message: 'Thời gian dùng thử đã kết thúc. Vui lòng nâng cấp gói để tiếp tục sử dụng.' });
   }
   const drafts = await prisma.contentItem.findMany({
-    where: { organizationId: req.organizationId, status: 'DRAFT' },
+    where: await scopedContentWhere(req, { status: 'DRAFT' }),
     take: 50,
   });
 
   for (const item of drafts) {
     await prisma.contentItem.update({ where: { id: item.id }, data: { status: 'QUEUED' } });
-    await contentQueue.add('generate', { contentItemId: item.id }, {
+    await contentQueue.add('generate', { contentItemId: item.id, organizationId: req.organizationId, actorUserId: req.userId }, {
       jobId: `gen-${item.id}-${Date.now()}`,
       attempts: 3,
       backoff: { type: 'exponential', delay: 5000 },
@@ -1383,6 +1420,10 @@ router.post('/content/:id/sync-metrics', async (req: AuthRequest, res: Response)
       include: { page: { select: { accessToken: true, platform: true, externalId: true } } },
     });
     if (!item || item.organizationId !== req.organizationId) return res.status(404).json({ error: 'Content not found' });
+    if (!req.isAllAccess) {
+      const ctx = await getAccessContext(req.organizationId!, req.userId!);
+      if (!ctx || !(await canAccessPage(ctx, item.pageId))) return res.status(404).json({ error: 'Content not found' });
+    }
     if (!item.socialPostId) return res.status(400).json({ error: 'No social post ID' });
     if (item.page.platform !== 'FACEBOOK') return res.status(400).json({ error: 'Only Facebook supported' });
 
@@ -1457,7 +1498,7 @@ router.post('/content/bulk/generate', async (req: AuthRequest, res: Response) =>
     const { ids } = req.body as { ids: string[] };
     if (!ids?.length) return res.status(400).json({ error: 'No ids' });
     const actId = await logActivity({ action: 'bulk_generate', category: 'bulk', summary: `Gen hàng loạt ${ids.length} mục`, total: ids.length, organizationId: req.organizationId });
-    const items = await prisma.contentItem.findMany({ where: { id: { in: ids }, organizationId: req.organizationId }, select: { id: true, status: true } });
+    const items = await prisma.contentItem.findMany({ where: await scopedContentWhere(req, { id: { in: ids } }), select: { id: true, status: true } });
     const eligible = items.filter(i => ['DRAFT', 'FAILED', 'PENDING_REVIEW', 'REVISION_REQUESTED', 'APPROVED'].includes(i.status));
     const skipped = items.length - eligible.length;
     let success = 0, errors = 0;
@@ -1482,26 +1523,26 @@ router.post('/content/bulk/generate', async (req: AuthRequest, res: Response) =>
 
 router.post('/content/bulk/approve', async (req: AuthRequest, res: Response) => {
   try {
-    const { ids, userId } = req.body as { ids: string[]; userId?: string };
+    const { ids } = req.body as { ids: string[] };
     if (!ids?.length) return res.status(400).json({ error: 'No ids' });
     const actId = await logActivity({ action: 'bulk_approve', category: 'bulk', summary: `Duyệt hàng loạt ${ids.length} mục`, total: ids.length, organizationId: req.organizationId });
-    const items = await prisma.contentItem.findMany({ where: { id: { in: ids }, organizationId: req.organizationId }, select: { id: true, status: true } });
+    const items = await prisma.contentItem.findMany({ where: await scopedContentWhere(req, { id: { in: ids } }), select: { id: true, status: true, pageId: true } });
     const eligible = items.filter(i => i.status === 'PENDING_REVIEW');
     const skipped = items.length - eligible.length;
     let success = 0, errors = 0;
     for (const item of eligible) {
       try {
         await prisma.contentItem.update({ where: { id: item.id }, data: { status: 'APPROVED' } });
-        await prisma.approvalLog.create({ data: { contentItemId: item.id, userId: userId || 'system', action: 'APPROVE' } });
+        await prisma.approvalLog.create({ data: { contentItemId: item.id, userId: req.userId!, action: 'APPROVE' } });
         success++;
       } catch { errors++; }
     }
     const notFound = ids.length - items.length;
     const finalSummary = `Duyệt hàng loạt: ${success} thành công, ${skipped + notFound} bỏ qua`;
     await updateActivity(actId, { status: errors > 0 ? 'error' : 'success', summary: finalSummary, progress: success, total: ids.length });
-    emitActivity({ id: actId, action: 'bulk_approve', category: 'bulk', status: errors > 0 ? 'error' : 'success', summary: finalSummary, progress: success, total: ids.length, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() });
+    emitActivity({ id: actId, organizationId: req.organizationId, action: 'bulk_approve', category: 'bulk', status: errors > 0 ? 'error' : 'success', summary: finalSummary, progress: success, total: ids.length, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() });
     for (const item of eligible) {
-      emitContentUpdate({ contentId: item.id, pageId: '', operation: 'approve', status: 'completed', contentStatus: 'APPROVED', updatedAt: new Date().toISOString(), version: Date.now() });
+      emitContentUpdate({ contentId: item.id, pageId: item.pageId, organizationId: req.organizationId, operation: 'approve', status: 'completed', contentStatus: 'APPROVED', updatedAt: new Date().toISOString(), version: Date.now() });
     }
     res.json({ success: true, total: ids.length, approved: success, skipped: skipped + notFound, errors });
   } catch (err) {
@@ -1515,7 +1556,7 @@ router.post('/content/bulk/publish', async (req: AuthRequest, res: Response) => 
     if (!ids?.length) return res.status(400).json({ error: 'No ids' });
     const actId = await logActivity({ action: 'bulk_publish', category: 'bulk', summary: `Đăng hàng loạt ${ids.length} mục`, total: ids.length, organizationId: req.organizationId });
     const items = await prisma.contentItem.findMany({
-      where: { id: { in: ids }, organizationId: req.organizationId },
+      where: await scopedContentWhere(req, { id: { in: ids } }),
       select: { id: true, status: true, generatedText: true, pageId: true },
     });
     const eligible = items.filter(i => ['APPROVED', 'FAILED'].includes(i.status) && i.generatedText);
@@ -1542,7 +1583,7 @@ router.post('/content/bulk/delete', async (req: AuthRequest, res: Response) => {
     const { ids } = req.body as { ids: string[] };
     if (!ids?.length) return res.status(400).json({ error: 'No ids' });
     const actId = await logActivity({ action: 'bulk_delete', category: 'bulk', summary: `Xóa hàng loạt ${ids.length} mục`, total: ids.length, organizationId: req.organizationId });
-    const items = await prisma.contentItem.findMany({ where: { id: { in: ids }, organizationId: req.organizationId }, select: { id: true, status: true } });
+    const items = await prisma.contentItem.findMany({ where: await scopedContentWhere(req, { id: { in: ids } }), select: { id: true, status: true } });
     const eligible = items.filter(i => !['PUBLISHING'].includes(i.status));
     const skipped = items.length - eligible.length;
     let success = 0, errors = 0;
@@ -1556,7 +1597,7 @@ router.post('/content/bulk/delete', async (req: AuthRequest, res: Response) => {
     const notFound = ids.length - items.length;
     const delSummary = `Xóa hàng loạt: ${success} đã xóa, ${skipped + notFound} bỏ qua`;
     await updateActivity(actId, { status: errors > 0 ? 'error' : 'success', summary: delSummary, progress: success, total: ids.length });
-    emitActivity({ id: actId, action: 'bulk_delete', category: 'bulk', status: errors > 0 ? 'error' : 'success', summary: delSummary, progress: success, total: ids.length, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() });
+    emitActivity({ id: actId, organizationId: req.organizationId, action: 'bulk_delete', category: 'bulk', status: errors > 0 ? 'error' : 'success', summary: delSummary, progress: success, total: ids.length, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() });
     res.json({ success: true, total: ids.length, deleted: success, skipped: skipped + notFound, errors });
   } catch (err) {
     res.status(500).json({ error: err instanceof Error ? err.message : 'Bulk delete failed' });
@@ -1591,18 +1632,22 @@ router.post('/content', async (req: AuthRequest, res: Response) => {
     // Assert page belongs to tenant
     const page = await prisma.page.findUnique({ where: { id: pageId }, select: { organizationId: true } });
     if (!page || page.organizationId !== req.organizationId) return res.status(404).json({ error: 'Page not found' });
+    if (!req.isAllAccess) {
+      const ctx = await getAccessContext(req.organizationId!, req.userId!);
+      if (!ctx || !(await canAccessPage(ctx, pageId))) return res.status(403).json({ error: 'RESOURCE_ACCESS_DENIED' });
+    }
     let cId = campaignId;
     if (!cId) {
       let defaultCampaign = await prisma.campaign.findFirst({ where: { organizationId: req.organizationId, name: 'Thủ công', pageId: req.body.pageId, isActive: true } });
       if (!defaultCampaign) {
         defaultCampaign = await prisma.campaign.create({
-          data: { organizationId: req.organizationId!, name: 'Thủ công', description: 'Content tạo thủ công', pageId: req.body.pageId, startDate: new Date(), userId: req.body.userId || req.userId || 'system' },
+          data: { organizationId: req.organizationId!, name: 'Thủ công', description: 'Content tạo thủ công', pageId: req.body.pageId, startDate: new Date(), userId: req.userId! },
         });
       }
       cId = defaultCampaign.id;
     } else {
-      const camp = await prisma.campaign.findUnique({ where: { id: cId }, select: { organizationId: true } });
-      if (!camp || camp.organizationId !== req.organizationId) return res.status(404).json({ error: 'Campaign not found' });
+      const camp = await prisma.campaign.findUnique({ where: { id: cId }, select: { organizationId: true, pageId: true } });
+      if (!camp || camp.organizationId !== req.organizationId || camp.pageId !== pageId) return res.status(404).json({ error: 'Campaign not found' });
     }
     const hasContent = !!(generatedText || imageUrl || videoUrl);
     const item = await prisma.contentItem.create({
@@ -1642,7 +1687,7 @@ router.post('/content/:id/approve', async (req: AuthRequest, res: Response) => {
       include: { page: true, campaign: true },
     });
     await prisma.approvalLog.create({
-      data: { contentItemId: id, userId: req.body.userId || 'system', action: 'APPROVE' },
+      data: { contentItemId: id, userId: req.userId!, action: 'APPROVE' },
     });
     res.json(item);
   } catch (err) {
@@ -1661,7 +1706,7 @@ router.post('/content/:id/reject', async (req: AuthRequest, res: Response) => {
       include: { page: true, campaign: true },
     });
     await prisma.approvalLog.create({
-      data: { contentItemId: id, userId: req.body.userId || 'system', action: 'REJECT', feedback: req.body.feedback },
+      data: { contentItemId: id, userId: req.userId!, action: 'REJECT', feedback: req.body.feedback },
     });
     res.json(item);
   } catch (err) {
@@ -1680,7 +1725,7 @@ router.post('/content/:id/request-edit', async (req: AuthRequest, res: Response)
       include: { page: true, campaign: true },
     });
     await prisma.approvalLog.create({
-      data: { contentItemId: id, userId: req.body.userId || 'system', action: 'REQUEST_EDIT', feedback: req.body.feedback },
+      data: { contentItemId: id, userId: req.userId!, action: 'REQUEST_EDIT', feedback: req.body.feedback },
     });
     res.json(item);
   } catch (err) {
@@ -1782,8 +1827,9 @@ router.get('/providers', async (_req: Request, res: Response) => {
   res.json(await listProviders());
 });
 
-router.put('/providers/text', async (req: Request, res: Response) => {
+router.put('/providers/text', async (req: AuthRequest, res: Response) => {
   try {
+    if (!isOrganizationAdmin(req)) return res.status(403).json({ error: 'FORBIDDEN' });
     setTextProvider(req.body.provider);
     res.json({ success: true, providers: await listProviders() });
   } catch (err) {
@@ -1792,8 +1838,9 @@ router.put('/providers/text', async (req: Request, res: Response) => {
 });
 
 
-router.put('/providers/image', async (req: Request, res: Response) => {
+router.put('/providers/image', async (req: AuthRequest, res: Response) => {
   try {
+    if (!isOrganizationAdmin(req)) return res.status(403).json({ error: 'FORBIDDEN' });
     setImageProvider(req.body.provider);
     res.json({ success: true, providers: await listProviders() });
   } catch (err) {
@@ -1818,9 +1865,10 @@ router.post('/test-generate', async (req: AuthRequest, res: Response) => {
 });
 
 // Users
-router.get('/users', async (_req: Request, res: Response) => {
+router.get('/users', async (req: AuthRequest, res: Response) => {
   const users = await prisma.user.findMany({
-    select: { id: true, email: true, name: true, role: true, telegramChatId: true, isActive: true, createdAt: true },
+    where: { memberships: { some: { organizationId: req.organizationId, status: 'ACTIVE' } } },
+    select: { id: true, email: true, name: true, telegramChatId: true, isActive: true, createdAt: true },
   });
   res.json(users);
 });
@@ -1952,31 +2000,16 @@ router.post('/test-connection', async (req: AuthRequest, res: Response) => {
 });
 
 // Settings CRUD
-router.get('/settings', async (_req: Request, res: Response) => {
-  const settings = await getSettings();
-  const masked: Record<string, string> = {};
-  for (const [key, value] of Object.entries(settings)) {
-    if (key.includes('KEY') || key.includes('SECRET') || key.includes('TOKEN')) {
-      masked[key] = value ? '••••' + value.slice(-6) : '';
-    } else {
-      masked[key] = value;
-    }
-  }
-  res.json({ settings: masked });
+router.get('/settings', async (req: AuthRequest, res: Response) => {
+  if (!isOrganizationAdmin(req)) return res.status(403).json({ error: 'FORBIDDEN' });
+  const settings = await getOrganizationSettings(req.organizationId!, true);
+  res.json({ settings });
 });
 
-router.put('/settings', async (req: Request, res: Response) => {
+router.put('/settings', async (req: AuthRequest, res: Response) => {
   try {
-    const data = req.body as Record<string, string>;
-    const cleaned: Record<string, string> = {};
-    for (const [key, value] of Object.entries(data)) {
-      if (value !== undefined && typeof value === 'string' && !value.startsWith('••••')) {
-        cleaned[key] = value;
-      }
-    }
-    console.log('[Settings] Saving keys:', Object.keys(cleaned));
-    console.log('[Settings] AI_IMAGE_PROVIDER =', cleaned['AI_IMAGE_PROVIDER']);
-    await setSettings(cleaned);
+    if (!isOrganizationAdmin(req)) return res.status(403).json({ error: 'FORBIDDEN' });
+    await setOrganizationSettings(req.organizationId!, req.body as Record<string, unknown>);
     res.json({ success: true });
   } catch (err) {
     res.status(400).json({ error: err instanceof Error ? err.message : 'Failed to save settings' });
@@ -1984,11 +2017,11 @@ router.put('/settings', async (req: Request, res: Response) => {
 });
 
 // --- FB Metrics Diagnostic V2: comprehensive test ---
-router.get('/stats/fb-metric-test', async (req: Request, res: Response) => {
+router.get('/stats/fb-metric-test', async (req: AuthRequest, res: Response) => {
   try {
     // Get up to 3 published posts for testing
     const posts = await prisma.contentItem.findMany({
-      where: { status: 'PUBLISHED', socialPostId: { not: null }, page: { platform: 'FACEBOOK' } },
+      where: await scopedContentWhere(req, { status: 'PUBLISHED', socialPostId: { not: null }, page: { platform: 'FACEBOOK' } }),
       include: { page: true },
       orderBy: { publishedAt: 'desc' },
       take: 3,
@@ -2122,15 +2155,23 @@ router.get('/stats/fb-metric-test', async (req: Request, res: Response) => {
 });
 
 // --- Manual FB Metrics Sync ---
-router.post('/stats/fb-sync', async (req: Request, res: Response) => {
+router.post('/stats/fb-sync', async (req: AuthRequest, res: Response) => {
   try {
     const { pageId } = req.body || {};
     const where: Record<string, unknown> = {
+      organizationId: req.organizationId,
       status: 'PUBLISHED',
       socialPostId: { not: null },
       page: { platform: 'FACEBOOK' },
     };
-    if (pageId) where.pageId = String(pageId);
+    const accessible = await accessiblePageIdsFor(req);
+    if (pageId) {
+      const requestedPageId = String(pageId);
+      if (accessible && !accessible.includes(requestedPageId)) return res.status(403).json({ error: 'RESOURCE_ACCESS_DENIED' });
+      where.pageId = requestedPageId;
+    } else if (accessible) {
+      where.pageId = { in: accessible };
+    }
 
     const items = await prisma.contentItem.findMany({
       where,
@@ -2338,7 +2379,7 @@ router.post('/content/:id/revision', async (req: AuthRequest, res: Response) => 
     const id = req.params.id as string;
     const owned = await loadContentInOrg(id, req.organizationId, req);
     if (!owned) return res.status(404).json({ error: 'Content not found' });
-    const { revisionType, selectedMediaIds, feedbackText, userId } = req.body;
+    const { revisionType, selectedMediaIds, feedbackText } = req.body;
     if (!revisionType) return res.status(400).json({ error: 'revisionType required' });
 
     const session = await createRevisionSession({
@@ -2346,14 +2387,14 @@ router.post('/content/:id/revision', async (req: AuthRequest, res: Response) => 
       revisionType,
       selectedMediaIds,
       source: 'WEB',
-      userId: userId || 'system',
+      userId: req.userId,
     });
 
     if (feedbackText) {
       submitFeedbackAndExecute({
         sessionId: session.id,
         feedbackText,
-        userId: userId || 'system',
+        userId: req.userId,
       }).catch(err => console.error('Revision execute error:', err));
     }
 
@@ -2378,16 +2419,20 @@ router.get('/content/:id/revisions', async (req: AuthRequest, res: Response) => 
   }
 });
 
-router.post('/revision/:id/feedback', async (req: Request, res: Response) => {
+router.post('/revision/:id/feedback', async (req: AuthRequest, res: Response) => {
   try {
     const sessionId = req.params.id as string;
-    const { feedbackText, userId } = req.body;
+    const { feedbackText } = req.body;
     if (!feedbackText) return res.status(400).json({ error: 'feedbackText required' });
+    const session = await prisma.revisionSession.findUnique({ where: { id: sessionId }, select: { contentItemId: true } });
+    if (!session || !(await loadContentInOrg(session.contentItemId, req.organizationId, req))) {
+      return res.status(404).json({ error: 'Revision session not found' });
+    }
 
     await submitFeedbackAndExecute({
       sessionId,
       feedbackText,
-      userId: userId || 'system',
+      userId: req.userId,
     });
 
     res.json({ success: true });
@@ -2396,9 +2441,14 @@ router.post('/revision/:id/feedback', async (req: Request, res: Response) => {
   }
 });
 
-router.post('/revision/:id/cancel', async (req: Request, res: Response) => {
+router.post('/revision/:id/cancel', async (req: AuthRequest, res: Response) => {
   try {
-    const result = await cancelRevision(req.params.id as string);
+    const sessionId = req.params.id as string;
+    const session = await prisma.revisionSession.findUnique({ where: { id: sessionId }, select: { contentItemId: true } });
+    if (!session || !(await loadContentInOrg(session.contentItemId, req.organizationId, req))) {
+      return res.status(404).json({ error: 'Revision session not found' });
+    }
+    const result = await cancelRevision(sessionId);
     res.json({ success: !!result });
   } catch (err) {
     res.status(400).json({ error: err instanceof Error ? err.message : 'Cancel failed' });

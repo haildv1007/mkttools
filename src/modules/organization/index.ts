@@ -11,6 +11,24 @@ export function roleAtLeast(role: OrgRole | undefined, min: OrgRole): boolean {
   return ROLE_RANK[role] >= ROLE_RANK[min];
 }
 
+export function canManageMemberRole(requesterRole: OrgRole, targetRole: OrgRole, nextRole?: OrgRole): boolean {
+  if (!roleAtLeast(requesterRole, 'ADMIN')) return false;
+  if (requesterRole === 'ADMIN' && (targetRole === 'OWNER' || nextRole === 'OWNER')) return false;
+  return true;
+}
+
+export function removesLastActiveOwner(
+  targetRole: OrgRole,
+  targetStatus: string,
+  nextRole: OrgRole,
+  nextStatus: string,
+  activeOwnerCount: number,
+): boolean {
+  return targetRole === 'OWNER' && targetStatus === 'ACTIVE'
+    && !(nextRole === 'OWNER' && nextStatus === 'ACTIVE')
+    && activeOwnerCount <= 1;
+}
+
 export async function listMemberships(userId: string) {
   return prisma.organizationMember.findMany({
     where: { userId, status: 'ACTIVE' },
@@ -346,7 +364,7 @@ router.patch('/:id', async (req: AuthRequest, res: Response) => {
   const member = await prisma.organizationMember.findUnique({
     where: { organizationId_userId: { organizationId: id, userId: req.userId } },
   });
-  if (!member || !roleAtLeast(member.role as OrgRole, 'ADMIN')) {
+  if (!member || member.status !== 'ACTIVE' || !roleAtLeast(member.role as OrgRole, 'ADMIN')) {
     return res.status(403).json({ error: 'FORBIDDEN' });
   }
   const { name } = req.body || {};
@@ -364,7 +382,7 @@ router.get('/:id/members', async (req: AuthRequest, res: Response) => {
   const requester = await prisma.organizationMember.findUnique({
     where: { organizationId_userId: { organizationId: id, userId: req.userId } },
   });
-  if (!requester) return res.status(403).json({ error: 'FORBIDDEN' });
+  if (!requester || requester.status !== 'ACTIVE') return res.status(403).json({ error: 'FORBIDDEN' });
   const members = await prisma.organizationMember.findMany({
     where: { organizationId: id },
     include: {
@@ -405,7 +423,7 @@ router.post('/:id/members', async (req: AuthRequest, res: Response) => {
   const requester = await prisma.organizationMember.findUnique({
     where: { organizationId_userId: { organizationId: id, userId: req.userId } },
   });
-  if (!requester || !roleAtLeast(requester.role as OrgRole, 'ADMIN')) {
+  if (!requester || requester.status !== 'ACTIVE' || !roleAtLeast(requester.role as OrgRole, 'ADMIN')) {
     return res.status(403).json({ error: 'FORBIDDEN' });
   }
   const { email, role } = req.body || {};
@@ -443,15 +461,19 @@ router.patch('/:id/members/:memberId', async (req: AuthRequest, res: Response) =
   const requester = await prisma.organizationMember.findUnique({
     where: { organizationId_userId: { organizationId: id, userId: req.userId } },
   });
-  if (!requester || !roleAtLeast(requester.role as OrgRole, 'ADMIN')) {
+  if (!requester || requester.status !== 'ACTIVE' || !roleAtLeast(requester.role as OrgRole, 'ADMIN')) {
     return res.status(403).json({ error: 'FORBIDDEN' });
   }
   const target = await prisma.organizationMember.findUnique({ where: { id: memberId } });
   if (!target || target.organizationId !== id) return res.status(404).json({ error: 'NOT_FOUND' });
 
   const { role, status } = req.body || {};
+  const requestedRole = role && ['OWNER', 'ADMIN', 'MANAGER', 'MEMBER'].includes(role) ? role as OrgRole : undefined;
+  if (!canManageMemberRole(requester.role as OrgRole, target.role as OrgRole, requestedRole)) {
+    return res.status(403).json({ error: 'OWNER_ONLY' });
+  }
   const data: Record<string, unknown> = {};
-  if (role && ['OWNER', 'ADMIN', 'MANAGER', 'MEMBER'].includes(role)) data.role = role;
+  if (requestedRole) data.role = requestedRole;
   if (status && ['ACTIVE', 'INVITED', 'DISABLED'].includes(status)) data.status = status;
 
   // Owner-safety: prevent leaving org with 0 active OWNERs
@@ -461,15 +483,17 @@ router.patch('/:id/members/:memberId', async (req: AuthRequest, res: Response) =
     const ownerCount = await prisma.organizationMember.count({
       where: { organizationId: id, role: 'OWNER', status: 'ACTIVE' },
     });
-    if (ownerCount <= 1) {
+    if (removesLastActiveOwner(
+      target.role as OrgRole,
+      target.status,
+      (data.role ?? target.role) as OrgRole,
+      String(data.status ?? target.status),
+      ownerCount,
+    )) {
       return res.status(400).json({ error: 'LAST_OWNER', message: 'Không thể thay đổi OWNER cuối cùng của tổ chức.' });
     }
   }
   // Only OWNER may set/remove OWNER role
-  if ((role === 'OWNER' || target.role === 'OWNER') && requester.role !== 'OWNER') {
-    return res.status(403).json({ error: 'OWNER_ONLY' });
-  }
-
   // If member is being promoted to OWNER/ADMIN, force accessMode=ALL so we
   // never carry a stale RESTRICTED assignment for a privileged role.
   if (role === 'OWNER' || role === 'ADMIN') {
@@ -492,16 +516,19 @@ router.delete('/:id/members/:memberId', async (req: AuthRequest, res: Response) 
   const requester = await prisma.organizationMember.findUnique({
     where: { organizationId_userId: { organizationId: id, userId: req.userId } },
   });
-  if (!requester || !roleAtLeast(requester.role as OrgRole, 'ADMIN')) {
+  if (!requester || requester.status !== 'ACTIVE' || !roleAtLeast(requester.role as OrgRole, 'ADMIN')) {
     return res.status(403).json({ error: 'FORBIDDEN' });
   }
   const target = await prisma.organizationMember.findUnique({ where: { id: memberId } });
   if (!target || target.organizationId !== id) return res.status(404).json({ error: 'NOT_FOUND' });
+  if (!canManageMemberRole(requester.role as OrgRole, target.role as OrgRole)) {
+    return res.status(403).json({ error: 'OWNER_ONLY' });
+  }
   if (target.role === 'OWNER' && target.status === 'ACTIVE') {
     const ownerCount = await prisma.organizationMember.count({
       where: { organizationId: id, role: 'OWNER', status: 'ACTIVE' },
     });
-    if (ownerCount <= 1) {
+    if (removesLastActiveOwner(target.role as OrgRole, target.status, 'MEMBER', 'DISABLED', ownerCount)) {
       return res.status(400).json({ error: 'LAST_OWNER', message: 'Không thể xoá OWNER cuối cùng.' });
     }
     if (requester.role !== 'OWNER') return res.status(403).json({ error: 'OWNER_ONLY' });
@@ -519,21 +546,9 @@ router.get('/plans/list', async (_req: AuthRequest, res: Response) => {
   res.json(plans);
 });
 
-// Platform Admin: update a plan's attributes (name, maxPages, maxMembers, isActive, sortOrder)
-router.patch('/plans/:planId', async (req: AuthRequest, res: Response) => {
-  if (!(await isPlatformAdmin(req.userId))) return res.status(403).json({ error: 'FORBIDDEN' });
-  const planId = String(req.params.planId);
-  const plan = await prisma.subscriptionPlan.findUnique({ where: { id: planId } });
-  if (!plan) return res.status(404).json({ error: 'PLAN_NOT_FOUND' });
-  const { name, maxPages, maxMembers, isActive, sortOrder } = req.body || {};
-  const data: Record<string, unknown> = {};
-  if (name != null) data.name = String(name).trim();
-  if (maxPages !== undefined) data.maxPages = maxPages == null ? null : Number(maxPages);
-  if (maxMembers !== undefined) data.maxMembers = maxMembers == null ? null : Number(maxMembers);
-  if (isActive != null) data.isActive = Boolean(isActive);
-  if (sortOrder != null) data.sortOrder = Number(sortOrder);
-  const updated = await prisma.subscriptionPlan.update({ where: { id: planId }, data });
-  res.json(updated);
+// Plan mutations live exclusively under /api/admin/plans/:id.
+router.patch('/plans/:planId', (_req: AuthRequest, res: Response) => {
+  res.status(404).json({ error: 'ADMIN_ENDPOINT_REQUIRED' });
 });
 
 // Customer subscription summary (any org member)
@@ -564,33 +579,9 @@ router.get('/:id/subscription', async (req: AuthRequest, res: Response) => {
   });
 });
 
-// Plan / custom limit mutation: PLATFORM ADMIN only (no billing yet; never customer-facing)
-// Also upgrades TRIAL → ACTIVE; trial entitlement is preserved (no second trial granted).
-router.put('/:id/subscription', async (req: AuthRequest, res: Response) => {
-  if (!(await isPlatformAdmin(req.userId))) return res.status(403).json({ error: 'FORBIDDEN' });
-  const id = String(req.params.id);
-  const org = await prisma.organization.findUnique({ where: { id }, select: { id: true } });
-  if (!org) return res.status(404).json({ error: 'NOT_FOUND' });
-  const { planCode, customMaxPages, customMaxMembers, expiresAt } = req.body || {};
-  const plan = await prisma.subscriptionPlan.findUnique({ where: { code: String(planCode) } });
-  if (!plan) return res.status(404).json({ error: 'PLAN_NOT_FOUND' });
-  // Cancel both ACTIVE and TRIAL subscriptions before assigning new paid plan
-  await prisma.organizationSubscription.updateMany({
-    where: { organizationId: id, status: { in: ['ACTIVE', 'TRIAL'] } },
-    data: { status: 'CANCELLED' },
-  });
-  const sub = (await prisma.organizationSubscription.create({
-    data: {
-      organizationId: id,
-      planId: plan.id,
-      status: 'ACTIVE',
-      customMaxPages: customMaxPages != null ? Number(customMaxPages) : null,
-      customMaxMembers: customMaxMembers != null ? Number(customMaxMembers) : null,
-      expiresAt: expiresAt ? new Date(expiresAt) : null,
-    },
-    include: { plan: true },
-  })) as any;
-  res.json({ planCode: sub.plan.code, planName: sub.plan.name, status: sub.status, expiresAt: sub.expiresAt, customMaxPages: sub.customMaxPages, customMaxMembers: sub.customMaxMembers });
+// Subscription mutations live exclusively under /api/admin/organizations/:id/*.
+router.put('/:id/subscription', (_req: AuthRequest, res: Response) => {
+  res.status(404).json({ error: 'ADMIN_ENDPOINT_REQUIRED' });
 });
 
 // Organizations are never hard-deleted in V1 (lifecycle is ACTIVE/SUSPENDED only)
@@ -629,7 +620,7 @@ router.get('/:id/members/:memberId/access', async (req: AuthRequest, res: Respon
   const requester = await prisma.organizationMember.findUnique({
     where: { organizationId_userId: { organizationId: id, userId: req.userId } },
   });
-  if (!requester || !roleAtLeast(requester.role as OrgRole, 'ADMIN')) return res.status(403).json({ error: 'FORBIDDEN' });
+  if (!requester || requester.status !== 'ACTIVE' || !roleAtLeast(requester.role as OrgRole, 'ADMIN')) return res.status(403).json({ error: 'FORBIDDEN' });
   const target = await prisma.organizationMember.findUnique({
     where: { id: memberId },
     include: {
@@ -655,9 +646,12 @@ router.put('/:id/members/:memberId/access', async (req: AuthRequest, res: Respon
   const requester = await prisma.organizationMember.findUnique({
     where: { organizationId_userId: { organizationId: id, userId: req.userId } },
   });
-  if (!requester || !roleAtLeast(requester.role as OrgRole, 'ADMIN')) return res.status(403).json({ error: 'FORBIDDEN' });
+  if (!requester || requester.status !== 'ACTIVE' || !roleAtLeast(requester.role as OrgRole, 'ADMIN')) return res.status(403).json({ error: 'FORBIDDEN' });
   const target = await prisma.organizationMember.findUnique({ where: { id: memberId } });
   if (!target || target.organizationId !== id) return res.status(404).json({ error: 'NOT_FOUND' });
+  if (!canManageMemberRole(requester.role as OrgRole, target.role as OrgRole)) {
+    return res.status(403).json({ error: 'OWNER_ONLY' });
+  }
 
   const { accessMode, workspaceIds, pageIds } = req.body || {};
   const wantedMode: 'ALL' | 'RESTRICTED' = accessMode === 'RESTRICTED' ? 'RESTRICTED' : 'ALL';
@@ -714,7 +708,7 @@ router.get('/:id/page-usage', async (req: AuthRequest, res: Response) => {
   const requester = await prisma.organizationMember.findUnique({
     where: { organizationId_userId: { organizationId: id, userId: req.userId } },
   });
-  if (!requester) return res.status(403).json({ error: 'FORBIDDEN' });
+  if (!requester || requester.status !== 'ACTIVE') return res.status(403).json({ error: 'FORBIDDEN' });
   const [used, limit] = await Promise.all([
     OrganizationQuota.getPageUsage(id),
     OrganizationQuota.getPageLimit(id),

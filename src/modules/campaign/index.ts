@@ -67,7 +67,7 @@ router.post('/import', upload.single('file'), async (req: AuthRequest, res: Resp
     if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
 
     const { pageId, campaignId, campaignName } = req.body;
-    const userId = req.body.userId || req.userId;
+    const userId = req.userId!;
     if (!pageId || !userId) {
       return res.status(400).json({ error: 'pageId and userId required' });
     }
@@ -79,7 +79,7 @@ router.post('/import', upload.single('file'), async (req: AuthRequest, res: Resp
     let campaign: { id: string; name: string };
     if (campaignId) {
       const existing = await prisma.campaign.findUnique({ where: { id: campaignId } });
-      if (!existing || existing.organizationId !== req.organizationId) {
+      if (!existing || existing.organizationId !== req.organizationId || existing.pageId !== pageId) {
         return res.status(404).json({ error: 'Campaign not found' });
       }
       campaign = existing;
@@ -127,7 +127,8 @@ router.post('/import', upload.single('file'), async (req: AuthRequest, res: Resp
     });
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Unknown error';
-    res.status(500).json({ error: message });
+    const status = typeof (err as { status?: unknown })?.status === 'number' ? (err as { status: number }).status : 500;
+    res.status(status).json({ error: message });
   }
 });
 
@@ -169,7 +170,7 @@ router.get('/', async (req: AuthRequest, res: Response) => {
 router.post('/', async (req: AuthRequest, res: Response) => {
   try {
     const { name, description, pageId, startDate, endDate, genLeadTime, autoApprove } = req.body;
-    const userId = req.body.userId || req.userId;
+    const userId = req.userId!;
     if (!name || !pageId) return res.status(400).json({ error: 'name and pageId required' });
     await assertPageInOrg(pageId, req.organizationId!, req);
     const campaign = await prisma.campaign.create({
@@ -191,7 +192,8 @@ router.post('/', async (req: AuthRequest, res: Response) => {
     });
     res.json(campaign);
   } catch (err) {
-    res.status(400).json({ error: err instanceof Error ? err.message : 'Failed to create campaign' });
+    const status = typeof (err as { status?: unknown })?.status === 'number' ? (err as { status: number }).status : 400;
+    res.status(status).json({ error: err instanceof Error ? err.message : 'Failed to create campaign' });
   }
 });
 
@@ -219,6 +221,7 @@ router.put('/:id', async (req: AuthRequest, res: Response) => {
     const id = String(req.params.id);
     const existing = await prisma.campaign.findUnique({ where: { id } });
     if (!existing || existing.organizationId !== req.organizationId) return res.status(404).json({ error: 'Campaign not found' });
+    await assertPageInOrg(existing.pageId, req.organizationId!, req);
     const { name, description, genLeadTime, autoApprove, startDate, endDate } = req.body;
     const data: Record<string, unknown> = {};
     if (name !== undefined) data.name = name;
@@ -237,7 +240,8 @@ router.put('/:id', async (req: AuthRequest, res: Response) => {
     });
     res.json(campaign);
   } catch (err) {
-    res.status(400).json({ error: err instanceof Error ? err.message : 'Failed to update campaign' });
+    const status = typeof (err as { status?: unknown })?.status === 'number' ? (err as { status: number }).status : 400;
+    res.status(status).json({ error: err instanceof Error ? err.message : 'Failed to update campaign' });
   }
 });
 
@@ -245,6 +249,7 @@ router.delete('/:id', async (req: AuthRequest, res: Response) => {
   const id = String(req.params.id);
   const existing = await prisma.campaign.findUnique({ where: { id } });
   if (!existing || existing.organizationId !== req.organizationId) return res.status(404).json({ error: 'Campaign not found' });
+  await assertPageInOrg(existing.pageId, req.organizationId!, req);
   await prisma.contentItem.deleteMany({ where: { campaignId: id } });
   await prisma.campaign.delete({ where: { id } });
   res.json({ success: true });
