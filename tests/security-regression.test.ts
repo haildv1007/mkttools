@@ -172,8 +172,8 @@ describe('Cross-tenant security', () => {
     });
   });
 
-  describe('Dashboard PUT /pages/:id RESTRICTED access', () => {
-    it('page update checks canAccessPage for RESTRICTED members (code inspection)', async () => {
+  describe('Dashboard PUT /pages/:id access control', () => {
+    it('page update is restricted to OWNER/ADMIN and validates org ownership (code inspection)', async () => {
       const fs = await import('fs');
       const source = fs.readFileSync('src/modules/dashboard/index.ts', 'utf8');
 
@@ -181,9 +181,9 @@ describe('Cross-tenant security', () => {
       expect(putMatch).toBeTruthy();
       const putCode = putMatch![0];
 
-      expect(putCode).toContain('isAllAccess');
-      expect(putCode).toContain('canAccessPage');
-      expect(putCode).toContain('RESOURCE_ACCESS_DENIED');
+      expect(putCode).toContain('isOrganizationAdmin');
+      expect(putCode).toContain('FORBIDDEN');
+      expect(putCode).toContain('existing.organizationId !== req.organizationId');
     });
   });
 
@@ -206,7 +206,8 @@ describe('Cross-tenant security', () => {
       const emitFn = source.match(/export function emitActivity[\s\S]*?^}/m);
       expect(emitFn).toBeTruthy();
       expect(emitFn![0]).not.toContain('io.emit(');
-      expect(emitFn![0]).toContain('if (!event.organizationId) return');
+      expect(emitFn![0]).toContain('if (event.organizationId)');
+      expect(emitFn![0]).toContain('org:${event.organizationId}');
     });
   });
 
