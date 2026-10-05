@@ -247,7 +247,7 @@ export function startWorkers() {
       });
     }
 
-    const result = await publishContent(contentItemId);
+    const result = await publishContent(contentItemId, organizationId);
     if (!result.success) {
       const safe = sanitizeError(result.error);
       await updateActivity(actId, { status: 'error', summary: `Đăng thất bại: ${label}`, detail: safe.message, errorCode: safe.code });

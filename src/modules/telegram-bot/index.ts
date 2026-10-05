@@ -79,10 +79,11 @@ function setupHandlers(bot: TelegramBot) {
   });
 
   bot.onText(/\/pending/, async (msg) => {
-    if (!(await isAdmin(msg.chat.id))) return;
+    const orgScope = await resolveOrgForChat(msg.chat.id);
+    if (!orgScope) return;
 
     const items = await prisma.contentItem.findMany({
-      where: { status: 'PENDING_REVIEW' },
+      where: { status: 'PENDING_REVIEW', organizationId: orgScope },
       include: { page: true, campaign: true },
       orderBy: { scheduledAt: 'asc' },
       take: 10,
@@ -100,7 +101,8 @@ function setupHandlers(bot: TelegramBot) {
   });
 
   bot.onText(/\/stats/, async (msg) => {
-    if (!(await isAdmin(msg.chat.id))) return;
+    const orgScope = await resolveOrgForChat(msg.chat.id);
+    if (!orgScope) return;
 
     const today = new Date();
     today.setHours(0, 0, 0, 0);
@@ -109,7 +111,7 @@ function setupHandlers(bot: TelegramBot) {
 
     const stats = await prisma.contentItem.groupBy({
       by: ['status'],
-      where: { scheduledAt: { gte: today, lt: tomorrow } },
+      where: { scheduledAt: { gte: today, lt: tomorrow }, organizationId: orgScope },
       _count: true,
     });
 
@@ -470,6 +472,7 @@ async function handleRegenerate(contentItemId: string, chatId: number, feedback?
       contentType: item.contentType,
       notes: item.notes || undefined,
       previousFeedback: feedback,
+      credential: { organizationId: item.organizationId },
     });
 
     let fullText = result.text +
@@ -594,17 +597,23 @@ export async function sendContentForApproval(payload: TelegramApprovalPayload) {
   if (!item) return;
 
   const pageGroupId = item.page?.telegramGroupId;
-  const chatIds = pageGroupId ? [pageGroupId] : config.telegram.adminChatIds;
+  if (!pageGroupId) return;
 
-  for (const chatId of chatIds) {
-    await sendApprovalMessage(Number(chatId), item);
-  }
+  await sendApprovalMessage(Number(pageGroupId), item);
 }
 
 async function isAdmin(chatId: number): Promise<boolean> {
-  if (config.telegram.adminChatIds.includes(String(chatId))) return true;
   const page = await prisma.page.findFirst({ where: { telegramGroupId: String(chatId) } });
   return !!page;
+}
+
+async function resolveOrgForChat(chatId: number): Promise<string | null> {
+  const page = await prisma.page.findFirst({
+    where: { telegramGroupId: String(chatId), isActive: true },
+    select: { organizationId: true },
+  });
+  if (!page) return null;
+  return page.organizationId;
 }
 
 async function findUserByTelegramChat(chatId: string): Promise<string | null> {

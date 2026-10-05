@@ -4,13 +4,19 @@ import { publishToFacebook } from './providers/facebook';
 import { extractCleanText } from '../../utils/clean-text';
 import type { PublishResult } from '../../types';
 
-export async function publishContent(contentItemId: string): Promise<PublishResult> {
+export async function publishContent(contentItemId: string, expectedOrganizationId?: string): Promise<PublishResult> {
   const item = await prisma.contentItem.findUnique({
     where: { id: contentItemId },
     include: { page: true },
   });
 
   if (!item) return { success: false, error: 'Content item not found' };
+  if (expectedOrganizationId && item.organizationId !== expectedOrganizationId) {
+    return { success: false, error: 'Organization mismatch' };
+  }
+  if (item.page.organizationId !== item.organizationId) {
+    return { success: false, error: 'Content/page organization mismatch' };
+  }
   if (item.status !== 'APPROVED' && item.status !== 'FAILED') return { success: false, error: `Invalid status: ${item.status}` };
   if (!item.generatedText) return { success: false, error: 'No generated text' };
 

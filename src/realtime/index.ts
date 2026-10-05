@@ -164,12 +164,8 @@ export function getIO(): Server | null {
 
 export function emitActivity(event: ActivityEvent) {
   if (!io) return;
-  if (event.organizationId) {
-    io.to(`org:${event.organizationId}`).emit('activity:update', event);
-    return;
-  }
-  // Legacy events without org — restrict to server-side subscribers only.
-  io.emit('activity:update', event);
+  if (!event.organizationId) return;
+  io.to(`org:${event.organizationId}`).emit('activity:update', event);
 }
 
 export function emitContentUpdate(event: ContentEvent) {

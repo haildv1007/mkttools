@@ -508,9 +508,11 @@ router.get('/stats/dashboard', async (req: AuthRequest, res: Response) => {
   }
 });
 
-router.get('/stats/timeline', async (req: Request, res: Response) => {
+router.get('/stats/timeline', async (req: AuthRequest, res: Response) => {
   try {
+    if (!req.organizationId) return res.status(401).json({ error: 'Organization required' });
     const days = Math.max(1, Math.min(365, parseInt(req.query.days as string, 10) || 30));
+    const orgId = req.organizationId;
 
     const rows = await prisma.$queryRaw<Array<{ date: string; created: number; published: number }>>(
       Prisma.sql`
@@ -519,6 +521,7 @@ router.get('/stats/timeline', async (req: Request, res: Response) => {
                SUM(CASE WHEN status = 'PUBLISHED' THEN 1 ELSE 0 END)::int as published
         FROM content_items
         WHERE "created_at" >= NOW() - make_interval(days => ${days})
+          AND "organization_id" = ${orgId}
         GROUP BY DATE("created_at")
         ORDER BY date
       `
@@ -1009,6 +1012,10 @@ router.put('/pages/:id', async (req: AuthRequest, res: Response) => {
   const id = String(req.params.id);
   const existing = await prisma.page.findUnique({ where: { id } });
   if (!existing || existing.organizationId !== req.organizationId) return res.status(404).json({ error: 'Page not found' });
+  if (!req.isAllAccess) {
+    const ctx = await getAccessContext(req.organizationId!, req.userId!);
+    if (!ctx || !(await canAccessPage(ctx, id))) return res.status(403).json({ error: 'RESOURCE_ACCESS_DENIED' });
+  }
   // If reactivating, enforce quota
   if (existing.isActive === false && req.body?.isActive === true) {
     const check = await OrganizationQuota.canAddPage(req.organizationId!);
@@ -1029,8 +1036,9 @@ router.delete('/pages/:id', async (req: AuthRequest, res: Response) => {
 });
 
 // Facebook token exchange: short-lived → long-lived → page tokens
-router.post('/pages/fb-token-exchange', async (req: Request, res: Response) => {
+router.post('/pages/fb-token-exchange', async (req: AuthRequest, res: Response) => {
   try {
+    if (!req.organizationId) return res.status(401).json({ error: 'Organization required' });
     const { shortToken } = req.body;
     if (!shortToken) return res.status(400).json({ error: 'Thiếu short-lived token' });
 
