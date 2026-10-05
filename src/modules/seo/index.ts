@@ -26,18 +26,18 @@ export interface PageSeo {
 
 const PAGE_META: Record<string, Pick<PageSeo, 'title' | 'description'>> = {
   '/': {
-    title: 'MKTKit — Công cụ giúp marketing vận hành gọn hơn',
-    description: 'MKTKit giúp đội ngũ quản lý Pages, nội dung, chiến dịch và lịch xuất bản trong một nơi.',
+    title: '{{siteName}} - Công cụ giúp marketing vận hành gọn hơn',
+    description: '{{siteName}} giúp đội ngũ quản lý Pages, nội dung, chiến dịch và lịch xuất bản trong một nơi.',
   },
-  '/products': { title: 'Sản phẩm — MKTKit', description: 'Khám phá MKT Tools, sản phẩm vận hành nội dung và Pages của MKTKit.' },
-  '/products/mkt-tools': { title: 'MKT Tools — Quản lý Pages, Content, Campaigns & AI', description: 'Một workspace để quản lý Pages, Content, Campaigns, AI và lịch xuất bản.' },
-  '/guides': { title: 'Hướng dẫn sử dụng MKT Tools — MKTKit', description: 'Thiết lập và sử dụng MKT Tools từng bước.' },
-  '/support': { title: 'Hỗ trợ MKTKit', description: 'Tìm hướng dẫn và liên hệ hỗ trợ MKTKit.' },
-  '/legal/terms': { title: 'Điều khoản sử dụng — MKTKit', description: 'Điều khoản áp dụng khi sử dụng MKTKit.' },
-  '/legal/privacy': { title: 'Chính sách bảo mật — MKTKit', description: 'Cách MKTKit xử lý và bảo vệ thông tin.' },
-  '/legal/data-deletion': { title: 'Xóa dữ liệu — MKTKit', description: 'Hướng dẫn yêu cầu xóa tài khoản và dữ liệu.' },
-  '/legal/data-deletion/mkt-tools': { title: 'Xóa dữ liệu MKT Tools — MKTKit', description: 'Quy trình yêu cầu xóa dữ liệu MKT Tools.' },
-  '/blog': { title: 'Blog MKTKit', description: 'Kiến thức thực tế để vận hành marketing tốt hơn.' },
+  '/products': { title: 'Sản phẩm - {{siteName}}', description: 'Khám phá MKT Tools, sản phẩm vận hành nội dung và Pages của website.' },
+  '/products/mkt-tools': { title: 'MKT Tools - Quản lý Pages, Content, Campaigns & AI', description: 'Một workspace để quản lý Pages, Content, Campaigns, AI và lịch xuất bản.' },
+  '/guides': { title: 'Hướng dẫn sử dụng MKT Tools - {{siteName}}', description: 'Thiết lập và sử dụng MKT Tools từng bước.' },
+  '/support': { title: 'Hỗ trợ {{siteName}}', description: 'Tìm hướng dẫn và liên hệ hỗ trợ.' },
+  '/legal/terms': { title: 'Điều khoản sử dụng - {{siteName}}', description: 'Điều khoản áp dụng khi sử dụng website.' },
+  '/legal/privacy': { title: 'Chính sách bảo mật - {{siteName}}', description: 'Cách website xử lý và bảo vệ thông tin.' },
+  '/legal/data-deletion': { title: 'Xóa dữ liệu - {{siteName}}', description: 'Hướng dẫn yêu cầu xóa tài khoản và dữ liệu.' },
+  '/legal/data-deletion/mkt-tools': { title: 'Xóa dữ liệu MKT Tools - {{siteName}}', description: 'Quy trình yêu cầu xóa dữ liệu MKT Tools.' },
+  '/blog': { title: 'Blog {{siteName}}', description: 'Kiến thức thực tế để vận hành marketing tốt hơn.' },
 };
 
 function trimSlash(value: string): string { return value.replace(/\/+$/, ''); }
@@ -59,8 +59,9 @@ function safeAssetUrl(value: string, baseUrl: string): string {
 export function getPublicSeoConfig(): PublicSeoConfig {
   const appUrl = safeHttpUrl(getAppUrl(), 'http://localhost:3000');
   const canonicalBaseUrl = safeHttpUrl(getPlatformSetting('seo.canonicalBaseUrl'), appUrl);
+  const siteName = normalizeDashes(getPlatformSetting('seo.siteName') || getPlatformSetting('general.productName') || 'MKTKit');
   return {
-    siteName: getPlatformSetting('seo.siteName') || getPlatformSetting('general.productName') || 'MKTKit',
+    siteName,
     defaultTitle: getPlatformSetting('seo.defaultTitle') || 'MKTKit',
     defaultDescription: getPlatformSetting('seo.defaultDescription'),
     canonicalBaseUrl,
@@ -94,16 +95,19 @@ function escapeHtml(value: string): string {
   return value.replace(/[&<>"']/g, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' }[char] || char));
 }
 
+function normalizeDashes(value: string): string { return value.replace(/[\u2014\u2013]/g, '-'); }
+function resolveSiteName(value: string, siteName: string): string { return value.replaceAll('{{siteName}}', siteName); }
+
 function jsonForHtml(value: unknown): string {
   return JSON.stringify(value).replace(/</g, '\\u003c').replace(/>/g, '\\u003e').replace(/&/g, '\\u0026');
 }
 
 export function renderSeoHead(page: PageSeo, config = getPublicSeoConfig()): string {
-  const title = page.title || config.defaultTitle || config.siteName;
-  const description = page.description || config.defaultDescription;
+  const title = normalizeDashes(resolveSiteName(page.title || config.defaultTitle || config.siteName, config.siteName));
+  const description = normalizeDashes(resolveSiteName(page.description || config.defaultDescription, config.siteName));
   const canonical = `${config.canonicalBaseUrl}${page.path === '/' ? '/' : page.path}`;
-  const ogTitle = page.title || config.ogTitle || title;
-  const ogDescription = page.description || config.ogDescription || description;
+  const ogTitle = normalizeDashes(resolveSiteName(page.title || config.ogTitle || title, config.siteName));
+  const ogDescription = normalizeDashes(resolveSiteName(page.description || config.ogDescription || description, config.siteName));
   const noindex = page.noindex || !config.allowIndexing;
   const tags = [
     `<title>${escapeHtml(title)}</title>`,
@@ -143,6 +147,8 @@ export function publicStructuredData(pathname: string, config = getPublicSeoConf
 export function renderPublicDocument(template: string, page: PageSeo, config = getPublicSeoConfig()): string {
   const withData = { ...page, structuredData: page.structuredData || publicStructuredData(page.path, config) };
   let html = template.replace('<!-- SEO_HEAD -->', renderSeoHead(withData, config));
+  html = html.replaceAll('<span data-public-site-name>MKTKit</span>', `<span data-public-site-name>${escapeHtml(config.siteName)}</span>`);
+  html = html.replaceAll('aria-label="MKTKit - Trang chủ"', `aria-label="${escapeHtml(config.siteName)} - Trang chủ"`);
   if (config.logoUrl) {
     const logo = `<img class="brand-logo" src="${escapeHtml(config.logoUrl)}" alt="" aria-hidden="true">`;
     html = html.replaceAll('<span class="brand-mark" aria-hidden="true">M</span>', logo);

@@ -196,21 +196,21 @@ function app() {
             showKeys: { anthropic: false, openai: false, gemini: false, telegram: false, fbSecret: false },
             textModelsMap: {
                 claude: [
-                    { id: 'claude-haiku-4-5-20251001', name: 'Claude Haiku 4.5 — nhanh, rẻ' },
-                    { id: 'claude-sonnet-4-20250514', name: 'Claude Sonnet 4 — cân bằng' },
-                    { id: 'claude-opus-4-6', name: 'Claude Opus 4.6 — mạnh nhất' },
+                    { id: 'claude-haiku-4-5-20251001', name: 'Claude Haiku 4.5 - nhanh, rẻ' },
+                    { id: 'claude-sonnet-4-20250514', name: 'Claude Sonnet 4 - cân bằng' },
+                    { id: 'claude-opus-4-6', name: 'Claude Opus 4.6 - mạnh nhất' },
                 ],
                 openai: [
-                    { id: 'gpt-5-mini', name: 'GPT-5 Mini — nhanh, rẻ (2026)' },
-                    { id: 'gpt-4o-mini', name: 'GPT-4o Mini — nhanh, ổn định' },
-                    { id: 'gpt-4o', name: 'GPT-4o — đa năng' },
-                    { id: 'gpt-5.5', name: 'GPT-5.5 — mạnh nhất (2026)' },
+                    { id: 'gpt-5-mini', name: 'GPT-5 Mini - nhanh, rẻ (2026)' },
+                    { id: 'gpt-4o-mini', name: 'GPT-4o Mini - nhanh, ổn định' },
+                    { id: 'gpt-4o', name: 'GPT-4o - đa năng' },
+                    { id: 'gpt-5.5', name: 'GPT-5.5 - mạnh nhất (2026)' },
                 ],
                 gemini: [
-                    { id: 'gemini-3.5-flash-lite', name: 'Gemini 3.5 Flash-Lite — siêu nhanh 350 tok/s (7/2026)' },
-                    { id: 'gemini-3.8-flash', name: 'Gemini 3.8 Flash — mới nhất, thông minh nhất (9/2026)' },
-                    { id: 'gemini-2.5-flash', name: 'Gemini 2.5 Flash — ổn định, rẻ' },
-                    { id: 'gemini-2.0-flash', name: 'Gemini 2.0 Flash — nhanh' },
+                    { id: 'gemini-3.5-flash-lite', name: 'Gemini 3.5 Flash-Lite - siêu nhanh 350 tok/s (7/2026)' },
+                    { id: 'gemini-3.8-flash', name: 'Gemini 3.8 Flash - mới nhất, thông minh nhất (9/2026)' },
+                    { id: 'gemini-2.5-flash', name: 'Gemini 2.5 Flash - ổn định, rẻ' },
+                    { id: 'gemini-2.0-flash', name: 'Gemini 2.0 Flash - nhanh' },
                 ],
             },
             geminiImageModels: [],
@@ -422,7 +422,7 @@ function app() {
                 s.on('content:update:global', (evt) => this.handleContentEvent(evt));
                 s.on('member:access-changed', () => { this.reconcileMemberAccess(); });
                 s.on('org:denied', () => {
-                    // Stored org is invalid — clear and reload memberships/scope.
+                    // Stored org is invalid - clear and reload memberships/scope.
                     localStorage.removeItem('mkt_current_org');
                     this.currentOrganization = null;
                     this.loadOrganizations();
@@ -608,7 +608,7 @@ function app() {
             },
             providerLabel(name) {
                 const map = { claude: 'Claude (Anthropic)', openai: 'GPT (OpenAI)', gemini: 'Gemini (Google)', dalle: 'DALL-E (OpenAI)' };
-                return map[name] || name || '—';
+                return map[name] || name || '-';
             },
             async loadOrganizations() {
                 try {

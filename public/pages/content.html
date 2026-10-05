@@ -168,7 +168,7 @@
           </div>
         </div>
 
-        <!-- Active Processing Tab View — compact rows -->
+        <!-- Active Processing Tab View - compact rows -->
         <div x-show="activeTab" x-cloak class="bg-white rounded-xl border border-gray-100 shadow-sm mb-3 overflow-hidden">
           <div class="flex items-center gap-2 px-4 py-2.5 border-b border-gray-100">
             <i class="ri-loader-4-line text-blue-500 spin-slow text-sm"></i>
@@ -226,7 +226,7 @@
           </div>
         </div>
 
-        <!-- Active Lane in "Tất cả" tab — compact rows -->
+        <!-- Active Lane in "Tất cả" tab - compact rows -->
         <div x-show="!activeTab && !contentFilter.status && scopedActiveItems().length > 0" x-cloak class="bg-white rounded-xl border border-gray-100 shadow-sm mb-3 overflow-hidden">
           <div class="flex items-center justify-between px-4 py-2 border-b border-gray-100">
             <div class="flex items-center gap-2">
@@ -395,7 +395,7 @@
                           </template>
                           <!-- Campaign -->
                           <template x-if="col.key==='campaign'">
-                            <span class="truncate block text-gray-600" x-text="item.campaign?.name || '—'" :title="item.campaign?.name"></span>
+                            <span class="truncate block text-gray-600" x-text="item.campaign?.name || '-'" :title="item.campaign?.name"></span>
                           </template>
                           <!-- Content Type -->
                           <template x-if="col.key==='contentType'">
@@ -427,13 +427,13 @@
                           </template>
                           <!-- Published At -->
                           <template x-if="col.key==='publishedAt'">
-                            <div x-text="item.publishedAt ? new Date(item.publishedAt).toLocaleDateString('vi-VN',{timeZone:'Asia/Ho_Chi_Minh',day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}) : '—'"
+                            <div x-text="item.publishedAt ? new Date(item.publishedAt).toLocaleDateString('vi-VN',{timeZone:'Asia/Ho_Chi_Minh',day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}) : '-'"
                               class="text-gray-500" :class="dgDensity==='compact' ? 'text-[10px]' : 'text-xs'"></div>
                           </template>
                           <!-- Notes -->
                           <template x-if="col.key==='notes'">
                             <div class="text-gray-500 truncate" :class="dgDensity==='compact' ? 'text-[10px]' : 'text-[11px]'"
-                              x-text="item.notes || '—'" :title="item.notes"></div>
+                              x-text="item.notes || '-'" :title="item.notes"></div>
                           </template>
                           <!-- Result preview -->
                           <template x-if="col.key==='result'">
@@ -441,7 +441,7 @@
                               <div x-show="item.generatedText" class="text-gray-500 truncate cursor-pointer hover:text-gray-800" :class="dgDensity==='compact' ? 'text-[10px]' : 'text-[11px]'"
                                 x-text="(item.generatedText||'').substring(0,50)" @click="viewResult(item)"></div>
                               <span x-show="!item.generatedText && item.status==='GENERATING'" class="text-purple-400 text-[10px]"><i class="ri-loader-4-line animate-spin"></i></span>
-                              <span x-show="!item.generatedText && item.status!=='GENERATING'" class="text-gray-200 text-[10px]">—</span>
+                              <span x-show="!item.generatedText && item.status!=='GENERATING'" class="text-gray-200 text-[10px]">-</span>
                             </div>
                           </template>
                           <!-- Metrics: Người xem -->
@@ -499,49 +499,49 @@
                         <template x-if="col.key==='checkbox' || col.key==='thumbnail'"><span></span></template>
                         <template x-if="col.key==='viewers'">
                           <div class="text-right">
-                            <div class="text-xs font-bold tabular-nums text-gray-800" x-text="dgSummary?.viewersSum!=null ? dgSummary.viewersSum.toLocaleString('vi-VN') : '—'"></div>
+                            <div class="text-xs font-bold tabular-nums text-gray-800" x-text="dgSummary?.viewersSum!=null ? dgSummary.viewersSum.toLocaleString('vi-VN') : '-'"></div>
                             <div class="text-[9px] text-gray-400" title="Tổng số người xem duy nhất của từng bài. Một người xem nhiều bài có thể được tính nhiều lần.">Tổng theo bài</div>
                           </div>
                         </template>
                         <template x-if="col.key==='mediaViews'">
                           <div class="text-right">
-                            <div class="text-xs font-bold tabular-nums text-gray-800" x-text="dgSummary?.viewsSum!=null ? dgSummary.viewsSum.toLocaleString('vi-VN') : '—'"></div>
+                            <div class="text-xs font-bold tabular-nums text-gray-800" x-text="dgSummary?.viewsSum!=null ? dgSummary.viewsSum.toLocaleString('vi-VN') : '-'"></div>
                             <div class="text-[9px] text-gray-400" title="Tổng lượt xem của các bài trong kết quả hiện tại.">Tổng</div>
                           </div>
                         </template>
                         <template x-if="col.key==='engagement'">
                           <div class="text-right">
-                            <div class="text-xs font-bold tabular-nums text-gray-800" x-text="dgSummary?.engagementSum!=null ? dgSummary.engagementSum.toLocaleString('vi-VN') : '—'"></div>
+                            <div class="text-xs font-bold tabular-nums text-gray-800" x-text="dgSummary?.engagementSum!=null ? dgSummary.engagementSum.toLocaleString('vi-VN') : '-'"></div>
                             <div class="text-[9px] text-gray-400" title="Tổng Reactions + Comments + Shares.">Tổng</div>
                           </div>
                         </template>
                         <template x-if="col.key==='reactions'">
                           <div class="text-right">
-                            <div class="text-xs font-bold tabular-nums text-gray-800" x-text="dgSummary?.reactionsSum!=null ? dgSummary.reactionsSum.toLocaleString('vi-VN') : '—'"></div>
+                            <div class="text-xs font-bold tabular-nums text-gray-800" x-text="dgSummary?.reactionsSum!=null ? dgSummary.reactionsSum.toLocaleString('vi-VN') : '-'"></div>
                             <div class="text-[9px] text-gray-400">Tổng</div>
                           </div>
                         </template>
                         <template x-if="col.key==='comments'">
                           <div class="text-right">
-                            <div class="text-xs font-bold tabular-nums text-gray-800" x-text="dgSummary?.commentsSum!=null ? dgSummary.commentsSum.toLocaleString('vi-VN') : '—'"></div>
+                            <div class="text-xs font-bold tabular-nums text-gray-800" x-text="dgSummary?.commentsSum!=null ? dgSummary.commentsSum.toLocaleString('vi-VN') : '-'"></div>
                             <div class="text-[9px] text-gray-400">Tổng</div>
                           </div>
                         </template>
                         <template x-if="col.key==='shares'">
                           <div class="text-right">
-                            <div class="text-xs font-bold tabular-nums text-gray-800" x-text="dgSummary?.sharesSum!=null ? dgSummary.sharesSum.toLocaleString('vi-VN') : '—'"></div>
+                            <div class="text-xs font-bold tabular-nums text-gray-800" x-text="dgSummary?.sharesSum!=null ? dgSummary.sharesSum.toLocaleString('vi-VN') : '-'"></div>
                             <div class="text-[9px] text-gray-400">Tổng</div>
                           </div>
                         </template>
                         <template x-if="col.key==='clicks'">
                           <div class="text-right">
-                            <div class="text-xs font-bold tabular-nums text-gray-800" x-text="dgSummary?.clicksSum!=null ? dgSummary.clicksSum.toLocaleString('vi-VN') : '—'"></div>
+                            <div class="text-xs font-bold tabular-nums text-gray-800" x-text="dgSummary?.clicksSum!=null ? dgSummary.clicksSum.toLocaleString('vi-VN') : '-'"></div>
                             <div class="text-[9px] text-gray-400">Tổng</div>
                           </div>
                         </template>
                         <template x-if="col.key==='engPerViewer'">
                           <div class="text-right">
-                            <div class="text-xs font-bold tabular-nums text-gray-800" x-text="dgSummary?.engViewer!=null ? dgSummary.engViewer.toFixed(2)+'%' : '—'"></div>
+                            <div class="text-xs font-bold tabular-nums text-gray-800" x-text="dgSummary?.engViewer!=null ? dgSummary.engViewer.toFixed(2)+'%' : '-'"></div>
                             <div class="text-[9px] text-gray-400" title="Engagement tổng chia cho Tổng người xem theo bài.">Tổng hợp</div>
                           </div>
                         </template>
@@ -607,7 +607,7 @@
             <!-- Pagination -->
             <div x-show="contentTotal > 0" class="flex-shrink-0 flex items-center justify-between px-4 py-1.5 border-t border-gray-100 bg-white rounded-b-xl">
               <div class="text-xs text-gray-500">
-                <span x-text="((dgPage-1)*dgPageSize+1)"></span>–<span x-text="Math.min(dgPage*dgPageSize, contentTotal)"></span> / <span x-text="contentTotal"></span>
+                <span x-text="((dgPage-1)*dgPageSize+1)"></span>-<span x-text="Math.min(dgPage*dgPageSize, contentTotal)"></span> / <span x-text="contentTotal"></span>
               </div>
               <div class="flex items-center gap-2">
                 <select x-model="dgPageSize" @change="dgPage=1; loadContent()" class="px-2 py-1 border border-gray-200 rounded text-xs outline-none">
@@ -851,7 +851,7 @@
                     <span x-text="drawerItem.page?.name"></span>
                   </span>
                   <span class="text-xs text-gray-400">·</span>
-                  <span class="text-xs text-gray-600" x-text="drawerItem.campaign?.name || '—'"></span>
+                  <span class="text-xs text-gray-600" x-text="drawerItem.campaign?.name || '-'"></span>
                   <span class="text-xs text-gray-400">·</span>
                   <span class="text-xs px-1.5 py-0.5 rounded"
                     :class="{'bg-blue-50 text-blue-600': drawerItem.contentType==='IMAGE', 'bg-purple-50 text-purple-600': drawerItem.contentType==='VIDEO', 'bg-gray-100 text-gray-600': drawerItem.contentType==='TEXT'}"
@@ -984,7 +984,7 @@
                   <div class="bg-gray-50 rounded-lg p-3 space-y-2">
                     <h4 class="font-semibold text-gray-600 flex items-center gap-1"><i class="ri-store-2-line text-sm"></i> Page & Campaign</h4>
                     <div class="flex justify-between"><span class="text-gray-500">Page</span><span class="text-gray-800" x-text="drawerItem.page?.name"></span></div>
-                    <div class="flex justify-between"><span class="text-gray-500">Campaign</span><span class="text-gray-800" x-text="drawerItem.campaign?.name || '—'"></span></div>
+                    <div class="flex justify-between"><span class="text-gray-500">Campaign</span><span class="text-gray-800" x-text="drawerItem.campaign?.name || '-'"></span></div>
                   </div>
                   <div class="bg-gray-50 rounded-lg p-3 space-y-2">
                     <h4 class="font-semibold text-gray-600 flex items-center gap-1"><i class="ri-magic-line text-sm"></i> Generation</h4>
@@ -1024,7 +1024,7 @@
                       <span x-text="drawerItem.status==='PUBLISHED' ? 'Đã đăng' : (drawerItem.status==='PUBLISHING' ? 'Đang đăng...' : (drawerItem.status==='FAILED' ? 'Lỗi' : 'Chưa đăng'))"></span>
                     </div>
                     <div x-show="drawerItem.publishedAt" class="flex justify-between"><span class="text-gray-500">Ngày đăng</span>
-                      <span class="text-gray-800" x-text="drawerItem.publishedAt ? new Date(drawerItem.publishedAt).toLocaleString('vi-VN',{timeZone:'Asia/Ho_Chi_Minh',day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'}) : '—'"></span>
+                      <span class="text-gray-800" x-text="drawerItem.publishedAt ? new Date(drawerItem.publishedAt).toLocaleString('vi-VN',{timeZone:'Asia/Ho_Chi_Minh',day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'}) : '-'"></span>
                     </div>
                     <div x-show="drawerItem.socialPostId" class="flex justify-between"><span class="text-gray-500">Facebook Post ID</span>
                       <span class="text-gray-600 font-mono text-[10px]" x-text="drawerItem.socialPostId"></span>
@@ -1326,7 +1326,7 @@
                     <i class="ri-image-add-line text-2xl text-gray-300 mb-1"></i>
                     <p class="text-xs text-gray-400">Kéo thả hoặc click để chọn ảnh (chọn nhiều)</p>
                   </div>
-                  <p class="text-xs text-gray-400 mt-1">JPG, PNG, GIF, WebP — tối đa 20MB/ảnh</p>
+                  <p class="text-xs text-gray-400 mt-1">JPG, PNG, GIF, WebP - tối đa 20MB/ảnh</p>
                 </div>
                 <div x-show="contentForm.imageInputMode==='url'" class="flex gap-2">
                   <input x-ref="imageUrlInput" type="url" placeholder="https://... (link ảnh trực tiếp)"
@@ -1363,7 +1363,7 @@
                     <p x-show="contentForm.videoFile" class="text-xs text-brand-600 font-medium" x-text="contentForm.videoFile?.name"></p>
                     <p x-show="contentForm.videoFile" class="text-xs text-gray-400 mt-0.5" x-text="contentForm.videoFile ? (contentForm.videoFile.size / 1024 / 1024).toFixed(1) + ' MB' : ''"></p>
                   </div>
-                  <p class="text-xs text-gray-400 mt-1">MP4, MOV, AVI, WebM, MKV — tối đa 500MB</p>
+                  <p class="text-xs text-gray-400 mt-1">MP4, MOV, AVI, WebM, MKV - tối đa 500MB</p>
                 </div>
                 <div x-show="contentForm.videoInputMode==='url'">
                   <input x-model="contentForm.manualVideoUrl" type="url" placeholder="https://... (link video trực tiếp)"
@@ -1426,7 +1426,7 @@
               </div>
               <div class="text-xs text-gray-400">
                 <p>Số lần thử: <span x-text="errorItem.retryCount || 0"></span></p>
-                <p>AI Model: <span x-text="errorItem.aiModel || '—'"></span></p>
+                <p>AI Model: <span x-text="errorItem.aiModel || '-'"></span></p>
               </div>
               <div class="flex gap-3 pt-2">
                 <button @click="showErrorModal=false" class="flex-1 py-2 border border-gray-300 rounded-lg text-gray-600 hover:bg-gray-50 transition text-sm">Đóng</button>

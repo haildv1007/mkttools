@@ -103,7 +103,7 @@ describe('Facebook V0 Backend', () => {
       expect(source).toContain("redis.set(`discovered_page:");
       expect(source).toContain("redis.get(`discovered_page:");
       expect(source).toContain("redis.del(`discovered_page:");
-      // No in-memory Map for tokens/state (importedMap is fine — it's ephemeral per-request)
+      // No in-memory Map for tokens/state (importedMap is fine - it's ephemeral per-request)
       expect(source).not.toMatch(/const (userTokenStore|discoveredPageTokens|stateStore)\s*=\s*new Map/);
       expect(source).not.toContain('setInterval');
     });

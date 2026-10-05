@@ -2,7 +2,7 @@ import crypto from 'crypto';
 import { logger } from '../../utils/logger';
 import { getSePayConfig, getAppUrl } from '../platform-settings';
 
-// SePay webhook payload — fields per official SePay Payment Gateway docs.
+// SePay webhook payload - fields per official SePay Payment Gateway docs.
 // SePay sends POST with these fields when a bank transfer matching the
 // configured account is detected.
 export interface SePayWebhookPayload {

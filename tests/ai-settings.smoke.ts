@@ -1,5 +1,5 @@
 /**
- * AI Settings Consolidation + Generation Fix — focused smoke tests.
+ * AI Settings Consolidation + Generation Fix - focused smoke tests.
  * Exercises resolveGeneration() directly (the function content-generator's
  * generateText/generateImage now call) so we assert exactly which provider
  * and model a generation call would use, without hitting real provider APIs.
@@ -67,7 +67,7 @@ async function main() {
   const { encryptSecret, decryptSecret } = await import('../src/utils/crypto');
 
   // ─── A. Gemini text: explicit operation setting model always wins ───
-  console.log('\nA. Gemini text — explicit model reaches resolution unchanged');
+  console.log('\nA. Gemini text - explicit model reaches resolution unchanged');
   await prisma.organizationAiCredential.create({
     data: { organizationId: orgA.id, provider: 'gemini', encryptedApiKey: encryptSecret('AIza-fake-key-org-a'), isActive: true },
   });
@@ -151,7 +151,7 @@ async function main() {
   });
   await prisma.organizationAiOperationSetting.create({
     // Operation setting exists (so provider resolves) but was seeded without
-    // a model the same way a raw DB row could end up — resolveGeneration
+    // a model the same way a raw DB row could end up - resolveGeneration
     // must still refuse to guess, never fall back to a quality tier.
     data: { organizationId: orgNoModel.id, operation: 'TEXT_GENERATION', provider: 'gemini', model: '' },
   });
@@ -171,7 +171,7 @@ async function main() {
   const orgBCred = await prisma.organizationAiCredential.findUnique({
     where: { organizationId_provider: { organizationId: orgB.id, provider: 'gemini' } },
   });
-  assert(orgBCred === null, 'org B has zero OrganizationAiCredential rows — nothing copied from org A');
+  assert(orgBCred === null, 'org B has zero OrganizationAiCredential rows - nothing copied from org A');
 
   // Summary
   console.log(`\n${'='.repeat(40)}`);

@@ -17,7 +17,7 @@ Chỉ trả về JSON, không thêm gì khác.`;
     const userPrompt = this.buildPrompt(options);
 
     // resolveGeneration() always resolves a concrete model before this
-    // provider is called — use it exactly as selected, never substitute.
+    // provider is called - use it exactly as selected, never substitute.
     const requestedModel = options.credential?.model;
     if (!requestedModel) throw new Error('AI_MODEL_NOT_AVAILABLE');
     const response = await client.messages.create({

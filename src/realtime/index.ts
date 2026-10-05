@@ -98,7 +98,7 @@ export function initSocketIO(server: HttpServer): Server {
           socket.emit('org:denied', { organizationId: orgId });
           return;
         }
-        // Leave any prior org rooms first — one active org per socket.
+        // Leave any prior org rooms first - one active org per socket.
         for (const room of socket.rooms) {
           if (room.startsWith('org:') || room.startsWith('page:')) socket.leave(room);
         }

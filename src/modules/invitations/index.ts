@@ -74,7 +74,7 @@ orgRouter.post('/', async (req: AuthRequest, res: Response) => {
   });
   if (activeInvite) return res.status(409).json({ error: 'ALREADY_INVITED', message: 'Đã có lời mời đang chờ cho email này.' });
 
-  // Quota check at invite creation — re-checked at acceptance too.
+  // Quota check at invite creation - re-checked at acceptance too.
   const memberCheck = await OrganizationQuota.canAddMember(req.organizationId!);
   if (!memberCheck.ok) {
     return res.status(422).json({ error: 'MEMBER_LIMIT_REACHED', message: 'Bạn đã sử dụng hết số thành viên của gói hiện tại.' });
@@ -92,7 +92,7 @@ orgRouter.post('/', async (req: AuthRequest, res: Response) => {
     },
   });
 
-  // Return the raw token exactly once — never persisted, never emitted again.
+  // Return the raw token exactly once - never persisted, never emitted again.
   const link = `/join/${raw}`;
   res.json({
     id: row.id, email: row.email, role: row.role, accessMode: row.accessMode,
@@ -161,7 +161,7 @@ publicRouter.post('/:token/accept', authMiddleware, async (req: AuthRequest, res
   const user = await prisma.user.findUnique({ where: { id: req.userId } });
   if (!user) return res.status(401).json({ error: 'Unauthorized' });
 
-  // Enforce email match — the invitation is bound to that email.
+  // Enforce email match - the invitation is bound to that email.
   if (user.email.toLowerCase() !== inv.email.toLowerCase()) {
     return res.status(403).json({ error: 'INVITATION_EMAIL_MISMATCH', message: 'Email của tài khoản không khớp với lời mời.' });
   }
@@ -193,7 +193,7 @@ publicRouter.post('/:token/accept', authMiddleware, async (req: AuthRequest, res
       where: { organizationId_userId: { organizationId: inv.organizationId, userId: user.id } },
     });
     if (existing && existing.status === 'ACTIVE') {
-      // Already an active member — just mark accepted.
+      // Already an active member - just mark accepted.
       await tx.organizationInvitation.update({
         where: { id: inv.id }, data: { status: 'ACCEPTED', acceptedAt: now },
       });

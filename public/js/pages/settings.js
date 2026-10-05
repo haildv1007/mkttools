@@ -5,7 +5,7 @@ window.MKTPageModules.settings = () => ({
             return;
         try {
             const data = await this.api('/dashboard/settings');
-            // Telegram/Facebook/timezone only — AI fields are no longer read
+            // Telegram/Facebook/timezone only - AI fields are no longer read
             // from here (see "Cấu hình AI" below, org-scoped).
             const loaded = data.settings || {};
             this.secretConfigured = {
@@ -23,7 +23,7 @@ window.MKTPageModules.settings = () => ({
             this.showKeys = { anthropic: false, openai: false, gemini: false, telegram: false, fbSecret: false };
         }
         catch { }
-        // "Cấu hình AI" reads/writes the CURRENT organization's settings —
+        // "Cấu hình AI" reads/writes the CURRENT organization's settings -
         // reload whenever this page opens so switching org shows that org's
         // own AI config, never a stale one from a previously viewed org.
         try {
@@ -99,7 +99,7 @@ window.MKTPageModules.settings = () => ({
             this.orgOpCredentialConfigured[op] = !!(this.orgAiCreds?.credentials || []).find(c => c.provider === provider && c.status === 'CONFIGURED');
             return;
         }
-        // IMAGE_GENERATION — ask the backend, which merges the recommended
+        // IMAGE_GENERATION - ask the backend, which merges the recommended
         // catalog with a live listing from the org's own credential.
         try {
             if (provider === 'gemini') {
@@ -118,7 +118,7 @@ window.MKTPageModules.settings = () => ({
             }
         }
         catch (e) {
-            // Listing failed — never erase an already-configured model.
+            // Listing failed - never erase an already-configured model.
             console.warn('load image model options failed', e);
         }
     },
@@ -140,7 +140,7 @@ window.MKTPageModules.settings = () => ({
     selectedModelLabel(op) {
         const id = this.orgOpForm[op].model;
         if (!id)
-            return '— Chọn model —';
+            return '- Chọn model -';
         return this.orgOpModelOptions[op].find(model => model.id === id)?.name || id;
     },
     timezoneOptions() {
@@ -152,7 +152,7 @@ window.MKTPageModules.settings = () => ({
         ];
     },
     timezoneLabel(value) {
-        return this.timezoneOptions().find(timezone => timezone.value === value)?.label || value || '— Chọn múi giờ —';
+        return this.timezoneOptions().find(timezone => timezone.value === value)?.label || value || '- Chọn múi giờ -';
     },
     selectTimezone(value) {
         this.settingsForm.DEFAULT_TIMEZONE = value;
@@ -258,7 +258,7 @@ window.MKTPageModules.settings = () => ({
     async testAiCredential(provider) {
         try {
             const r = await this.api(`/ai-credentials/${provider}/test`, { method: 'POST' });
-            alert(`${provider}: ${r.status} — ${r.message}`);
+            alert(`${provider}: ${r.status} - ${r.message}`);
             this.orgAiCreds = await this.api('/ai-credentials');
         }
         catch (e) {

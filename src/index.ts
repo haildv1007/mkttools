@@ -20,7 +20,7 @@ import { aiCredentialRouter } from './modules/ai-credentials';
 import { organizationInvitationRouter, publicInvitationRouter } from './modules/invitations';
 import { billingPublicRouter, billingCustomerRouter, billingAdminRouter, billingWebhookRouter } from './modules/billing';
 import { facebookRouter } from './modules/facebook';
-import { refreshPlatformSettingsCache } from './modules/platform-settings';
+import { getPlatformSetting, refreshPlatformSettingsCache } from './modules/platform-settings';
 import { getBot } from './modules/telegram-bot';
 import { startWorkers, startScheduler } from './queues';
 import { initSocketIO } from './realtime';
@@ -84,6 +84,12 @@ app.get('/robots.txt', (_req, res) => {
   const seo = getPublicSeoConfig();
   res.type('text/plain').send(buildRobotsTxt(seo));
 });
+
+// Public, non-secret branding used by the static authenticated/auth/admin shells.
+app.get('/api/platform-config', (_req, res) => {
+  const productName = (getPlatformSetting('general.productName') || 'MKT Tools').replace(/[\u2014\u2013]/g, '-');
+  res.json({ productName });
+});
 app.get('/sitemap.xml', async (_req, res) => {
   const [posts, guides] = await Promise.all([
     listPublishedContentEntries('blog'),
@@ -127,8 +133,8 @@ const publicContentPage = async (req: express.Request, res: express.Response) =>
   const slug = String(req.params.slug || '');
   const entry = await getPublishedContentMetadata(kind, slug);
   const page = entry
-    ? { path: req.path, title: `${entry.title} — MKTKit`, description: entry.description, type: 'article' as const }
-    : { path: req.path, title: 'Nội dung không tồn tại — MKTKit', description: 'Nội dung không tồn tại hoặc chưa được xuất bản.', noindex: true };
+    ? { path: req.path, title: `${entry.title} - {{siteName}}`, description: entry.description, type: 'article' as const }
+    : { path: req.path, title: 'Nội dung không tồn tại - {{siteName}}', description: 'Nội dung không tồn tại hoặc chưa được xuất bản.', noindex: true };
   if (!entry) res.status(404);
   res.send(renderPublicDocument(publicTemplate, page));
 };

@@ -1,6 +1,6 @@
 /**
  * Recommended model catalog. This is BYOK (bring your own key): the customer
- * pays the provider directly and explicitly picks their model — this table
+ * pays the provider directly and explicitly picks their model - this table
  * is recommended options/labels for the UI, NOT a strict allowlist and NOT
  * a tier-based resolver. A customer may type in any model id their key
  * supports (see the "Nhập Model ID khác" manual input in Settings).

@@ -12,7 +12,7 @@ import { promises as fs } from 'fs';
 
 // ---------------------------------------------------------------------------
 // Field catalog: one place naming every platform setting, whether it's a
-// secret, and (for safe DB-wins-else-env rollout — see class docstring on
+// secret, and (for safe DB-wins-else-env rollout - see class docstring on
 // PlatformSetting in schema.prisma) which env var it may fall back to.
 // ---------------------------------------------------------------------------
 
@@ -26,7 +26,7 @@ const FIELDS: Record<string, FieldDef[]> = {
     { key: 'general.supportEmail', type: 'string' },
     { key: 'general.timezone', type: 'string', envFallback: 'DEFAULT_TIMEZONE', default: 'Asia/Ho_Chi_Minh' },
     { key: 'general.allowRegistrations', type: 'bool', default: 'true' },
-    // trialEnabled is intentionally NOT here — it proxies TrialPolicy (see below).
+    // trialEnabled is intentionally NOT here - it proxies TrialPolicy (see below).
   ],
   auth: [
     { key: 'auth.emailPasswordEnabled', type: 'bool', default: 'true' },
@@ -61,7 +61,7 @@ const FIELDS: Record<string, FieldDef[]> = {
   ],
   seo: [
     { key: 'seo.siteName', type: 'string', default: 'MKTKit' },
-    { key: 'seo.defaultTitle', type: 'string', default: 'MKTKit — Công cụ quản lý nội dung & Facebook Pages' },
+    { key: 'seo.defaultTitle', type: 'string', default: 'MKTKit - Công cụ quản lý nội dung & Facebook Pages' },
     { key: 'seo.defaultDescription', type: 'string', default: 'MKTKit giúp đội ngũ marketing quản lý Pages, nội dung, chiến dịch và lịch xuất bản trong một nơi.' },
     { key: 'seo.canonicalBaseUrl', type: 'string' },
     { key: 'seo.allowIndexing', type: 'bool', default: 'true' },
@@ -77,9 +77,14 @@ const FIELDS: Record<string, FieldDef[]> = {
 
 const ALL_FIELDS: FieldDef[] = Object.values(FIELDS).flat();
 const FIELD_BY_KEY: Map<string, FieldDef> = new Map(ALL_FIELDS.map((f) => [f.key, f]));
+const DASH_NORMALIZED_KEYS = new Set([
+  'general.productName', 'email.fromName', 'seo.siteName', 'seo.defaultTitle',
+  'seo.defaultDescription', 'seo.ogTitle', 'seo.ogDescription',
+]);
+const normalizeDashes = (value: string) => value.replace(/[\u2014\u2013]/g, '-');
 
 // ---------------------------------------------------------------------------
-// In-memory cache — loaded at boot and refreshed on every save, so settings
+// In-memory cache - loaded at boot and refreshed on every save, so settings
 // take effect immediately without a PM2 restart (values are read
 // synchronously by auth/mail code on the hot path).
 // ---------------------------------------------------------------------------
@@ -122,7 +127,7 @@ export function getPlatformSettingBool(key: string): boolean {
 
 /** google.enabled() special-cases its default: if the admin never touched
  *  the toggle, an install that already has env credentials keeps working
- *  (safe rollout — see schema docstring), otherwise it defaults off. */
+ *  (safe rollout - see schema docstring), otherwise it defaults off. */
 export function resolveGoogleEnabled(): boolean {
   const dbVal = cache['auth.googleEnabled'];
   if (dbVal !== undefined && dbVal !== '') return dbVal === 'true';
@@ -171,14 +176,15 @@ function serializeSection(section: keyof typeof FIELDS): Record<string, unknown>
     } else if (f.type === 'int') {
       out[short] = Number(getPlatformSetting(f.key));
     } else {
-      out[short] = getPlatformSetting(f.key);
+      const value = getPlatformSetting(f.key);
+      out[short] = DASH_NORMALIZED_KEYS.has(f.key) ? normalizeDashes(value) : value;
     }
   }
   return out;
 }
 
 // ---------------------------------------------------------------------------
-// Routes — mounted at /api/admin/settings, already behind requirePlatformAdmin
+// Routes - mounted at /api/admin/settings, already behind requirePlatformAdmin
 // (see admin/index.ts: router.use(requirePlatformAdmin) applies to everything
 // mounted on that router, this one included).
 // ---------------------------------------------------------------------------
@@ -208,7 +214,7 @@ router.get('/', async (_req: AuthRequest, res: Response) => {
 });
 
 router.get('/integrations', async (_req: AuthRequest, res: Response) => {
-  // Read-only summary of EXISTING integrations (legacy AppSetting-backed —
+  // Read-only summary of EXISTING integrations (legacy AppSetting-backed -
   // see "Cài đặt hệ thống" for editing). Not duplicated storage.
   const telegramToken = await getLegacySetting('TELEGRAM_BOT_TOKEN');
   const fbAppId = await getLegacySetting('FACEBOOK_APP_ID');
@@ -238,7 +244,8 @@ async function saveFields(section: keyof typeof FIELDS, body: Record<string, unk
       continue;
     }
 
-    const value = f.type === 'bool' ? String(!!raw) : String(raw ?? '');
+    let value = f.type === 'bool' ? String(!!raw) : String(raw ?? '');
+    if (DASH_NORMALIZED_KEYS.has(f.key)) value = normalizeDashes(value);
     ops.push(prisma.platformSetting.upsert({
       where: { key: f.key },
       update: { value, isSecret: false, updatedBy: actorUserId },
@@ -249,7 +256,7 @@ async function saveFields(section: keyof typeof FIELDS, body: Record<string, unk
   await refreshPlatformSettingsCache();
 }
 
-/** Secret field "Xóa" — explicit delete, distinct from a blank save (which is a no-op). */
+/** Secret field "Xóa" - explicit delete, distinct from a blank save (which is a no-op). */
 async function clearSecret(key: string, actorUserId?: string): Promise<void> {
   await prisma.platformSetting.upsert({
     where: { key },
@@ -307,7 +314,7 @@ router.post('/email/test', async (req: AuthRequest, res: Response) => {
     });
     await transport.sendMail({
       from: `${cfg.fromName} <${cfg.fromEmail}>`, to,
-      subject: 'MKT Tools — Email thử nghiệm',
+      subject: 'MKT Tools - Email thử nghiệm',
       text: 'Đây là email thử nghiệm từ Cấu hình nền tảng → Email. Nếu bạn nhận được email này, cấu hình SMTP đang hoạt động.',
     });
     res.json({ ok: true, message: 'Đã gửi email thử nghiệm.' });

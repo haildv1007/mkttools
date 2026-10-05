@@ -709,7 +709,7 @@ router.put('/:id/members/:memberId/access', async (req: AuthRequest, res: Respon
   const { accessMode, workspaceIds, pageIds } = req.body || {};
   const wantedMode: 'ALL' | 'RESTRICTED' = accessMode === 'RESTRICTED' ? 'RESTRICTED' : 'ALL';
 
-  // OWNER/ADMIN are always ALL — reject attempts to restrict them.
+  // OWNER/ADMIN are always ALL - reject attempts to restrict them.
   if ((target.role === 'OWNER' || target.role === 'ADMIN') && wantedMode === 'RESTRICTED') {
     return res.status(400).json({ error: 'CANNOT_RESTRICT_OWNER_ADMIN', message: 'Owner/Admin luôn có toàn quyền tổ chức.' });
   }

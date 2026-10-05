@@ -379,7 +379,7 @@ async function executeRevision(
       }
     }
 
-    // VIDEO revision (placeholder — uses same image gen for now)
+    // VIDEO revision (placeholder - uses same image gen for now)
     if (revisionType === 'VIDEO') {
       emitContentUpdate({
         contentId: cid,

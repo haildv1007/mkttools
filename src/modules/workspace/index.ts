@@ -210,7 +210,7 @@ router.delete('/:id', async (req: AuthRequest, res: Response) => {
 
 /**
  * Tenant-scoped page id resolver. If orgId is omitted this is legacy behavior
- * (returns global set) — callers that pass an orgId (all modern paths) always
+ * (returns global set) - callers that pass an orgId (all modern paths) always
  * stay inside that org.
  */
 export async function resolvePageIds(scopeType: string, scopeId?: string, organizationId?: string): Promise<string[]> {

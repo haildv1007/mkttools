@@ -19,7 +19,7 @@ window.MKTPageModules.import = () => ({
         return (this.importPageCampaigns || []).find((campaign) => campaign.id === this.importForm.campaignId) || null;
     },
     get importCampaignOptions() {
-        return [{ id: '', name: '— Tạo mới —', isNew: true }, ...(this.importPageCampaigns || [])];
+        return [{ id: '', name: '- Tạo mới -', isNew: true }, ...(this.importPageCampaigns || [])];
     },
     importPagePictureUrl(page) {
         if (!page)

@@ -226,7 +226,7 @@ router.put('/password', authMiddleware, async (req: AuthRequest, res: Response) 
 
 router.post('/onboarding/organization', authMiddleware, async (req: AuthRequest, res: Response) => {
   const name = String(req.body?.name || '').trim();
-  if (name.length < 2 || name.length > 100) return err(res, 400, 'INVALID_NAME', 'Tên không gian làm việc cần 2–100 ký tự.');
+  if (name.length < 2 || name.length > 100) return err(res, 400, 'INVALID_NAME', 'Tên không gian làm việc cần 2-100 ký tự.');
   const { org, trial } = await provisionOrganizationForOwner(req.userId!, name);
   res.json({ organization: { id: org.id, name: org.name }, trial, onboarding: await resolveOnboarding(req.userId!) });
 });

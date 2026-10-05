@@ -27,7 +27,7 @@ export class DalleImageProvider implements ImageProvider {
 
     const client = new OpenAI({ apiKey });
     // resolveGeneration() always resolves a concrete model before this
-    // provider is called — use it exactly as selected, never substitute.
+    // provider is called - use it exactly as selected, never substitute.
     const model = options.credential?.model;
     if (!model) throw new Error('AI_MODEL_NOT_AVAILABLE');
 

@@ -1,5 +1,5 @@
 /**
- * M2.7.5 Platform Settings V1 — focused smoke tests.
+ * M2.7.5 Platform Settings V1 - focused smoke tests.
  * Exercises the platform-settings module's core guarantees directly
  * (same convention as ai-settings.smoke.ts / billing.smoke.ts): access
  * control, secret-at-rest encryption, DB-over-env priority, and the
@@ -66,7 +66,7 @@ async function main() {
   assert((await isPlatformAdmin(admin.id)) === true, 'isPlatformAdmin(admin) = true (requirePlatformAdmin would let this user through)');
 
   // ─── C. Secret encrypted at rest; GET-equivalent never returns plaintext ───
-  console.log('\nC. Save Google config — secret encrypted at rest');
+  console.log('\nC. Save Google config - secret encrypted at rest');
   const plainSecret = 'gclient-secret-abc123';
   await prisma.platformSetting.upsert({
     where: { key: 'auth.googleClientSecret' },
@@ -95,7 +95,7 @@ async function main() {
   await refreshPlatformSettingsCache();
   const { providers } = await import('../src/modules/auth/providers');
   assert(resolveGoogleEnabled() === false, 'resolveGoogleEnabled() reflects the stored false toggle');
-  assert(providers.google.enabled() === false, 'providers.google.enabled() false even though client id/secret are configured — /api/auth/providers would hide the button');
+  assert(providers.google.enabled() === false, 'providers.google.enabled() false even though client id/secret are configured - /api/auth/providers would hide the button');
 
   await prisma.platformSetting.update({ where: { key: 'auth.googleEnabled' }, data: { value: 'true' } });
   await refreshPlatformSettingsCache();
@@ -126,7 +126,7 @@ async function main() {
 
   // ─── G. A regular org user cannot read platform settings ───
   console.log('\nG. Organization user cannot retrieve platform settings');
-  assert((await isPlatformAdmin(owner.id)) === false, 'org owner still denied after all the above admin writes — no privilege leak');
+  assert((await isPlatformAdmin(owner.id)) === false, 'org owner still denied after all the above admin writes - no privilege leak');
 
   // Summary
   console.log(`\n${'='.repeat(40)}`);

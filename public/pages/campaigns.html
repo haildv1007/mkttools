@@ -31,7 +31,7 @@
                     <td class="px-4 py-3">
                       <div class="flex items-center gap-2">
                         <img :src="'https://graph.facebook.com/'+(c.page?.externalId)+'/picture?type=small'" class="w-5 h-5 rounded-full" onerror="this.style.display='none'">
-                        <span class="text-xs text-gray-600" x-text="c.page?.name || '—'"></span>
+                        <span class="text-xs text-gray-600" x-text="c.page?.name || '-'"></span>
                       </div>
                     </td>
                     <td class="px-4 py-3 text-xs text-gray-500">
@@ -96,7 +96,7 @@
               <label class="block text-sm font-medium text-gray-700 mb-1">Page *</label>
               <select x-model="campaignForm.pageId" class="w-full px-4 py-2.5 border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-brand-500 text-sm"
                 :disabled="currentScope.type==='page'">
-                <option value="">— Chọn page —</option>
+                <option value="">- Chọn page -</option>
                 <template x-for="p in scopePages" :key="p.id">
                   <option :value="p.id" x-text="p.name"></option>
                 </template>

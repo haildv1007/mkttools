@@ -23,6 +23,7 @@
     }
   </script>
   <link rel="stylesheet" href="/css/app.css">
+  <script src="/js/branding.js" defer></script>
 </head>
 <body class="bg-gray-50 font-sans text-gray-800" x-data="app()" x-init="init()" x-cloak>
 
@@ -36,7 +37,7 @@
             <i class="ri-megaphone-line"></i>
           </div>
           <div class="min-w-0">
-            <h1 class="app-brand-name">MKT Tools</h1>
+            <h1 class="app-brand-name" data-platform-name>MKT Tools</h1>
             <p class="app-version">v0.1.0</p>
           </div>
         </div>
@@ -225,7 +226,7 @@
               <span x-text="orgSubscription?.trialDaysRemaining"></span>
               ngày
             </p>
-            <p class="text-xs text-amber-600 mt-0.5" x-text="'Kết thúc: ' + (orgSubscription?.trialEndsAt ? new Date(orgSubscription.trialEndsAt).toLocaleDateString('vi-VN') : '—')"></p>
+            <p class="text-xs text-amber-600 mt-0.5" x-text="'Kết thúc: ' + (orgSubscription?.trialEndsAt ? new Date(orgSubscription.trialEndsAt).toLocaleDateString('vi-VN') : '-')"></p>
           </div>
         </template>
 
@@ -435,7 +436,7 @@
       <button @click="saveProfile()" class="px-3 py-1.5 bg-brand-600 text-white rounded-lg text-xs">Lưu</button>
       <div class="text-xs space-y-1 border-t pt-3">
         <p>Email: <b x-text="user?.email"></b> · <span :class="user?.emailVerified?'text-green-600':'text-amber-600'" x-text="user?.emailVerified?'Đã xác minh':'Chưa xác minh'"></span></p>
-        <p>Đăng nhập: <span x-show="user?.hasPassword">Email/mật khẩu</span><span x-show="user?.hasPassword && (user?.identities||[]).includes('GOOGLE')"> · </span><span x-show="(user?.identities||[]).includes('GOOGLE')">Google — Đã liên kết</span></p>
+        <p>Đăng nhập: <span x-show="user?.hasPassword">Email/mật khẩu</span><span x-show="user?.hasPassword && (user?.identities||[]).includes('GOOGLE')"> · </span><span x-show="(user?.identities||[]).includes('GOOGLE')">Google - Đã liên kết</span></p>
       </div>
       <div class="border-t pt-3 space-y-2">
         <p class="text-xs font-semibold" x-text="user?.hasPassword?'Đổi mật khẩu':'Đặt mật khẩu'"></p>

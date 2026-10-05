@@ -105,7 +105,7 @@ async function main() {
   await prisma.subscriptionPlanPrice.update({ where: { id: starterPrice1m.id }, data: { amount: 99000 } });
 
   // ─── E. markPaymentPaid (TRIAL → ACTIVE) ───
-  console.log('\nE. markPaymentPaid — TRIAL → ACTIVE');
+  console.log('\nE. markPaymentPaid - TRIAL → ACTIVE');
   // First create a trial subscription
   await prisma.organizationSubscription.create({
     data: { organizationId: org.id, planId: starter.id, status: 'TRIAL',

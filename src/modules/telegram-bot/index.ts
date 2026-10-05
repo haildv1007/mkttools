@@ -248,7 +248,7 @@ function setupHandlers(bot: TelegramBot) {
             imageSelectKeyboard(contentItemId, imgs.length),
             { chat_id: chatId, message_id: messageId }
           );
-          // Store that this is TEXT_AND_MEDIA in a temp way — we'll use callback data
+          // Store that this is TEXT_AND_MEDIA in a temp way - we'll use callback data
           // Actually, we need to differentiate. Let's use rev_both_img_sel callback
         } else {
           await startRevisionFlow(bot, chatId, messageId, contentItemId, revType, null, userId, query.id);
@@ -304,7 +304,7 @@ function setupHandlers(bot: TelegramBot) {
     }
   });
 
-  // Reply handler — route feedback by reply_to_message_id
+  // Reply handler - route feedback by reply_to_message_id
   bot.on('message', async (msg) => {
     if (!msg.reply_to_message || !msg.text) return;
     const scope = await resolveTelegramScope(msg.chat.id, msg.from?.id);
@@ -384,7 +384,7 @@ function setupHandlers(bot: TelegramBot) {
         userId: userId || undefined,
       });
 
-      // Revision complete — send updated approval message
+      // Revision complete - send updated approval message
       const updatedItem = await prisma.contentItem.findUnique({
         where: { id: session.contentItemId },
         include: { page: true, campaign: true },

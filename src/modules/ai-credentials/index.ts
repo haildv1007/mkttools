@@ -53,7 +53,7 @@ export class AiModelNotAvailableError extends Error {
 
 /** Provider is configured and reachable, but no explicit model was ever
  *  selected for this operation. BYOK: we never guess a model on the
- *  customer's behalf — this must be surfaced, not silently resolved. */
+ *  customer's behalf - this must be surfaced, not silently resolved. */
 export class AiModelNotConfiguredError extends Error {
   status = 400 as const;
   code = 'AI_MODEL_NOT_CONFIGURED' as const;
@@ -62,7 +62,7 @@ export class AiModelNotConfiguredError extends Error {
 
 /**
  * Resolve the credential a generation call should use for this org+provider.
- * Credentials are strictly organization-scoped — there is no cross-org or
+ * Credentials are strictly organization-scoped - there is no cross-org or
  * platform-global fallback, and a new organization never inherits another
  * organization's key.
  */
@@ -95,7 +95,7 @@ export async function tryResolveCredential(args: { organizationId: string; provi
   try { return await resolveCredential(args); } catch { return null; }
 }
 
-/** Safe credential status for UI display — never throws, never exposes the
+/** Safe credential status for UI display - never throws, never exposes the
  *  key or ciphertext. */
 export type CredentialStatus = 'NOT_CONFIGURED' | 'CONFIGURED' | 'DECRYPT_ERROR';
 export async function credentialStatus(args: { organizationId: string; provider: string }): Promise<CredentialStatus> {
@@ -124,18 +124,18 @@ export interface ResolvedGeneration {
  * quality-tier system and generation never guesses a model on its behalf.
  *
  * Priority (per operation):
- *   1. Explicit override passed by the caller (rare — e.g. an internal test
+ *   1. Explicit override passed by the caller (rare - e.g. an internal test
  *      tool asking for a specific provider/model).
  *   2. The organization's OrganizationAiOperationSetting for this operation
  *      (TEXT_REVISION inherits TEXT_GENERATION's setting, IMAGE_REVISION
- *      inherits IMAGE_GENERATION's — customers don't configure revision
+ *      inherits IMAGE_GENERATION's - customers don't configure revision
  *      separately).
  *   3. The provider credential's defaultModel, if the customer set one, as
  *      a provider-level fallback only (it never overrides an operation
  *      setting that already names a model).
  *
  * If no model is resolved by that point, this throws
- * AiModelNotConfiguredError rather than picking one — an explicitly
+ * AiModelNotConfiguredError rather than picking one - an explicitly
  * selected model is never silently swapped for another.
  */
 export async function resolveGeneration(args: {
@@ -244,7 +244,7 @@ router.put('/:provider', async (req: AuthRequest, res: Response) => {
     return res.status(400).json({ error: 'INVALID_KEY', message: 'API key không hợp lệ.' });
   }
   // BYOK: defaultModel is a free-form provider model id, not restricted to
-  // the recommended catalog — the customer pays the provider directly and
+  // the recommended catalog - the customer pays the provider directly and
   // may use any model their key supports. It is only a provider-level
   // fallback and never overrides an operation's explicit model.
   const enc = encryptSecret(apiKey.trim());
@@ -315,7 +315,7 @@ router.post('/:provider/test', async (req: AuthRequest, res: Response) => {
 
 // ---------------- Per-operation provider/model settings ----------------
 // Canonical customer-facing AI configuration: which provider+model backs
-// each operation. TEXT_REVISION/IMAGE_REVISION are not directly editable —
+// each operation. TEXT_REVISION/IMAGE_REVISION are not directly editable -
 // they always inherit TEXT_GENERATION/IMAGE_GENERATION (see resolveGeneration).
 
 router.get('/operations', async (req: AuthRequest, res: Response) => {

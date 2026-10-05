@@ -1,10 +1,11 @@
 <!DOCTYPE html>
-<html lang="vi">
+<html lang="vi" data-platform-title-suffix="Admin">
 <head>
 <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="robots" content="noindex, nofollow">
-<title>MKT Tools — Admin</title>
+<title>MKT Tools - Admin</title>
 <script src="https://cdn.tailwindcss.com"></script>
 <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+<script src="/js/branding.js" defer></script>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link href="https://cdn.jsdelivr.net/npm/remixicon@4.1.0/fonts/remixicon.css" rel="stylesheet">
 <script>tailwind.config={theme:{extend:{fontFamily:{sans:['Inter','sans-serif']},colors:{brand:{50:'#eff6ff',100:'#dbeafe',500:'#3b82f6',600:'#2563eb',700:'#1d4ed8'}}}}}</script>
@@ -19,7 +20,7 @@
 
 <div x-show="!denied && ready" class="flex min-h-screen">
   <aside class="w-52 bg-white border-r border-gray-200 p-3 flex flex-col gap-1 shrink-0">
-    <div class="font-bold text-base px-2 py-2">MKT Admin</div>
+    <div class="font-bold text-base px-2 py-2" data-platform-name-suffix=" Admin">MKT Tools Admin</div>
     <template x-for="n in nav" :key="n.id">
       <button @click="go(n.id)" class="text-left px-3 py-2 rounded-lg" :class="view===n.id?'bg-brand-50 text-brand-600 font-medium':'hover:bg-gray-100'">
         <i :class="n.icon" class="mr-2"></i><span x-text="n.label"></span>
@@ -44,7 +45,7 @@
         <thead class="bg-gray-50 text-[11px] text-gray-500 uppercase"><tr><th>Organization</th><th>Owner</th><th>Gói</th><th>Pages</th><th>Members</th><th>Trạng thái</th><th>Tạo</th></tr></thead>
         <tbody><template x-for="o in (overview?.recentOrganizations||[])" :key="o.id">
           <tr class="border-t cursor-pointer hover:bg-gray-50" @click="openOrg(o.id)">
-            <td class="font-medium" x-text="o.name"></td><td x-text="o.owner?.email||'—'"></td><td x-text="planLabel(o)"></td>
+            <td class="font-medium" x-text="o.name"></td><td x-text="o.owner?.email||'-'"></td><td x-text="planLabel(o)"></td>
             <td><span x-text="o.pages+' / '+lim(o.pageLimit)" :class="o.overPages&&'text-red-600 font-semibold'"></span></td>
             <td><span x-text="o.members+' / '+lim(o.memberLimit)" :class="o.overMembers&&'text-red-600 font-semibold'"></span></td>
             <td><span class="px-2 py-0.5 rounded-full text-[10px] font-semibold" :class="badge(o.status)" x-text="o.status"></span></td>
@@ -71,7 +72,7 @@
         <thead class="bg-gray-50 text-[11px] text-gray-500 uppercase"><tr><th>Organization</th><th>Owner</th><th>Gói</th><th>Pages</th><th>Members</th><th>WS</th><th>Sub</th><th>Hết hạn</th><th>Org</th><th>Tạo</th></tr></thead>
         <tbody><template x-for="o in orgs.items" :key="o.id">
           <tr class="border-t cursor-pointer hover:bg-gray-50" @click="openOrg(o.id)">
-            <td class="font-medium" x-text="o.name"></td><td x-text="o.owner?.email||'—'"></td><td x-text="planLabel(o)"></td>
+            <td class="font-medium" x-text="o.name"></td><td x-text="o.owner?.email||'-'"></td><td x-text="planLabel(o)"></td>
             <td><span x-text="o.pages+' / '+lim(o.pageLimit)" :class="o.overPages&&'text-red-600 font-semibold'"></span><span x-show="o.overPages" class="ml-1 text-[9px] text-red-600 font-bold">OVER</span></td>
             <td><span x-text="o.members+' / '+lim(o.memberLimit)" :class="o.overMembers&&'text-red-600 font-semibold'"></span><span x-show="o.overMembers" class="ml-1 text-[9px] text-red-600 font-bold">OVER</span></td>
             <td x-text="o.workspaces"></td>
@@ -92,7 +93,7 @@
         <tbody><template x-for="u in users.items" :key="u.id">
           <tr class="border-t cursor-pointer hover:bg-gray-50" @click="userDetail=u">
             <td class="font-medium" x-text="u.name"></td><td x-text="u.email"></td>
-            <td class="max-w-md truncate" x-text="u.memberships.map(m=>m.organizationName+' — '+m.role).join(', ')||'—'"></td>
+            <td class="max-w-md truncate" x-text="u.memberships.map(m=>m.organizationName+' - '+m.role).join(', ')||'-'"></td>
             <td><span x-show="u.isPlatformAdmin" class="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-purple-100 text-purple-700">ADMIN</span></td>
             <td x-text="d(u.createdAt)"></td></tr>
         </template></tbody></table></div>
@@ -163,7 +164,7 @@
             <td><span class="px-2 py-0.5 rounded-full text-[10px] font-semibold" :class="badge(o.subscriptionStatus)" x-text="o.subscriptionStatus"></span></td>
             <td x-text="o.pages+' / '+lim(o.pageLimit)"></td><td x-text="o.members+' / '+lim(o.memberLimit)"></td>
             <td x-text="d(o.startedAt)"></td><td x-text="expiryText(o)"></td>
-            <td x-text="(o.customMaxPages!=null?'P:'+o.customMaxPages+' ':'')+(o.customMaxMembers!=null?'M:'+o.customMaxMembers:'')||'—'"></td></tr>
+            <td x-text="(o.customMaxPages!=null?'P:'+o.customMaxPages+' ':'')+(o.customMaxMembers!=null?'M:'+o.customMaxMembers:'')||'-'"></td></tr>
         </template></tbody></table></div>
       <div x-html="pager('subs','loadSubs')"></div>
     </section>
@@ -185,7 +186,7 @@
             <td x-text="periodLabel(o.billingMonths)"></td>
             <td x-text="fmtVND(o.amount)"></td>
             <td><span class="px-2 py-0.5 rounded-full text-[10px] font-semibold" :class="badge(o.status)" x-text="o.status"></span></td>
-            <td x-text="o.provider||'—'"></td>
+            <td x-text="o.provider||'-'"></td>
             <td x-text="d(o.createdAt)"></td>
             <td x-text="d(o.paidAt)"></td></tr>
         </template></tbody></table></div>
@@ -209,7 +210,7 @@
           </div>
           <div class="border rounded-lg p-3 space-y-1 text-xs">
             <p>Status: <span class="px-2 py-0.5 rounded-full text-[10px] font-semibold" :class="badge(paymentDetail.status)" x-text="paymentDetail.status"></span></p>
-            <p>Provider: <span x-text="paymentDetail.provider||'—'"></span></p>
+            <p>Provider: <span x-text="paymentDetail.provider||'-'"></span></p>
             <p x-show="paymentDetail.providerOrderId">Provider Order: <span x-text="paymentDetail.providerOrderId"></span></p>
             <p x-show="paymentDetail.providerTransactionId">Provider TX: <span x-text="paymentDetail.providerTransactionId"></span></p>
           </div>
@@ -366,8 +367,8 @@
           <section class="bg-white border border-gray-200 rounded-lg p-4 space-y-3">
             <div><h2 class="font-semibold">SEO cơ bản</h2><p class="text-xs text-gray-500">Metadata mặc định cho website công khai. Metadata riêng của từng trang sẽ được ưu tiên.</p></div>
             <label class="block text-xs">Tên website<input x-model="ps.seo.siteName" placeholder="MKTKit" class="border rounded-lg px-2 py-1.5 w-full mt-1"></label>
-            <label class="block text-xs">SEO Title mặc định<input x-model="ps.seo.defaultTitle" placeholder="MKTKit — Công cụ quản lý nội dung & Facebook Pages" class="border rounded-lg px-2 py-1.5 w-full mt-1"></label>
-            <label class="block text-xs">Meta Description mặc định<textarea x-model="ps.seo.defaultDescription" rows="3" class="border rounded-lg px-2 py-1.5 w-full mt-1"></textarea><span class="text-gray-400">Khoảng 140–160 ký tự. Hiện tại: <span x-text="ps.seo.defaultDescription?.length||0"></span>.</span></label>
+            <label class="block text-xs">SEO Title mặc định<input x-model="ps.seo.defaultTitle" placeholder="MKTKit - Công cụ quản lý nội dung & Facebook Pages" class="border rounded-lg px-2 py-1.5 w-full mt-1"></label>
+            <label class="block text-xs">Meta Description mặc định<textarea x-model="ps.seo.defaultDescription" rows="3" class="border rounded-lg px-2 py-1.5 w-full mt-1"></textarea><span class="text-gray-400">Khoảng 140-160 ký tự. Hiện tại: <span x-text="ps.seo.defaultDescription?.length||0"></span>.</span></label>
             <label class="block text-xs">Public Base URL / Canonical Base URL<input x-model="ps.seo.canonicalBaseUrl" type="url" placeholder="https://mktkit.com" class="border rounded-lg px-2 py-1.5 w-full mt-1"></label>
           </section>
 
@@ -431,13 +432,13 @@
         <div x-show="tab==='overview'" class="grid grid-cols-2 gap-3 text-xs">
           <div class="border rounded-lg p-3 space-y-1"><p class="font-semibold text-sm">Organization</p>
             <p>Tạo: <span x-text="d(org.organization.createdAt)"></span></p>
-            <p>Owner: <span x-text="(org.organization.owner?.name||'—')+' · '+(org.organization.owner?.email||'')"></span></p></div>
+            <p>Owner: <span x-text="(org.organization.owner?.name||'-')+' · '+(org.organization.owner?.email||'')"></span></p></div>
           <div class="border rounded-lg p-3 space-y-1"><p class="font-semibold text-sm">Đếm</p>
             <p>Pages <b x-text="org.counts.pages"></b> · Members <b x-text="org.counts.members"></b> · Workspaces <b x-text="org.counts.workspaces"></b></p>
             <p>Campaigns <b x-text="org.counts.campaigns"></b> · Content <b x-text="org.counts.content"></b></p></div>
           <div class="border rounded-lg p-3 space-y-1 col-span-2"><p class="font-semibold text-sm">Giới hạn</p>
-            <p>Page: <b x-text="org.usage.pages+' / '+lim(org.subscription.pageLimit)"></b> · gói: <span x-text="lim(org.subscription.planMaxPages)"></span> · override: <span x-text="org.subscription.customMaxPages??'—'"></span></p>
-            <p>Member: <b x-text="org.usage.members+' / '+lim(org.subscription.memberLimit)"></b> · gói: <span x-text="lim(org.subscription.planMaxMembers)"></span> · override: <span x-text="org.subscription.customMaxMembers??'—'"></span></p>
+            <p>Page: <b x-text="org.usage.pages+' / '+lim(org.subscription.pageLimit)"></b> · gói: <span x-text="lim(org.subscription.planMaxPages)"></span> · override: <span x-text="org.subscription.customMaxPages??'-'"></span></p>
+            <p>Member: <b x-text="org.usage.members+' / '+lim(org.subscription.memberLimit)"></b> · gói: <span x-text="lim(org.subscription.planMaxMembers)"></span> · override: <span x-text="org.subscription.customMaxMembers??'-'"></span></p>
             <p x-show="org.subscription.isTrial">Trial (giới hạn lấy từ cấu hình dùng thử)</p></div>
         </div>
 
@@ -448,14 +449,14 @@
         <table x-show="tab==='pages'" class="w-full text-xs"><thead class="text-[11px] text-gray-500 uppercase"><tr><th>Page</th><th>Platform</th><th>External ID</th><th>Status</th><th>Workspaces</th><th>Connected</th></tr></thead>
           <tbody><template x-for="p in org.pages" :key="p.id"><tr class="border-t"><td x-text="p.name"></td><td x-text="p.platform"></td><td x-text="p.externalId"></td>
             <td><span class="px-2 py-0.5 rounded-full text-[10px] font-semibold" :class="p.isActive?'bg-green-100 text-green-700':'bg-amber-100 text-amber-700'" x-text="p.isActive?'ACTIVE':'Đã ngắt'"></span></td>
-            <td x-text="p.workspaces.join(', ')||'—'"></td><td x-text="d(p.createdAt)"></td></tr></template></tbody></table>
+            <td x-text="p.workspaces.join(', ')||'-'"></td><td x-text="d(p.createdAt)"></td></tr></template></tbody></table>
 
         <table x-show="tab==='workspaces'" class="w-full text-xs"><thead class="text-[11px] text-gray-500 uppercase"><tr><th>Workspace</th><th>Pages</th><th>Members có quyền</th><th>Tạo</th></tr></thead>
           <tbody><template x-for="w in org.workspaces" :key="w.id"><tr class="border-t"><td x-text="w.name"></td><td x-text="w.pageCount"></td><td x-text="w.memberCount"></td><td x-text="d(w.createdAt)"></td></tr></template></tbody></table>
 
         <div x-show="tab==='subscription'" class="text-xs space-y-2">
           <div class="border rounded-lg p-3 space-y-1">
-            <p>Status: <b x-text="org.subscription.status"></b> · Gói: <b x-text="org.subscription.planName||'—'"></b></p>
+            <p>Status: <b x-text="org.subscription.status"></b> · Gói: <b x-text="org.subscription.planName||'-'"></b></p>
             <p>Bắt đầu: <span x-text="d(org.subscription.startedAt)"></span> · Hết hạn: <span x-text="d(org.subscription.expiresAt)"></span></p>
             <p x-show="org.subscription.trialStartedAt">Trial: <span x-text="d(org.subscription.trialStartedAt)+' → '+d(org.subscription.trialEndsAt)"></span> · còn <span x-text="org.subscription.trialDaysRemaining"></span> ngày</p>
             <p>Effective: <b x-text="lim(org.subscription.pageLimit)+' Pages / '+lim(org.subscription.memberLimit)+' Members'"></b></p></div>
@@ -472,7 +473,7 @@
       <!-- change plan -->
       <template x-if="modal==='plan'"><div class="space-y-3">
         <h3 class="font-bold">Đổi gói</h3>
-        <p class="text-xs text-gray-500">Hiện tại: <b x-text="org.subscription.planName||'—'"></b> (<span x-text="org.subscription.status"></span>)</p>
+        <p class="text-xs text-gray-500">Hiện tại: <b x-text="org.subscription.planName||'-'"></b> (<span x-text="org.subscription.status"></span>)</p>
         <select x-model="form.planCode" class="border rounded-lg px-2 py-1.5 w-full"><template x-for="p in plans.filter(p=>p.isActive)" :key="p.code"><option :value="p.code" x-text="p.name+' ('+p.code+')'"></option></template></select>
         <div class="text-xs bg-gray-50 rounded-lg p-2 space-y-0.5">
           <p>Pages: <b x-text="org.usage.pages"></b> hiện tại → giới hạn mới <b x-text="lim(newLimit('Pages'))"></b></p>
@@ -515,7 +516,7 @@
         <p>Platform Admin: <b x-text="userDetail.isPlatformAdmin?'Có':'Không'"></b></p>
         <button @click="togglePlatformAdmin(userDetail)" class="px-3 py-1.5 border rounded-lg hover:bg-gray-50" x-text="userDetail.isPlatformAdmin?'Gỡ Platform Admin':'Cấp Platform Admin'"></button>
         <p class="font-semibold">Organizations</p>
-        <template x-for="m in userDetail.memberships" :key="m.organizationId"><p class="text-xs" x-text="m.organizationName+' — '+m.role+' ('+m.status+')'"></p></template>
+        <template x-for="m in userDetail.memberships" :key="m.organizationId"><p class="text-xs" x-text="m.organizationName+' - '+m.role+' ('+m.status+')'"></p></template>
       </div></template>
     </div>
   </div>
@@ -560,8 +561,8 @@ function adminApp(){ return {
   pager(key,fn){ const s=this[key]; const last=Math.max(1,Math.ceil(s.total/s.pageSize)); return `<div class="flex items-center gap-2 mt-2 text-xs text-gray-500"><span>${s.total} kết quả</span><button ${s.page<=1?'disabled':''} onclick="window.__a.${fn}(${s.page-1})" class="px-2 py-1 border rounded disabled:opacity-40">‹</button><span>${s.page}/${last}</span><button ${s.page>=last?'disabled':''} onclick="window.__a.${fn}(${s.page+1})" class="px-2 py-1 border rounded disabled:opacity-40">›</button></div>`; },
 
   lim(v){ return v==null?'Không giới hạn':v; },
-  d(v){ return v?new Date(v).toLocaleDateString('vi-VN'):'—'; },
-  planLabel(o){ if(o.subscriptionStatus==='NONE') return '—'; return o.isTrial?'TRIAL':(o.planName||o.planCode||'—'); },
+  d(v){ return v?new Date(v).toLocaleDateString('vi-VN'):'-'; },
+  planLabel(o){ if(o.subscriptionStatus==='NONE') return '-'; return o.isTrial?'TRIAL':(o.planName||o.planCode||'-'); },
   expiryText(o){ if(o.isTrial&&o.subscriptionStatus==='TRIAL') return 'Còn '+o.trialDaysRemaining+' ngày'; return this.d(o.expiresAt); },
   badge(s){ return ({ACTIVE:'bg-green-100 text-green-700',TRIAL:'bg-amber-100 text-amber-700',EXPIRED:'bg-red-100 text-red-700',NONE:'bg-gray-100 text-gray-600',CANCELLED:'bg-gray-200 text-gray-700',SUSPENDED:'bg-red-100 text-red-700'})[s]||'bg-gray-100'; },
 
@@ -573,7 +574,7 @@ function adminApp(){ return {
 
   async loadPayments(p){ try{ this.payments=await this.api('/billing/payments'+this.qs(this.pmf,{page:p})); }catch(e){ this.flash(e.message,true); } },
   async openPayment(id){ try{ this.paymentDetail=await this.api('/billing/payments/'+id); }catch(e){ this.flash(e.message,true); } },
-  fmtVND(v){ return v!=null?Number(v).toLocaleString('vi-VN')+'đ':'—'; },
+  fmtVND(v){ return v!=null?Number(v).toLocaleString('vi-VN')+'đ':'-'; },
   periodLabel(m){ return ({1:'1 tháng',3:'3 tháng',12:'12 tháng'})[m]||(m+' tháng'); },
 
   async openOrg(id){ this.org=await this.api('/organizations/'+id); this.tab='overview'; },
@@ -609,6 +610,7 @@ function adminApp(){ return {
       for(const k of ['googleClientSecret','smtpPassword','sepayApiKey']) if(typeof body[k]==='object') delete body[k];
       const r=await this.api('/settings/'+section,{method:'PUT',body});
       Object.assign(this.ps,r);
+      if(section==='general') window.applyPlatformBrand?.({productName:this.ps.general.productName});
       this.psSecret={googleClientSecret:'',smtpPassword:'',sepaySecretKey:''};
       this.flash('Đã lưu');
     }catch(e){ this.flash(e.message,true); }

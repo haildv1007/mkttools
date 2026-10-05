@@ -490,24 +490,24 @@ window.MKTPageModules.content = () => ({
     dgMetric(item, key) {
         const m = item.metrics;
         if (!m || !item.socialPostId)
-            return '—';
+            return '-';
         const v = m[key];
-        return v === null || v === undefined ? '—' : v === 0 ? '0' : Number(v).toLocaleString('vi-VN');
+        return v === null || v === undefined ? '-' : v === 0 ? '0' : Number(v).toLocaleString('vi-VN');
     },
     dgEngagement(item) {
         const m = item.metrics;
         if (!m || !item.socialPostId)
-            return '—';
+            return '-';
         const v = (m.fb_reactions || 0) + (m.fb_comments || 0) + (m.fb_shares || 0);
         return v === 0 ? '0' : v.toLocaleString('vi-VN');
     },
     dgEngPerViewer(item) {
         const m = item.metrics;
         if (!m || !item.socialPostId)
-            return '—';
+            return '-';
         const viewers = m.fb_reach || 0;
         if (!viewers)
-            return '—';
+            return '-';
         const eng = (m.fb_reactions || 0) + (m.fb_comments || 0) + (m.fb_shares || 0);
         return (eng / viewers * 100).toFixed(1) + '%';
     },
@@ -1196,7 +1196,7 @@ window.MKTPageModules.content = () => ({
     },
     drawerPerfVal(key) {
         if (!this.drawerItem?.metrics)
-            return '—';
+            return '-';
         const m = this.drawerItem.metrics;
         if (key === '_engagement') {
             const v = (m.fb_reactions || 0) + (m.fb_comments || 0) + (m.fb_shares || 0);
@@ -1206,12 +1206,12 @@ window.MKTPageModules.content = () => ({
             const eng = (m.fb_reactions || 0) + (m.fb_comments || 0) + (m.fb_shares || 0);
             const viewers = m.fb_reach || 0;
             if (!viewers)
-                return '—';
+                return '-';
             return (eng / viewers * 100).toFixed(2) + '%';
         }
         const v = m[key];
         if (v == null)
-            return '—';
+            return '-';
         return Number(v).toLocaleString('vi-VN');
     },
     async drawerSyncMetrics() {

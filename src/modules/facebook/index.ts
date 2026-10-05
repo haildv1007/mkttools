@@ -59,7 +59,7 @@ router.post('/oauth/start', async (req: AuthRequest, res: Response) => {
 });
 
 // ------------------------------------------------------------------
-// 2. OAuth Callback — exchange code for tokens
+// 2. OAuth Callback - exchange code for tokens
 // ------------------------------------------------------------------
 router.post('/oauth/callback', async (req: AuthRequest, res: Response) => {
   try {

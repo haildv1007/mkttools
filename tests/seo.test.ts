@@ -32,7 +32,7 @@ describe('public SEO rendering', () => {
     const pages = [
       getPageSeo('/'),
       getPageSeo('/products/mkt-tools'),
-      { path: '/guides/ket-noi-facebook-pages', title: 'Kết nối Facebook Pages — MKTKit', description: 'Thêm Page vào MKT Tools.', type: 'article' as const },
+      { path: '/guides/ket-noi-facebook-pages', title: 'Kết nối Facebook Pages - MKTKit', description: 'Thêm Page vào MKT Tools.', type: 'article' as const },
       getPageSeo('/legal/privacy'),
       getPageSeo('/support'),
     ];
@@ -50,6 +50,14 @@ describe('public SEO rendering', () => {
   it('keeps an unknown content route non-indexable', () => {
     const html = renderPublicDocument(template, { path: '/guides/unknown', noindex: true }, config);
     expect(html).toContain('<meta name="robots" content="noindex, nofollow">');
+  });
+
+  it('applies the configured website name to public titles and visible branding', () => {
+    const custom = { ...config, siteName: 'Tên Website Mới' };
+    const html = renderPublicDocument(template, getPageSeo('/'), custom);
+    expect(html).toContain('<title>Tên Website Mới - Công cụ giúp marketing vận hành gọn hơn</title>');
+    expect(html).toContain('<span data-public-site-name>Tên Website Mới</span>');
+    expect(html).not.toContain('{{siteName}}');
   });
 
   it('renders only factual Organization and SoftwareApplication JSON-LD', () => {

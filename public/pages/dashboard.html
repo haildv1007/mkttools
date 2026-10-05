@@ -143,7 +143,7 @@
                 <span class="text-[10px] font-medium" :class="(db?.kpis?.[k.key]?.delta_percent||0)>=0?'text-green-500':'text-red-500'"
                   x-text="((db?.kpis?.[k.key]?.delta_percent||0)>=0?'↑':'↓')+Math.abs(db?.kpis?.[k.key]?.delta_percent||0)+'%'"></span>
               </div>
-              <p class="text-lg font-bold" x-text="(()=>{ const v=db?.kpis?.[k.key]?.value; if(v===null||v===undefined){ return '—'; } if(k.key==='eng_per_viewer') return v.toFixed(2)+'%'; return v.toLocaleString(); })()"></p>
+              <p class="text-lg font-bold" x-text="(()=>{ const v=db?.kpis?.[k.key]?.value; if(v===null||v===undefined){ return '-'; } if(k.key==='eng_per_viewer') return v.toFixed(2)+'%'; return v.toLocaleString(); })()"></p>
               <p class="text-[10px] text-gray-400" x-text="k.label" :title="k.tip||''"></p>
             </div>
           </template>
@@ -179,7 +179,7 @@
                     <td class="py-2 pr-2 text-right text-green-500" x-text="(c.comments||0).toLocaleString()"></td>
                     <td class="py-2 pr-2 text-right text-purple-500" x-text="(c.shares||0).toLocaleString()"></td>
                     <td class="py-2 pr-2 text-right" x-text="(c.clicks||0).toLocaleString()"></td>
-                    <td class="py-2 text-right font-bold text-indigo-600" x-text="c.er!==null&&c.er!==undefined ? c.er.toFixed(2)+'%' : '—'"></td>
+                    <td class="py-2 text-right font-bold text-indigo-600" x-text="c.er!==null&&c.er!==undefined ? c.er.toFixed(2)+'%' : '-'"></td>
                   </tr>
                 </template>
                 <tr x-show="!(db?.top_contents||[]).length"><td colspan="8" class="py-4 text-center text-gray-400">Chưa có dữ liệu</td></tr>
@@ -206,7 +206,7 @@
                     </div>
                   </div>
                   <div class="text-right shrink-0">
-                    <p class="text-sm font-bold text-indigo-600" x-text="p.er!==null&&p.er!==undefined ? p.er.toFixed(2)+'%' : '—'"></p>
+                    <p class="text-sm font-bold text-indigo-600" x-text="p.er!==null&&p.er!==undefined ? p.er.toFixed(2)+'%' : '-'"></p>
                     <p class="text-[10px] text-gray-400">ER</p>
                   </div>
                 </div>
@@ -224,7 +224,7 @@
                     <p class="text-xs font-medium truncate flex-1" x-text="c.name"></p>
                     <div class="flex items-center gap-2 shrink-0 text-[10px]">
                       <span class="text-gray-400" x-text="c.totalPosts+' bài'"></span>
-                      <span class="font-bold text-indigo-600" x-text="c.er!==null&&c.er!==undefined ? c.er.toFixed(2)+'%' : '—'"></span>
+                      <span class="font-bold text-indigo-600" x-text="c.er!==null&&c.er!==undefined ? c.er.toFixed(2)+'%' : '-'"></span>
                     </div>
                   </div>
                   <div class="w-full h-1.5 bg-gray-100 rounded-full overflow-hidden">

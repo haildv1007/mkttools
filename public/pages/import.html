@@ -72,7 +72,7 @@
                         </span>
                       </span>
                     </template>
-                    <span x-show="!selectedImportPage" class="import-page-placeholder">— Chọn page —</span>
+                    <span x-show="!selectedImportPage" class="import-page-placeholder">- Chọn page -</span>
                     <i class="ri-arrow-down-s-line import-page-chevron" :class="importPageOpen && 'is-open'"></i>
                   </button>
 
@@ -115,7 +115,7 @@
                     @keydown.up.prevent="importCampaignOpen ? moveImportCampaignFocus(-1) : openImportCampaignPicker(-1)"
                     @keydown.enter.prevent="importCampaignOpen ? chooseActiveImportCampaign() : openImportCampaignPicker()"
                     @keydown.escape.stop="closeImportCampaignPicker()">
-                    <span class="import-campaign-value" x-text="selectedImportCampaign?.name || '— Tạo mới —'"></span>
+                    <span class="import-campaign-value" x-text="selectedImportCampaign?.name || '- Tạo mới -'"></span>
                     <i class="ri-arrow-down-s-line import-page-chevron" :class="importCampaignOpen && 'is-open'"></i>
                   </button>
                   <div x-show="importCampaignOpen" x-cloak class="import-campaign-menu" role="listbox"
@@ -153,19 +153,19 @@
                   </tr></thead>
                   <tbody class="text-gray-600">
                     <tr><td class="p-2 border border-gray-200 font-medium">Ngày</td><td class="p-2 border border-gray-200 text-red-500">✓</td><td class="p-2 border border-gray-200">Ngày đăng (2026-10-01)</td></tr>
-                    <tr><td class="p-2 border border-gray-200 font-medium">Giờ đăng</td><td class="p-2 border border-gray-200 text-gray-400">—</td><td class="p-2 border border-gray-200">Mặc định 09:00</td></tr>
+                    <tr><td class="p-2 border border-gray-200 font-medium">Giờ đăng</td><td class="p-2 border border-gray-200 text-gray-400">-</td><td class="p-2 border border-gray-200">Mặc định 09:00</td></tr>
                     <tr><td class="p-2 border border-gray-200 font-medium">Chủ đề</td><td class="p-2 border border-gray-200 text-red-500">✓</td><td class="p-2 border border-gray-200">Chủ đề / tiêu đề content</td></tr>
-                    <tr><td class="p-2 border border-gray-200 font-medium">Loại</td><td class="p-2 border border-gray-200 text-gray-400">—</td><td class="p-2 border border-gray-200">image / video / text</td></tr>
+                    <tr><td class="p-2 border border-gray-200 font-medium">Loại</td><td class="p-2 border border-gray-200 text-gray-400">-</td><td class="p-2 border border-gray-200">image / video / text</td></tr>
                     <template x-if="importTab==='ready'">
                       <tbody>
                         <tr class="bg-teal-50/50"><td class="p-2 border border-gray-200 font-medium text-teal-700">Bài viết</td><td class="p-2 border border-gray-200 text-red-500">✓</td><td class="p-2 border border-gray-200">Caption bài đăng</td></tr>
-                        <tr class="bg-teal-50/50"><td class="p-2 border border-gray-200 font-medium text-teal-700">Link ảnh / Link video</td><td class="p-2 border border-gray-200 text-gray-400">—</td><td class="p-2 border border-gray-200">URL media</td></tr>
+                        <tr class="bg-teal-50/50"><td class="p-2 border border-gray-200 font-medium text-teal-700">Link ảnh / Link video</td><td class="p-2 border border-gray-200 text-gray-400">-</td><td class="p-2 border border-gray-200">URL media</td></tr>
                       </tbody>
                     </template>
                     <template x-if="importTab==='ai'">
                       <tbody>
-                        <tr class="bg-purple-50/50"><td class="p-2 border border-gray-200 font-medium text-purple-700">Ghi chú</td><td class="p-2 border border-gray-200 text-gray-400">—</td><td class="p-2 border border-gray-200">Hướng dẫn cho AI</td></tr>
-                        <tr class="bg-purple-50/50"><td class="p-2 border border-gray-200 font-medium text-purple-700">Mô tả ảnh</td><td class="p-2 border border-gray-200 text-gray-400">—</td><td class="p-2 border border-gray-200">Mô tả ảnh, dấu | ngăn cách</td></tr>
+                        <tr class="bg-purple-50/50"><td class="p-2 border border-gray-200 font-medium text-purple-700">Ghi chú</td><td class="p-2 border border-gray-200 text-gray-400">-</td><td class="p-2 border border-gray-200">Hướng dẫn cho AI</td></tr>
+                        <tr class="bg-purple-50/50"><td class="p-2 border border-gray-200 font-medium text-purple-700">Mô tả ảnh</td><td class="p-2 border border-gray-200 text-gray-400">-</td><td class="p-2 border border-gray-200">Mô tả ảnh, dấu | ngăn cách</td></tr>
                       </tbody>
                     </template>
                   </tbody>

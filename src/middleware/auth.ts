@@ -32,7 +32,7 @@ export async function authMiddleware(req: AuthRequest, res: Response, next: Next
  * Attach current organization context after authMiddleware.
  * Reads header X-Organization-Id (or ?orgId), validates membership,
  * falls back to the user's first active membership. If the user has no
- * membership at all, req.organizationId stays undefined — routes that
+ * membership at all, req.organizationId stays undefined - routes that
  * strictly require an org should still check.
  */
 export async function attachOrganization(req: AuthRequest, res: Response, next: NextFunction) {

@@ -15,7 +15,7 @@ const textProviders: Record<string, () => TextProvider> = {
 
 // Keyed by OrganizationAiCredential.provider ('openai' / 'gemini'), not by
 // the provider class's internal display name (DalleImageProvider.name is
-// still 'dalle' — that's cosmetic only).
+// still 'dalle' - that's cosmetic only).
 const imageProviders: Record<string, () => ImageProvider> = {
   openai: () => new DalleImageProvider(),
   gemini: () => new GeminiImageProvider(),
@@ -42,7 +42,7 @@ export function listProviders() {
 
 /** No-ops kept only so the deprecated legacy settings routes still resolve.
  *  Provider selection is organization+operation scoped now (see
- *  resolveGeneration) — there is no global "active provider" to set. */
+ *  resolveGeneration) - there is no global "active provider" to set. */
 export function setTextProvider(_name: string): void {}
 export function setImageProvider(_name: string): void {}
 
@@ -91,7 +91,7 @@ export function registerImageProvider(name: string, factory: () => ImageProvider
 
 /**
  * Test connectivity for whichever provider the organization has configured
- * for TEXT_GENERATION / IMAGE_GENERATION — reads the same operation setting
+ * for TEXT_GENERATION / IMAGE_GENERATION - reads the same operation setting
  * generation itself uses, so "Test" reflects what will actually run.
  */
 export async function testConnection(type: 'text' | 'image', organizationId?: string): Promise<{ ok: boolean; error?: string }> {

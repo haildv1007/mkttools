@@ -8,7 +8,7 @@ import { SePayProvider } from './sepay';
 import { logger } from '../../utils/logger';
 import { getIO } from '../../realtime';
 
-const ORDER_TTL_MS = 30 * 60 * 1000; // 30 minutes — default, overridden by platform setting
+const ORDER_TTL_MS = 30 * 60 * 1000; // 30 minutes - default, overridden by platform setting
 const DAY_MS = 24 * 3600 * 1000;
 
 // ─── Order code generation ───
@@ -579,7 +579,7 @@ webhookRouter.post('/sepay/webhook', async (req: Request, res: Response) => {
     return res.json({ success: true });
   }
 
-  // Amount verification — critical security check
+  // Amount verification - critical security check
   if (payload.transferAmount !== order.amount) {
     logger.error({
       orderCode,

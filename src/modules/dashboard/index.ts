@@ -234,7 +234,7 @@ router.get('/stats/dashboard', async (req: AuthRequest, res: Response) => {
       ? rawScopePageIds.filter((id) => accessible.includes(id))
       : rawScopePageIds;
 
-    // Base content filter — always tenant scoped
+    // Base content filter - always tenant scoped
     const baseWhere: Record<string, unknown> = { organizationId: req.organizationId };
     if (pageId) {
       // Sub-filter: validate against scope
@@ -331,7 +331,7 @@ router.get('/stats/dashboard', async (req: AuthRequest, res: Response) => {
     const prevPosted = prevMap.get('PUBLISHED') ?? 0;
     const curFailed = curMap.get('FAILED') ?? 0;
     const prevFailed = prevMap.get('FAILED') ?? 0;
-    // Success rate: published / (published + failed) — only content that attempted publish
+    // Success rate: published / (published + failed) - only content that attempted publish
     const curAttempted = curPosted + curFailed;
     const prevAttempted = prevPosted + prevFailed;
     const curRate = curAttempted > 0 ? Math.round((curPosted / curAttempted) * 10000) / 100 : 0;
@@ -1125,7 +1125,7 @@ function mapSourceFilterToDbValues(values: string[]): string[] {
   return [...new Set(dbValues)];
 }
 
-// Lightweight select for content list DTO — only fields needed for the table
+// Lightweight select for content list DTO - only fields needed for the table
 const CONTENT_LIST_SELECT = {
   id: true,
   topic: true,
@@ -1180,7 +1180,7 @@ function parseMetricFilters(raw: unknown): Record<string, unknown>[] {
   return filters;
 }
 
-// Content items — data grid API with DB-side sort/page/filter + status counts
+// Content items - data grid API with DB-side sort/page/filter + status counts
 router.get('/content', async (req: AuthRequest, res: Response) => {
   const {
     status, pageId, pageSize = '50', page: pageNum = '1', search, dateFrom, dateTo, source, campaignId, contentType,
@@ -1190,7 +1190,7 @@ router.get('/content', async (req: AuthRequest, res: Response) => {
     media,
   } = req.query;
 
-  // Build base where (without status, so we can count per-status) — always tenant scoped
+  // Build base where (without status, so we can count per-status) - always tenant scoped
   const baseWhere: Record<string, unknown> = { organizationId: req.organizationId };
 
   const accessCtx = await getAccessContext(req.organizationId!, req.userId!);
@@ -1375,7 +1375,7 @@ router.get('/content', async (req: AuthRequest, res: Response) => {
   });
 });
 
-// Campaigns filtered by a set of page IDs — used for the cascading Page → Campaign filter
+// Campaigns filtered by a set of page IDs - used for the cascading Page → Campaign filter
 router.get('/content/campaigns-for-pages', async (req: AuthRequest, res: Response) => {
   const pageIds = parseCsvParam(req.query.pageIds);
   if (!pageIds || !pageIds.length) {
@@ -1455,7 +1455,7 @@ router.post('/content/:id/publish-now', async (req: AuthRequest, res: Response) 
   res.json({ success: true, message: 'Queued for publishing' });
 });
 
-// Single content item detail — used by the drawer (tenant scoped)
+// Single content item detail - used by the drawer (tenant scoped)
 router.get('/content/:id', async (req: AuthRequest, res: Response) => {
   try {
     const id = req.params.id as string;
@@ -1945,7 +1945,7 @@ router.get('/users', async (req: AuthRequest, res: Response) => {
   res.json(users);
 });
 
-// Gemini image models — recommended catalog + best-effort live listing from
+// Gemini image models - recommended catalog + best-effort live listing from
 // the organization's OWN credential. Model list is always returned even when
 // the org has no (or an invalid) Gemini credential; credential health is a
 // separate signal (`credentialConfigured`) so the dropdown never goes blank.
@@ -1953,7 +1953,7 @@ router.get('/gemini-image-models', async (req: AuthRequest, res: Response) => {
   const knownModels = [
     { id: 'gemini-3.1-flash-image', name: 'Nano Banana 2', description: 'Mới nhất, hỗ trợ 4K, chỉnh sửa ảnh (2026)' },
     { id: 'gemini-3.1-flash-lite-image', name: 'Nano Banana 2 Lite', description: 'Nhanh nhất, tiết kiệm chi phí (2026)' },
-    { id: 'imagen-4', name: 'Imagen 4', description: 'Google Imagen — chất lượng cao' },
+    { id: 'imagen-4', name: 'Imagen 4', description: 'Google Imagen - chất lượng cao' },
   ];
   const cred = await tryResolveCredential({ organizationId: req.organizationId!, provider: 'gemini' });
   if (!cred?.apiKey) {
@@ -1969,7 +1969,7 @@ router.get('/gemini-image-models', async (req: AuthRequest, res: Response) => {
     const merged = [...knownModels.filter(m => !apiIds.has(m.id)), ...apiModels];
     res.json({ models: merged, credentialConfigured: true });
   } catch {
-    // Live listing failed — still return the known catalog so an already
+    // Live listing failed - still return the known catalog so an already
     // configured model never disappears from the dropdown.
     res.json({ models: knownModels, credentialConfigured: true });
   }
@@ -2010,12 +2010,12 @@ router.post('/test-image-model', async (req: AuthRequest, res: Response) => {
   }
 });
 
-// OpenAI image models — same contract as gemini-image-models: the catalog is
+// OpenAI image models - same contract as gemini-image-models: the catalog is
 // always returned; `credentialConfigured` tells the UI whether the org can
 // actually use it yet.
 router.get('/openai-image-models', async (req: AuthRequest, res: Response) => {
   const models = [
-    { id: 'gpt-image-2.5-sunburst', name: 'GPT Image 2.5 Sunburst', description: '#1 — editing chính xác, chi tiết sắc nét (9/2026)' },
+    { id: 'gpt-image-2.5-sunburst', name: 'GPT Image 2.5 Sunburst', description: '#1 - editing chính xác, chi tiết sắc nét (9/2026)' },
     { id: 'gpt-image-2.5-flare', name: 'GPT Image 2.5 Flare', description: 'Nhanh, chất lượng cao, dùng hàng ngày (9/2026)' },
     { id: 'gpt-image-2', name: 'GPT Image 2', description: 'Chất lượng rất cao (2026)' },
     { id: 'gpt-image-1', name: 'GPT Image 1', description: 'Chất lượng tốt (2025)' },

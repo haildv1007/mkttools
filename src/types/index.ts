@@ -32,7 +32,7 @@ export interface CredentialContext {
   actorUserId?: string;
   /** Optional explicit provider override, otherwise the module default is used. */
   provider?: string;
-  /** Optional resolved credential injected by the resolver — the provider must
+  /** Optional resolved credential injected by the resolver - the provider must
    *  use this apiKey/model rather than reading global settings. */
   apiKey?: string;
   model?: string;
