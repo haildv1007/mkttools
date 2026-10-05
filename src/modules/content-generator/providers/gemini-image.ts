@@ -2,7 +2,6 @@ import * as fs from 'fs';
 import * as path from 'path';
 import * as crypto from 'crypto';
 import { config } from '../../../config';
-import { getSetting } from '../../settings';
 import type { ImageProvider, ImageGeneratorOptions, GeneratedImage } from '../../../types';
 
 const UPLOAD_DIR = path.join(process.cwd(), 'public', 'uploads');
@@ -12,7 +11,7 @@ export class GeminiImageProvider implements ImageProvider {
 
   async testConnection(): Promise<{ ok: boolean; error?: string }> {
     try {
-      const apiKey = (await getSetting('GEMINI_API_KEY')) || config.ai.text.geminiApiKey;
+      const apiKey = config.ai.text.geminiApiKey;
       if (!apiKey) return { ok: false, error: 'GEMINI_API_KEY chưa được cấu hình' };
       const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${apiKey}`);
       if (!res.ok) return { ok: false, error: `Gemini API lỗi: ${res.status}` };
@@ -23,11 +22,10 @@ export class GeminiImageProvider implements ImageProvider {
   }
 
   async generate(options: ImageGeneratorOptions): Promise<GeneratedImage> {
-    const apiKey = (await getSetting('GEMINI_API_KEY')) || config.ai.text.geminiApiKey;
-    if (!apiKey) throw new Error('GEMINI_API_KEY chưa được cấu hình');
+    const apiKey = options.apiKey || config.ai.text.geminiApiKey;
+    if (!apiKey) throw new Error('GEMINI_API_KEY chưa được cấu hình cho tổ chức này');
 
-    const dbModel = await getSetting('AI_IMAGE_MODEL');
-    const model = (dbModel && dbModel !== 'flux-schnell') ? dbModel : 'gemini-3.1-flash-image';
+    const model = options.model || 'gemini-3.1-flash-image';
     const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
 
     const res = await fetch(url, {

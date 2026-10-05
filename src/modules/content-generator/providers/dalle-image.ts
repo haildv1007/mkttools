@@ -3,7 +3,6 @@ import * as path from 'path';
 import * as crypto from 'crypto';
 import OpenAI from 'openai';
 import { config } from '../../../config';
-import { getSetting } from '../../settings';
 import type { ImageProvider, ImageGeneratorOptions, GeneratedImage } from '../../../types';
 
 const UPLOAD_DIR = path.join(process.cwd(), 'public', 'uploads');
@@ -13,7 +12,7 @@ export class DalleImageProvider implements ImageProvider {
 
   async testConnection(): Promise<{ ok: boolean; error?: string }> {
     try {
-      const apiKey = (await getSetting('OPENAI_API_KEY')) || config.ai.image.openaiApiKey;
+      const apiKey = config.ai.image.openaiApiKey;
       if (!apiKey) return { ok: false, error: 'OPENAI_API_KEY chưa được cấu hình' };
       const client = new OpenAI({ apiKey });
       await client.models.list();
@@ -24,12 +23,11 @@ export class DalleImageProvider implements ImageProvider {
   }
 
   async generate(options: ImageGeneratorOptions): Promise<GeneratedImage> {
-    const apiKey = (await getSetting('OPENAI_API_KEY')) || config.ai.image.openaiApiKey;
-    if (!apiKey) throw new Error('OPENAI_API_KEY chưa được cấu hình');
+    const apiKey = options.apiKey || config.ai.image.openaiApiKey;
+    if (!apiKey) throw new Error('OPENAI_API_KEY chưa được cấu hình cho tổ chức này');
 
     const client = new OpenAI({ apiKey });
-    const dbModel = await getSetting('AI_IMAGE_MODEL');
-    const model = (dbModel && (dbModel.startsWith('dall-e') || dbModel.startsWith('gpt-image'))) ? dbModel : 'gpt-image-2.5-flare';
+    const model = options.model || 'gpt-image-2.5-flare';
 
     const isGptImage = model.startsWith('gpt-image');
     const genParams: Record<string, unknown> = {

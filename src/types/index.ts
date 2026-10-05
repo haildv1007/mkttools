@@ -36,6 +36,8 @@ export interface TextGeneratorOptions {
   tone?: string;
   language?: string;
   previousFeedback?: string;
+  apiKey?: string;
+  model?: string;
 }
 
 export interface ImageGeneratorOptions {
@@ -43,6 +45,8 @@ export interface ImageGeneratorOptions {
   style?: string;
   width?: number;
   height?: number;
+  apiKey?: string;
+  model?: string;
 }
 
 export interface TextProvider {
@@ -71,4 +75,5 @@ export interface TelegramApprovalPayload {
   scheduledAt: string;
   generatedText: string;
   imageUrl?: string;
+  organizationId?: string;
 }

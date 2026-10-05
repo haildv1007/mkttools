@@ -1,5 +1,6 @@
-import { Router, Request, Response } from 'express';
+import { Router, Response } from 'express';
 import { prisma } from '../../utils/db';
+import { OrgRequest, requireOrganization, requireOrgRole, getAccessiblePageIds } from '../../middleware/organization';
 
 const router = Router();
 
@@ -45,28 +46,27 @@ function formatWorkspace(w: any) {
   };
 }
 
-// List workspaces
-router.get('/', async (_req: Request, res: Response) => {
+router.get('/', requireOrganization, async (req: OrgRequest, res: Response) => {
   const workspaces = await prisma.workspace.findMany({
+    where: { organizationId: req.organizationId! },
     include: pageInclude,
     orderBy: { createdAt: 'desc' },
   });
   res.json(workspaces.map(formatWorkspace));
 });
 
-// Get single workspace
-router.get('/:id', async (req: Request, res: Response) => {
-  const id = req.params.id as string;
+router.get('/:id', requireOrganization, async (req: OrgRequest, res: Response) => {
   const workspace = await prisma.workspace.findUnique({
-    where: { id },
+    where: { id: String(req.params.id) },
     include: pageInclude,
   });
-  if (!workspace) return res.status(404).json({ error: 'Workspace not found' });
+  if (!workspace || workspace.organizationId !== req.organizationId) {
+    return res.status(404).json({ error: 'Workspace not found' });
+  }
   res.json(formatWorkspace(workspace));
 });
 
-// Create workspace
-router.post('/', async (req: Request, res: Response) => {
+router.post('/', requireOrganization, requireOrgRole('OWNER', 'ADMIN', 'MANAGER'), async (req: OrgRequest, res: Response) => {
   try {
     const { name, description, color, icon, pageIds } = req.body;
     if (!name) return res.status(400).json({ error: 'Tên workspace là bắt buộc' });
@@ -74,20 +74,27 @@ router.post('/', async (req: Request, res: Response) => {
     const slug = await uniqueSlug(name);
     const workspace = await prisma.workspace.create({
       data: {
+        organizationId: req.organizationId!,
         name,
         slug,
         description: description || null,
         color: color || null,
         icon: icon || null,
-        createdBy: (req as any).user?.id || null,
+        createdBy: req.userId || null,
       },
     });
 
     if (pageIds?.length) {
-      await prisma.workspacePage.createMany({
-        data: pageIds.map((pageId: string) => ({ workspaceId: workspace.id, pageId })),
-        skipDuplicates: true,
+      const validPages = await prisma.page.findMany({
+        where: { id: { in: pageIds }, organizationId: req.organizationId! },
+        select: { id: true },
       });
+      if (validPages.length) {
+        await prisma.workspacePage.createMany({
+          data: validPages.map((p: { id: string }) => ({ workspaceId: workspace.id, pageId: p.id })),
+          skipDuplicates: true,
+        });
+      }
     }
 
     const full = await prisma.workspace.findUnique({
@@ -100,10 +107,14 @@ router.post('/', async (req: Request, res: Response) => {
   }
 });
 
-// Update workspace
-router.put('/:id', async (req: Request, res: Response) => {
+router.put('/:id', requireOrganization, requireOrgRole('OWNER', 'ADMIN', 'MANAGER'), async (req: OrgRequest, res: Response) => {
   try {
-    const id = req.params.id as string;
+    const id = String(req.params.id);
+    const existing = await prisma.workspace.findUnique({ where: { id }, select: { organizationId: true } });
+    if (!existing || existing.organizationId !== req.organizationId) {
+      return res.status(404).json({ error: 'Workspace not found' });
+    }
+
     const { name, description, color, icon, pageIds } = req.body;
     const data: Record<string, unknown> = {};
     if (name !== undefined) {
@@ -119,10 +130,16 @@ router.put('/:id', async (req: Request, res: Response) => {
     if (pageIds !== undefined) {
       await prisma.workspacePage.deleteMany({ where: { workspaceId: id } });
       if (pageIds.length) {
-        await prisma.workspacePage.createMany({
-          data: pageIds.map((pageId: string) => ({ workspaceId: id, pageId })),
-          skipDuplicates: true,
+        const validPages = await prisma.page.findMany({
+          where: { id: { in: pageIds }, organizationId: req.organizationId! },
+          select: { id: true },
         });
+        if (validPages.length) {
+          await prisma.workspacePage.createMany({
+            data: validPages.map((p: { id: string }) => ({ workspaceId: id, pageId: p.id })),
+            skipDuplicates: true,
+          });
+        }
       }
     }
 
@@ -136,10 +153,13 @@ router.put('/:id', async (req: Request, res: Response) => {
   }
 });
 
-// Delete workspace (only the group, not pages/content)
-router.delete('/:id', async (req: Request, res: Response) => {
+router.delete('/:id', requireOrganization, requireOrgRole('OWNER', 'ADMIN'), async (req: OrgRequest, res: Response) => {
   try {
-    const id = req.params.id as string;
+    const id = String(req.params.id);
+    const existing = await prisma.workspace.findUnique({ where: { id }, select: { organizationId: true } });
+    if (!existing || existing.organizationId !== req.organizationId) {
+      return res.status(404).json({ error: 'Workspace not found' });
+    }
     await prisma.workspace.delete({ where: { id } });
     res.json({ success: true });
   } catch (err) {
@@ -147,40 +167,47 @@ router.delete('/:id', async (req: Request, res: Response) => {
   }
 });
 
-// Scope resolver endpoint
-router.get('/resolve-scope', async (req: Request, res: Response) => {
+router.get('/resolve-scope', requireOrganization, async (req: OrgRequest, res: Response) => {
   try {
     const { type, id } = req.query;
-    const pageIds = await resolvePageIds(String(type || 'all'), id ? String(id) : undefined);
+    const pageIds = await resolvePageIds(String(type || 'all'), id ? String(id) : undefined, req.organizationId!, await getAccessiblePageIds(req));
     res.json({ pageIds });
   } catch (err) {
     res.status(400).json({ error: err instanceof Error ? err.message : 'Failed to resolve scope' });
   }
 });
 
-// Reusable scope resolver
-export async function resolvePageIds(scopeType: string, scopeId?: string): Promise<string[]> {
+export async function resolvePageIds(scopeType: string, scopeId: string | undefined, organizationId?: string, accessiblePageIds?: string[] | null): Promise<string[]> {
+  const orgFilter = organizationId ? { organizationId } : {};
+
   switch (scopeType) {
     case 'page':
       if (!scopeId) return [];
-      const page = await prisma.page.findUnique({ where: { id: scopeId }, select: { id: true, isActive: true } });
+      const page = await prisma.page.findUnique({ where: { id: scopeId }, select: { id: true, isActive: true, organizationId: true } });
       if (!page || !page.isActive) return [];
+      if (organizationId && page.organizationId !== organizationId) return [];
+      if (accessiblePageIds && !accessiblePageIds.includes(scopeId)) return [];
       return [scopeId];
 
     case 'workspace':
       if (!scopeId) return [];
+      const ws = await prisma.workspace.findUnique({ where: { id: scopeId }, select: { organizationId: true } });
+      if (organizationId && ws?.organizationId !== organizationId) return [];
       const wps = await prisma.workspacePage.findMany({
-        where: { workspaceId: scopeId, page: { isActive: true } },
+        where: { workspaceId: scopeId, page: { isActive: true, ...orgFilter } },
         select: { pageId: true },
       });
-      return wps.map((wp: any) => wp.pageId);
+      const wpIds = wps.map((wp: any) => wp.pageId);
+      if (accessiblePageIds) return wpIds.filter(id => accessiblePageIds.includes(id));
+      return wpIds;
 
     case 'all':
     default:
-      const allPages = await prisma.page.findMany({
-        where: { isActive: true },
-        select: { id: true },
-      });
+      const where: Record<string, unknown> = { isActive: true, ...orgFilter };
+      if (accessiblePageIds) {
+        where.id = { in: accessiblePageIds };
+      }
+      const allPages = await prisma.page.findMany({ where, select: { id: true } });
       return allPages.map((p: any) => p.id);
   }
 }

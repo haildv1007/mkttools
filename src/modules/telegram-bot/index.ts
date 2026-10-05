@@ -9,6 +9,7 @@ import {
   cancelRevision,
   submitFeedbackAndExecute,
 } from '../revision';
+import { getOrgSetting, getOrgAiCredential, getOrgAiOperationSetting } from '../settings/org-settings';
 import type { TelegramApprovalPayload } from '../../types';
 import { extractCleanText } from '../../utils/clean-text';
 import type { RevisionType } from '@prisma/client';
@@ -68,6 +69,14 @@ function imageSelectKeyboard(contentItemId: string, imageCount: number) {
   rows.push([{ text: '📷 Tất cả ảnh', callback_data: `rev_img_sel:${contentItemId}:all` }]);
   rows.push([{ text: '↩️ Quay lại', callback_data: `rev_cancel:${contentItemId}` }]);
   return { inline_keyboard: rows };
+}
+
+async function resolveOrgAdminChatIds(organizationId: string): Promise<string[]> {
+  const orgChatIds = await getOrgSetting(organizationId, 'TELEGRAM_ADMIN_CHAT_IDS');
+  if (orgChatIds) {
+    return orgChatIds.split(',').map(s => s.trim()).filter(Boolean);
+  }
+  return [];
 }
 
 function setupHandlers(bot: TelegramBot) {
@@ -134,13 +143,11 @@ function setupHandlers(bot: TelegramBot) {
     const messageId = query.message.message_id;
     const userId = await findUserByTelegramChat(String(chatId));
 
-    // Handle noop
     if (action === 'noop') {
       bot.answerCallbackQuery(query.id);
       return;
     }
 
-    // Validate content exists for content-related actions
     const item = await prisma.contentItem.findUnique({
       where: { id: contentItemId },
       include: { page: true, campaign: true },
@@ -188,7 +195,6 @@ function setupHandlers(bot: TelegramBot) {
       }
 
       case 'edit': {
-        // Show revision type selection keyboard
         if (['QUEUED', 'GENERATING', 'PUBLISHING'].includes(item.status)) {
           bot.answerCallbackQuery(query.id, { text: 'Nội dung đang xử lý, vui lòng chờ.' });
           return;
@@ -209,7 +215,6 @@ function setupHandlers(bot: TelegramBot) {
       case 'rev_image': {
         const images = item.generatedImages as Array<any> | null;
         if (images && images.length > 1) {
-          // Show image selection keyboard
           bot.answerCallbackQuery(query.id, { text: 'Chọn ảnh cần sửa' });
           bot.editMessageReplyMarkup(
             imageSelectKeyboard(contentItemId, images.length),
@@ -235,8 +240,6 @@ function setupHandlers(bot: TelegramBot) {
             imageSelectKeyboard(contentItemId, imgs.length),
             { chat_id: chatId, message_id: messageId }
           );
-          // Store that this is TEXT_AND_MEDIA in a temp way — we'll use callback data
-          // Actually, we need to differentiate. Let's use rev_both_img_sel callback
         } else {
           await startRevisionFlow(bot, chatId, messageId, contentItemId, revType, null, userId, query.id);
         }
@@ -244,12 +247,9 @@ function setupHandlers(bot: TelegramBot) {
       }
 
       case 'rev_img_sel': {
-        // parts[2] = image index or 'all'
         const imgSel = parts[2];
         const selectedIds = imgSel === 'all' ? null : [parseInt(imgSel, 10)];
 
-        // Detect if this was from a TEXT_AND_MEDIA flow or IMAGE-only
-        // Check if there's an existing waiting session to determine type, otherwise default to IMAGE
         const existingSession = await prisma.revisionSession.findFirst({
           where: { contentItemId, status: 'WAITING_FEEDBACK', chatId: String(chatId) },
         });
@@ -260,7 +260,6 @@ function setupHandlers(bot: TelegramBot) {
       }
 
       case 'rev_cancel': {
-        // Cancel active revision session if any and restore keyboard
         const activeSession = await prisma.revisionSession.findFirst({
           where: { contentItemId, status: 'WAITING_FEEDBACK' },
         });
@@ -291,7 +290,6 @@ function setupHandlers(bot: TelegramBot) {
     }
   });
 
-  // Reply handler — route feedback by reply_to_message_id
   bot.on('message', async (msg) => {
     if (!msg.reply_to_message || !msg.text) return;
     if (!(await isAdmin(msg.chat.id))) return;
@@ -299,11 +297,9 @@ function setupHandlers(bot: TelegramBot) {
     const replyToId = msg.reply_to_message.message_id;
     const chatIdStr = String(msg.chat.id);
 
-    // Find revision session by reply
     const session = await findSessionByReply(chatIdStr, replyToId);
 
     if (!session) {
-      // Legacy fallback: try old content# pattern
       const replyText = msg.reply_to_message.text || '';
       const match = replyText.match(/content #([a-z0-9]+)/i);
       if (!match) return;
@@ -326,7 +322,6 @@ function setupHandlers(bot: TelegramBot) {
       return;
     }
 
-    // Check expiry
     if (session.expiresAt && session.expiresAt < new Date()) {
       await prisma.revisionSession.update({ where: { id: session.id }, data: { status: 'EXPIRED' } });
       bot.sendMessage(msg.chat.id, '⏰ Yêu cầu sửa đã hết hạn. Vui lòng bấm Sửa lại.', {
@@ -337,12 +332,10 @@ function setupHandlers(bot: TelegramBot) {
 
     const userId = await findUserByTelegramChat(chatIdStr);
 
-    // Delete prompt message if exists
     if (session.promptMessageId) {
       try { await bot.deleteMessage(msg.chat.id, session.promptMessageId); } catch {}
     }
 
-    // Edit control message to show processing
     if (session.sourceMessageId) {
       try {
         bot.editMessageReplyMarkup(
@@ -359,7 +352,6 @@ function setupHandlers(bot: TelegramBot) {
         userId: userId || undefined,
       });
 
-      // Revision complete — send updated approval message
       const updatedItem = await prisma.contentItem.findUnique({
         where: { id: session.contentItemId },
         include: { page: true, campaign: true },
@@ -373,7 +365,6 @@ function setupHandlers(bot: TelegramBot) {
         reply_to_message_id: msg.message_id,
       });
 
-      // Restore keyboard on source message
       if (session.sourceMessageId) {
         try {
           bot.editMessageReplyMarkup(
@@ -418,7 +409,6 @@ async function startRevisionFlow(
 
     bot.answerCallbackQuery(queryId, { text: `✏️ Sửa ${label}` });
 
-    // Edit control message keyboard to show waiting state
     bot.editMessageReplyMarkup(
       { inline_keyboard: [
         [{ text: `✏️ Đang chờ feedback sửa ${label}${mediaNote}`, callback_data: 'noop:0' }],
@@ -427,7 +417,6 @@ async function startRevisionFlow(
       { chat_id: chatId, message_id: sourceMessageId }
     );
 
-    // Send a prompt message (ForceReply for UX)
     const promptMsg = await bot.sendMessage(chatId,
       `✏️ Reply tin nhắn này với yêu cầu chỉnh sửa ${label}${mediaNote}:`,
       {
@@ -436,13 +425,11 @@ async function startRevisionFlow(
       }
     );
 
-    // Save prompt message id for reply routing
     await setPromptMessageId(session.id, promptMsg.message_id);
 
   } catch (err) {
     const errMsg = err instanceof Error ? err.message : 'Lỗi';
     bot.answerCallbackQuery(queryId, { text: errMsg });
-    // Restore default keyboard
     bot.editMessageReplyMarkup(
       defaultKeyboard(contentItemId),
       { chat_id: chatId, message_id: sourceMessageId }
@@ -457,6 +444,17 @@ async function handleRegenerate(contentItemId: string, chatId: number, feedback?
   });
   if (!item) return;
 
+  const orgId = item.organizationId;
+  let textApiKey: string | undefined;
+  let textModel: string | undefined;
+  if (orgId) {
+    const opSetting = await getOrgAiOperationSetting(orgId, 'text');
+    const provider = opSetting?.provider || 'claude';
+    const providerKeyMap: Record<string, string> = { claude: 'anthropic', openai: 'openai', gemini: 'gemini' };
+    textApiKey = (await getOrgAiCredential(orgId, providerKeyMap[provider] || provider)) || undefined;
+    textModel = opSetting?.model || undefined;
+  }
+
   try {
     await prisma.contentItem.update({
       where: { id: contentItemId },
@@ -470,6 +468,8 @@ async function handleRegenerate(contentItemId: string, chatId: number, feedback?
       contentType: item.contentType,
       notes: item.notes || undefined,
       previousFeedback: feedback,
+      apiKey: textApiKey,
+      model: textModel,
     });
 
     let fullText = result.text +
@@ -586,7 +586,7 @@ async function sendApprovalMessage(chatId: number, item: ContentItemWithPage) {
   });
 }
 
-export async function sendContentForApproval(payload: TelegramApprovalPayload) {
+export async function sendContentForApproval(payload: TelegramApprovalPayload & { organizationId?: string }) {
   const item = await prisma.contentItem.findUnique({
     where: { id: payload.contentItemId },
     include: { page: true, campaign: true },
@@ -594,7 +594,17 @@ export async function sendContentForApproval(payload: TelegramApprovalPayload) {
   if (!item) return;
 
   const pageGroupId = item.page?.telegramGroupId;
-  const chatIds = pageGroupId ? [pageGroupId] : config.telegram.adminChatIds;
+  let chatIds: string[] = [];
+
+  if (pageGroupId) {
+    chatIds = [pageGroupId];
+  } else if (payload.organizationId) {
+    chatIds = await resolveOrgAdminChatIds(payload.organizationId);
+  }
+
+  if (chatIds.length === 0) {
+    chatIds = config.telegram.adminChatIds;
+  }
 
   for (const chatId of chatIds) {
     await sendApprovalMessage(Number(chatId), item);
@@ -604,7 +614,11 @@ export async function sendContentForApproval(payload: TelegramApprovalPayload) {
 async function isAdmin(chatId: number): Promise<boolean> {
   if (config.telegram.adminChatIds.includes(String(chatId))) return true;
   const page = await prisma.page.findFirst({ where: { telegramGroupId: String(chatId) } });
-  return !!page;
+  if (page) return true;
+  const orgSetting = await prisma.organizationSetting.findFirst({
+    where: { key: 'TELEGRAM_ADMIN_CHAT_IDS', value: { contains: String(chatId) } },
+  });
+  return !!orgSetting;
 }
 
 async function findUserByTelegramChat(chatId: string): Promise<string | null> {

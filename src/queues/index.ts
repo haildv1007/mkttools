@@ -9,6 +9,7 @@ import { publishContent } from '../modules/publisher';
 import { extractCleanText } from '../utils/clean-text';
 import { logActivity, updateActivity, sanitizeError } from '../utils/activity';
 import { emitContentUpdate, emitActivity } from '../realtime';
+import { getOrgAiCredential, getOrgAiOperationSetting } from '../modules/settings/org-settings';
 
 const connection = new IORedis(config.redis.url, { maxRetriesPerRequest: null });
 
@@ -34,9 +35,38 @@ function emitActFromLog(id: string, opts: any, status?: string) {
     progress: opts.progress,
     total: opts.total,
     errorCode: opts.errorCode,
+    organizationId: opts.organizationId,
     createdAt: nowISO(),
     updatedAt: nowISO(),
   });
+}
+
+async function resolveOrgTextCredentials(organizationId: string): Promise<{ apiKey?: string; model?: string; provider?: string }> {
+  const opSetting = await getOrgAiOperationSetting(organizationId, 'text');
+  const provider = opSetting?.provider || config.ai.text.provider;
+  const model = opSetting?.model;
+
+  const providerKeyMap: Record<string, string> = {
+    claude: 'anthropic', openai: 'openai', gemini: 'gemini',
+  };
+  const credProvider = providerKeyMap[provider] || provider;
+  const apiKey = await getOrgAiCredential(organizationId, credProvider) || undefined;
+
+  return { apiKey, model: model || undefined, provider };
+}
+
+async function resolveOrgImageCredentials(organizationId: string): Promise<{ apiKey?: string; model?: string; provider?: string }> {
+  const opSetting = await getOrgAiOperationSetting(organizationId, 'image');
+  const provider = opSetting?.provider || config.ai.image.provider;
+  const model = opSetting?.model;
+
+  const providerKeyMap: Record<string, string> = {
+    dalle: 'openai', gemini: 'gemini', 'gemini-imagen': 'gemini',
+  };
+  const credProvider = providerKeyMap[provider] || provider;
+  const apiKey = await getOrgAiCredential(organizationId, credProvider) || undefined;
+
+  return { apiKey, model: model || undefined, provider };
 }
 
 export function startWorkers() {
@@ -49,7 +79,11 @@ export function startWorkers() {
     });
     if (!item) throw new Error(`Content item ${contentItemId} not found`);
 
-    const actOpts = { action: 'generate', category: 'content' as const, summary: `Đang gen nội dung: ${item.topic.slice(0, 80)}`, entityType: 'content', entityId: contentItemId, entityLabel: item.topic.slice(0, 100) };
+    const organizationId = item.organizationId;
+    const textCreds = organizationId ? await resolveOrgTextCredentials(organizationId) : {};
+    const imageCreds = organizationId ? await resolveOrgImageCredentials(organizationId) : {};
+
+    const actOpts = { action: 'generate', category: 'content' as const, summary: `Đang gen nội dung: ${item.topic.slice(0, 80)}`, entityType: 'content', entityId: contentItemId, entityLabel: item.topic.slice(0, 100), organizationId };
     const actId = await logActivity(actOpts);
     emitActFromLog(actId, actOpts);
 
@@ -62,6 +96,7 @@ export function startWorkers() {
       contentId: contentItemId,
       pageId: item.pageId,
       campaignId: item.campaignId || undefined,
+      organizationId: organizationId || undefined,
       operation: 'generate',
       status: 'started',
       step: 'Đang tạo nội dung',
@@ -81,6 +116,8 @@ export function startWorkers() {
       pageContext: item.page.context || undefined,
       contentType: item.contentType,
       notes: item.notes || undefined,
+      apiKey: textCreds.apiKey,
+      model: textCreds.model,
     });
 
     let fullText = textResult.text +
@@ -92,6 +129,7 @@ export function startWorkers() {
       contentId: contentItemId,
       pageId: item.pageId,
       campaignId: item.campaignId || undefined,
+      organizationId: organizationId || undefined,
       operation: 'generate',
       status: 'progress',
       step: 'Đang tạo ảnh',
@@ -115,11 +153,12 @@ export function startWorkers() {
         for (let i = 0; i < descriptions.length; i++) {
           const desc = descriptions[i];
           try {
-            const imgResult = await generateImage({ prompt: desc });
+            const imgResult = await generateImage({ prompt: desc, apiKey: imageCreds.apiKey, model: imageCreds.model });
             generatedImages.push({ url: imgResult.url, localPath: imgResult.localPath, description: desc });
             emitContentUpdate({
               contentId: contentItemId,
               pageId: item.pageId,
+              organizationId: organizationId || undefined,
               operation: 'generate',
               status: 'progress',
               step: 'Đang tạo ảnh',
@@ -141,7 +180,7 @@ export function startWorkers() {
       } else {
         try {
           const prompt = descriptions[0] || `Social media post image for: ${item.topic}. Style: professional marketing, vibrant colors.`;
-          const imageResult = await generateImage({ prompt });
+          const imageResult = await generateImage({ prompt, apiKey: imageCreds.apiKey, model: imageCreds.model });
           imageUrl = imageResult.url;
         } catch (err) {
           console.error(`Image generation failed for ${contentItemId}:`, err);
@@ -159,8 +198,8 @@ export function startWorkers() {
         generatedImageUrl: imageUrl,
         generatedImages: generatedImages ? JSON.parse(JSON.stringify(generatedImages)) : undefined,
         status: finalStatus,
-        aiModel: config.ai.text.provider,
-        aiImageModel: imageUrl ? config.ai.image.provider : null,
+        aiModel: textCreds.provider || config.ai.text.provider,
+        aiImageModel: imageUrl ? (imageCreds.provider || config.ai.image.provider) : null,
       },
     });
 
@@ -168,6 +207,7 @@ export function startWorkers() {
       contentId: contentItemId,
       pageId: item.pageId,
       campaignId: item.campaignId || undefined,
+      organizationId: organizationId || undefined,
       operation: 'generate',
       status: 'completed',
       contentTitle: item.topic.slice(0, 100),
@@ -187,6 +227,7 @@ export function startWorkers() {
         scheduledAt: item.scheduledAt.toISOString(),
         generatedText: fullText,
         imageUrl: imageUrl || undefined,
+        organizationId: organizationId || undefined,
       });
     }
 
@@ -201,10 +242,11 @@ export function startWorkers() {
     const { contentItemId } = job.data;
     const ci = await prisma.contentItem.findUnique({
       where: { id: contentItemId },
-      select: { topic: true, pageId: true, campaignId: true, page: { select: { name: true, externalId: true, platform: true } }, campaign: { select: { name: true } } },
+      select: { topic: true, pageId: true, campaignId: true, organizationId: true, page: { select: { name: true, externalId: true, platform: true } }, campaign: { select: { name: true } } },
     });
     const label = ci?.topic?.slice(0, 80) || contentItemId;
-    const actOpts = { action: 'publish', category: 'publish' as const, summary: `Đang đăng bài: ${label}`, entityType: 'content', entityId: contentItemId, entityLabel: label };
+    const organizationId = ci?.organizationId;
+    const actOpts = { action: 'publish', category: 'publish' as const, summary: `Đang đăng bài: ${label}`, entityType: 'content', entityId: contentItemId, entityLabel: label, organizationId };
     const actId = await logActivity(actOpts);
     emitActFromLog(actId, actOpts);
 
@@ -213,6 +255,7 @@ export function startWorkers() {
         contentId: contentItemId,
         pageId: ci.pageId,
         campaignId: ci.campaignId || undefined,
+        organizationId: organizationId || undefined,
         operation: 'publish',
         status: 'started',
         step: 'Đang đăng bài',
@@ -236,6 +279,7 @@ export function startWorkers() {
         emitContentUpdate({
           contentId: contentItemId,
           pageId: ci.pageId,
+          organizationId: organizationId || undefined,
           operation: 'publish',
           status: 'failed',
           contentTitle: label,
@@ -256,6 +300,7 @@ export function startWorkers() {
         contentId: contentItemId,
         pageId: ci.pageId,
         campaignId: ci.campaignId || undefined,
+        organizationId: organizationId || undefined,
         operation: 'publish',
         status: 'completed',
         contentTitle: label,
@@ -296,7 +341,7 @@ export function startWorkers() {
         allFuture = false;
 
         await prisma.contentItem.update({ where: { id: item.id }, data: { status: 'QUEUED' } });
-        await contentQueue.add('generate', { contentItemId: item.id }, {
+        await contentQueue.add('generate', { contentItemId: item.id, organizationId: item.organizationId }, {
           jobId: `gen-${item.id}-${Date.now()}`,
           attempts: 3,
           backoff: { type: 'exponential', delay: 5000 },
@@ -321,7 +366,7 @@ export function startWorkers() {
       pubCursor = approvedItems[approvedItems.length - 1].id;
 
       for (const item of approvedItems) {
-        await publishQueue.add('publish', { contentItemId: item.id }, {
+        await publishQueue.add('publish', { contentItemId: item.id, organizationId: item.organizationId }, {
           jobId: `pub-${item.id}-${Date.now()}`,
           attempts: 3,
           backoff: { type: 'exponential', delay: 10000 },
@@ -342,20 +387,22 @@ export function startWorkers() {
     if (job?.data?.contentItemId) {
       const safe = sanitizeError(err);
       const cid = job.data.contentItemId;
-      const ci = await prisma.contentItem.findUnique({ where: { id: cid }, select: { pageId: true, topic: true, page: { select: { name: true } } } }).catch(() => null);
+      const ci = await prisma.contentItem.findUnique({ where: { id: cid }, select: { pageId: true, topic: true, organizationId: true, page: { select: { name: true } } } }).catch(() => null);
 
       await prisma.contentItem.update({
         where: { id: cid },
         data: { status: 'FAILED', errorMessage: err?.message || 'Generation failed' },
       }).catch(() => {});
 
-      const actId = await logActivity({ action: 'generate', category: 'content', status: 'error', summary: `Gen thất bại: ${cid.slice(0, 20)}`, detail: safe.message, errorCode: safe.code, entityType: 'content', entityId: cid });
-      emitActFromLog(actId, { action: 'generate', category: 'content', summary: `Gen thất bại: ${cid.slice(0, 20)}`, detail: safe.message, errorCode: safe.code, entityType: 'content', entityId: cid }, 'error');
+      const organizationId = ci?.organizationId;
+      const actId = await logActivity({ action: 'generate', category: 'content', status: 'error', summary: `Gen thất bại: ${cid.slice(0, 20)}`, detail: safe.message, errorCode: safe.code, entityType: 'content', entityId: cid, organizationId });
+      emitActFromLog(actId, { action: 'generate', category: 'content', summary: `Gen thất bại: ${cid.slice(0, 20)}`, detail: safe.message, errorCode: safe.code, entityType: 'content', entityId: cid, organizationId }, 'error');
 
       if (ci) {
         emitContentUpdate({
           contentId: cid,
           pageId: ci.pageId,
+          organizationId: organizationId || undefined,
           operation: 'generate',
           status: 'failed',
           contentTitle: ci.topic?.slice(0, 100),
@@ -374,11 +421,12 @@ export function startWorkers() {
     if (job?.data?.contentItemId) {
       const safe = sanitizeError(err);
       const cid = job.data.contentItemId;
-      const ci = await prisma.contentItem.findUnique({ where: { id: cid }, select: { pageId: true, topic: true, page: { select: { name: true } } } }).catch(() => null);
+      const ci = await prisma.contentItem.findUnique({ where: { id: cid }, select: { pageId: true, topic: true, organizationId: true, page: { select: { name: true } } } }).catch(() => null);
       if (ci) {
         emitContentUpdate({
           contentId: cid,
           pageId: ci.pageId,
+          organizationId: ci.organizationId || undefined,
           operation: 'publish',
           status: 'failed',
           contentTitle: ci.topic?.slice(0, 100),

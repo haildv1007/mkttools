@@ -7,6 +7,9 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+// ──────────────────────────────────────────
+// Platform-level user role (NOT organization role)
+// ──────────────────────────────────────────
 enum UserRole {
   OWNER
   ADMIN
@@ -49,6 +52,47 @@ enum ApprovalAction {
   REQUEST_EDIT
 }
 
+enum RevisionType {
+  TEXT
+  IMAGE
+  VIDEO
+  TEXT_AND_MEDIA
+}
+
+enum RevisionStatus {
+  WAITING_FEEDBACK
+  PROCESSING
+  COMPLETED
+  CANCELLED
+  EXPIRED
+}
+
+// ──────────────────────────────────────────
+// Organization roles
+// ──────────────────────────────────────────
+enum OrgRole {
+  OWNER
+  ADMIN
+  MANAGER
+  MEMBER
+}
+
+enum AccessMode {
+  ALL
+  RESTRICTED
+}
+
+enum InvitationStatus {
+  PENDING
+  ACCEPTED
+  CANCELLED
+  EXPIRED
+}
+
+// ──────────────────────────────────────────
+// Core models
+// ──────────────────────────────────────────
+
 model User {
   id             String   @id @default(cuid())
   email          String   @unique
@@ -56,47 +100,253 @@ model User {
   passwordHash   String   @map("password_hash")
   role           UserRole @default(ADMIN)
   telegramChatId String?  @map("telegram_chat_id")
+  isPlatformAdmin Boolean @default(false) @map("is_platform_admin")
   isActive       Boolean  @default(true) @map("is_active")
   createdAt      DateTime @default(now()) @map("created_at")
   updatedAt      DateTime @updatedAt @map("updated_at")
 
-  pages         Page[]
-  campaigns     Campaign[]
-  approvalLogs  ApprovalLog[]
+  pages             Page[]
+  campaigns         Campaign[]
+  approvalLogs      ApprovalLog[]
+  memberships       OrganizationMember[]
 
   @@map("users")
 }
 
+// ──────────────────────────────────────────
+// Organization
+// ──────────────────────────────────────────
+
+model Organization {
+  id        String   @id @default(cuid())
+  name      String
+  slug      String   @unique
+  isActive  Boolean  @default(true) @map("is_active")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  members       OrganizationMember[]
+  pages         Page[]
+  campaigns     Campaign[]
+  contentItems  ContentItem[]
+  workspaces    Workspace[]
+  activityLogs  ActivityLog[]
+  invitations   OrganizationInvitation[]
+  aiCredentials OrganizationAiCredential[]
+  aiSettings    OrganizationAiOperationSetting[]
+  orgSettings   OrganizationSetting[]
+  subscriptions OrganizationSubscription[]
+  paymentOrders PaymentOrder[]
+
+  @@map("organizations")
+}
+
+model OrganizationMember {
+  id             String     @id @default(cuid())
+  organizationId String     @map("organization_id")
+  userId         String     @map("user_id")
+  role           OrgRole    @default(MEMBER)
+  accessMode     AccessMode @default(ALL)
+  isActive       Boolean    @default(true) @map("is_active")
+  createdAt      DateTime   @default(now()) @map("created_at")
+  updatedAt      DateTime   @updatedAt @map("updated_at")
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+  user         User         @relation(fields: [userId], references: [id])
+
+  workspaceGrants OrganizationMemberWorkspace[]
+  pageGrants      OrganizationMemberPage[]
+
+  @@unique([organizationId, userId])
+  @@index([userId])
+  @@map("organization_members")
+}
+
+model OrganizationMemberWorkspace {
+  id       String @id @default(cuid())
+  memberId String @map("member_id")
+  workspaceId String @map("workspace_id")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  member    OrganizationMember @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  workspace Workspace          @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@unique([memberId, workspaceId])
+  @@map("organization_member_workspaces")
+}
+
+model OrganizationMemberPage {
+  id       String @id @default(cuid())
+  memberId String @map("member_id")
+  pageId   String @map("page_id")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  member OrganizationMember @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  page   Page               @relation(fields: [pageId], references: [id], onDelete: Cascade)
+
+  @@unique([memberId, pageId])
+  @@map("organization_member_pages")
+}
+
+model OrganizationInvitation {
+  id             String           @id @default(cuid())
+  organizationId String           @map("organization_id")
+  email          String
+  role           OrgRole          @default(MEMBER)
+  token          String           @unique @default(cuid())
+  status         InvitationStatus @default(PENDING)
+  invitedBy      String           @map("invited_by")
+  expiresAt      DateTime         @map("expires_at")
+  createdAt      DateTime         @default(now()) @map("created_at")
+  updatedAt      DateTime         @updatedAt @map("updated_at")
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+
+  @@index([token])
+  @@index([organizationId, email])
+  @@map("organization_invitations")
+}
+
+// ──────────────────────────────────────────
+// AI credentials & settings (org-scoped)
+// ──────────────────────────────────────────
+
+model OrganizationAiCredential {
+  id             String   @id @default(cuid())
+  organizationId String   @map("organization_id")
+  provider       String
+  apiKey         String   @map("api_key")
+  isActive       Boolean  @default(true) @map("is_active")
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+
+  @@unique([organizationId, provider])
+  @@map("organization_ai_credentials")
+}
+
+model OrganizationAiOperationSetting {
+  id             String   @id @default(cuid())
+  organizationId String   @map("organization_id")
+  operation      String
+  provider       String
+  model          String
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+
+  @@unique([organizationId, operation])
+  @@map("organization_ai_operation_settings")
+}
+
+// ──────────────────────────────────────────
+// Organization settings (replaces global AppSetting for org-specific values)
+// ──────────────────────────────────────────
+
+model OrganizationSetting {
+  id             String   @id @default(cuid())
+  organizationId String   @map("organization_id")
+  key            String
+  value          String
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+
+  @@unique([organizationId, key])
+  @@map("organization_settings")
+}
+
+// ──────────────────────────────────────────
+// Billing (org-scoped, structure only for isolation)
+// ──────────────────────────────────────────
+
+model OrganizationSubscription {
+  id             String   @id @default(cuid())
+  organizationId String   @map("organization_id")
+  plan           String   @default("free")
+  status         String   @default("active")
+  startDate      DateTime @default(now()) @map("start_date")
+  endDate        DateTime? @map("end_date")
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+
+  @@index([organizationId])
+  @@map("organization_subscriptions")
+}
+
+model PaymentOrder {
+  id             String   @id @default(cuid())
+  organizationId String   @map("organization_id")
+  amount         Int
+  currency       String   @default("VND")
+  status         String   @default("pending")
+  description    String?
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+  events       PaymentEvent[]
+
+  @@index([organizationId])
+  @@map("payment_orders")
+}
+
+model PaymentEvent {
+  id           String   @id @default(cuid())
+  orderId      String   @map("order_id")
+  eventType    String   @map("event_type")
+  payload      Json?
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  order PaymentOrder @relation(fields: [orderId], references: [id])
+
+  @@index([orderId])
+  @@map("payment_events")
+}
+
+// ──────────────────────────────────────────
+// Existing models — now with organizationId
+// ──────────────────────────────────────────
+
 model Page {
-  id          String   @id @default(cuid())
-  platform    Platform
-  name        String
-  externalId  String   @map("external_id")
-  accessToken String   @map("access_token")
+  id              String   @id @default(cuid())
+  organizationId  String   @map("organization_id")
+  platform        Platform
+  name            String
+  externalId      String   @map("external_id")
+  accessToken     String   @map("access_token")
   context         String?
   isActive        Boolean  @default(true) @map("is_active")
   metadata        Json?
   telegramGroupId String?  @map("telegram_group_id")
   userId          String   @map("user_id")
-  createdAt   DateTime @default(now()) @map("created_at")
-  updatedAt   DateTime @updatedAt @map("updated_at")
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
 
-  user           User            @relation(fields: [userId], references: [id])
+  organization   Organization        @relation(fields: [organizationId], references: [id])
+  user           User                @relation(fields: [userId], references: [id])
   campaigns      Campaign[]
   contentItems   ContentItem[]
   workspacePages WorkspacePage[]
+  memberPageGrants OrganizationMemberPage[]
 
   @@unique([platform, externalId])
+  @@index([organizationId])
   @@map("pages")
 }
 
 model Campaign {
-  id          String    @id @default(cuid())
-  name        String
-  description String?
+  id            String    @id @default(cuid())
+  organizationId String   @map("organization_id")
+  name          String
+  description   String?
   pageId        String    @map("page_id")
-  startDate   DateTime  @map("start_date")
-  endDate     DateTime? @map("end_date")
+  startDate     DateTime  @map("start_date")
+  endDate       DateTime? @map("end_date")
   isActive      Boolean   @default(true) @map("is_active")
   genLeadTime   Int       @default(30) @map("gen_lead_time")
   autoApprove   Boolean   @default(false) @map("auto_approve")
@@ -104,45 +354,50 @@ model Campaign {
   createdAt     DateTime  @default(now()) @map("created_at")
   updatedAt     DateTime  @updatedAt @map("updated_at")
 
+  organization Organization  @relation(fields: [organizationId], references: [id])
   page         Page          @relation(fields: [pageId], references: [id])
   user         User          @relation(fields: [userId], references: [id])
   contentItems ContentItem[]
 
+  @@index([organizationId])
   @@map("campaigns")
 }
 
 model ContentItem {
-  id               String        @id @default(cuid())
-  campaignId       String        @map("campaign_id")
-  pageId           String        @map("page_id")
-  scheduledAt      DateTime      @map("scheduled_at")
-  topic            String
-  notes            String?
-  contentType      ContentType   @default(IMAGE) @map("content_type")
-  aiModel          String?       @map("ai_model")
-  aiImageModel     String?       @map("ai_image_model")
-  generatedText    String?       @map("generated_text")
-  generatedImageUrl String?      @map("generated_image_url")
-  generatedImages   Json?        @map("generated_images")
-  imageDescriptions String?      @map("image_descriptions")
-  generatedVideoUrl String?      @map("generated_video_url")
-  source           ContentSource @default(AI)
-  status           ContentStatus @default(DRAFT)
-  telegramMsgId    String?       @map("telegram_msg_id")
-  socialPostId     String?       @map("social_post_id")
-  publishedAt      DateTime?     @map("published_at")
-  metrics          Json?
-  retryCount       Int           @default(0) @map("retry_count")
-  errorMessage     String?       @map("error_message")
-  createdAt        DateTime      @default(now()) @map("created_at")
-  updatedAt        DateTime      @updatedAt @map("updated_at")
+  id                String        @id @default(cuid())
+  organizationId    String        @map("organization_id")
+  campaignId        String        @map("campaign_id")
+  pageId            String        @map("page_id")
+  scheduledAt       DateTime      @map("scheduled_at")
+  topic             String
+  notes             String?
+  contentType       ContentType   @default(IMAGE) @map("content_type")
+  aiModel           String?       @map("ai_model")
+  aiImageModel      String?       @map("ai_image_model")
+  generatedText     String?       @map("generated_text")
+  generatedImageUrl String?       @map("generated_image_url")
+  generatedImages   Json?         @map("generated_images")
+  imageDescriptions String?       @map("image_descriptions")
+  generatedVideoUrl String?       @map("generated_video_url")
+  source            ContentSource @default(AI)
+  status            ContentStatus @default(DRAFT)
+  telegramMsgId     String?       @map("telegram_msg_id")
+  socialPostId      String?       @map("social_post_id")
+  publishedAt       DateTime?     @map("published_at")
+  metrics           Json?
+  retryCount        Int           @default(0) @map("retry_count")
+  errorMessage      String?       @map("error_message")
+  createdAt         DateTime      @default(now()) @map("created_at")
+  updatedAt         DateTime      @updatedAt @map("updated_at")
 
+  organization     Organization      @relation(fields: [organizationId], references: [id])
   campaign         Campaign          @relation(fields: [campaignId], references: [id])
   page             Page              @relation(fields: [pageId], references: [id])
   approvalLogs     ApprovalLog[]
   revisionSessions RevisionSession[]
   revisions        ContentRevision[]
 
+  @@index([organizationId])
   @@index([status])
   @@index([scheduledAt])
   @@index([pageId, scheduledAt])
@@ -164,18 +419,22 @@ model ApprovalLog {
 }
 
 model Workspace {
-  id          String   @id @default(cuid())
-  name        String
-  slug        String   @unique
-  description String?
-  color       String?
-  icon        String?
-  createdBy   String?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id             String   @id @default(cuid())
+  organizationId String   @map("organization_id")
+  name           String
+  slug           String   @unique
+  description    String?
+  color          String?
+  icon           String?
+  createdBy      String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
 
+  organization   Organization @relation(fields: [organizationId], references: [id])
   workspacePages WorkspacePage[]
+  memberWorkspaceGrants OrganizationMemberWorkspace[]
 
+  @@index([organizationId])
   @@map("workspaces")
 }
 
@@ -191,21 +450,6 @@ model WorkspacePage {
   @@index([workspaceId])
   @@index([pageId])
   @@map("workspace_pages")
-}
-
-enum RevisionType {
-  TEXT
-  IMAGE
-  VIDEO
-  TEXT_AND_MEDIA
-}
-
-enum RevisionStatus {
-  WAITING_FEEDBACK
-  PROCESSING
-  COMPLETED
-  CANCELLED
-  EXPIRED
 }
 
 model RevisionSession {
@@ -241,21 +485,25 @@ model AppSetting {
 }
 
 model ActivityLog {
-  id          String   @id @default(cuid())
-  action      String
-  category    String
-  status      String   @default("running")
-  summary     String
-  detail      String?
-  entityType  String?  @map("entity_type")
-  entityId    String?  @map("entity_id")
-  entityLabel String?  @map("entity_label")
-  progress    Int?
-  total       Int?
-  errorCode   String?  @map("error_code")
-  createdAt   DateTime @default(now()) @map("created_at")
-  updatedAt   DateTime @updatedAt @map("updated_at")
+  id             String   @id @default(cuid())
+  organizationId String?  @map("organization_id")
+  action         String
+  category       String
+  status         String   @default("running")
+  summary        String
+  detail         String?
+  entityType     String?  @map("entity_type")
+  entityId       String?  @map("entity_id")
+  entityLabel    String?  @map("entity_label")
+  progress       Int?
+  total          Int?
+  errorCode      String?  @map("error_code")
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
 
+  organization Organization? @relation(fields: [organizationId], references: [id])
+
+  @@index([organizationId])
   @@index([createdAt])
   @@index([category])
   @@index([status])

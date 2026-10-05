@@ -4,13 +4,17 @@ import type { TextProvider, TextGeneratorOptions, GeneratedContent } from '../..
 
 export class ClaudeTextProvider implements TextProvider {
   name = 'claude';
-  private client: Anthropic;
 
-  constructor() {
-    this.client = new Anthropic({ apiKey: config.ai.text.anthropicApiKey });
+  private getClient(apiKey?: string): Anthropic {
+    const key = apiKey || config.ai.text.anthropicApiKey;
+    if (!key) throw new Error('ANTHROPIC_API_KEY chưa được cấu hình cho tổ chức này');
+    return new Anthropic({ apiKey: key });
   }
 
   async generate(options: TextGeneratorOptions): Promise<GeneratedContent> {
+    const client = this.getClient(options.apiKey);
+    const model = options.model || config.ai.text.defaultModel;
+
     const systemPrompt = `Bạn là chuyên gia content marketing mạng xã hội tại Việt Nam.
 Viết content hấp dẫn, tự nhiên, phù hợp với nền tảng mạng xã hội.
 Luôn trả về JSON với format: {"text": "...", "hashtags": ["..."], "cta": "..."}
@@ -18,8 +22,8 @@ Chỉ trả về JSON, không thêm gì khác.`;
 
     const userPrompt = this.buildPrompt(options);
 
-    const response = await this.client.messages.create({
-      model: config.ai.text.defaultModel,
+    const response = await client.messages.create({
+      model,
       max_tokens: 1024,
       system: systemPrompt,
       messages: [{ role: 'user', content: userPrompt }],
@@ -32,7 +36,8 @@ Chỉ trả về JSON, không thêm gì khác.`;
   async testConnection(): Promise<{ ok: boolean; error?: string }> {
     try {
       if (!config.ai.text.anthropicApiKey) return { ok: false, error: 'ANTHROPIC_API_KEY chưa được cấu hình' };
-      await this.client.messages.countTokens({ model: config.ai.text.defaultModel || 'claude-sonnet-4-20250514', messages: [{ role: 'user', content: 'test' }] });
+      const client = this.getClient();
+      await client.messages.countTokens({ model: config.ai.text.defaultModel || 'claude-sonnet-4-20250514', messages: [{ role: 'user', content: 'test' }] });
       return { ok: true };
     } catch (e) {
       return { ok: false, error: e instanceof Error ? e.message : 'Unknown error' };

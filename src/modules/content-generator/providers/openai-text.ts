@@ -4,15 +4,19 @@ import type { TextProvider, TextGeneratorOptions, GeneratedContent } from '../..
 
 export class OpenAITextProvider implements TextProvider {
   name = 'openai';
-  private client: OpenAI;
 
-  constructor() {
-    this.client = new OpenAI({ apiKey: config.ai.text.openaiApiKey });
+  private getClient(apiKey?: string): OpenAI {
+    const key = apiKey || config.ai.text.openaiApiKey;
+    if (!key) throw new Error('OPENAI_API_KEY chưa được cấu hình cho tổ chức này');
+    return new OpenAI({ apiKey: key });
   }
 
   async generate(options: TextGeneratorOptions): Promise<GeneratedContent> {
-    const response = await this.client.chat.completions.create({
-      model: config.ai.text.defaultModel.startsWith('gpt') ? config.ai.text.defaultModel : 'gpt-5-mini',
+    const client = this.getClient(options.apiKey);
+    const model = options.model || (config.ai.text.defaultModel.startsWith('gpt') ? config.ai.text.defaultModel : 'gpt-5-mini');
+
+    const response = await client.chat.completions.create({
+      model,
       messages: [
         {
           role: 'system',
@@ -36,7 +40,8 @@ Chỉ trả về JSON, không thêm gì khác.`,
   async testConnection(): Promise<{ ok: boolean; error?: string }> {
     try {
       if (!config.ai.text.openaiApiKey) return { ok: false, error: 'OPENAI_API_KEY chưa được cấu hình' };
-      await this.client.models.list();
+      const client = this.getClient();
+      await client.models.list();
       return { ok: true };
     } catch (e) {
       return { ok: false, error: e instanceof Error ? e.message : 'Unknown error' };

@@ -1,6 +1,7 @@
 import { Server as HttpServer } from 'http';
 import { Server, Socket } from 'socket.io';
 import jwt from 'jsonwebtoken';
+import { prisma } from '../utils/db';
 import { logger } from '../utils/logger';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'mkttools-dev-secret-change-in-production';
@@ -11,6 +12,7 @@ export interface ContentEvent {
   contentId: string;
   pageId: string;
   campaignId?: string;
+  organizationId?: string;
   operation: 'generate' | 'publish' | 'approve' | 'delete' | 'bulk_generate' | 'bulk_publish' | 'bulk_approve' | 'bulk_delete';
   status: 'started' | 'progress' | 'completed' | 'failed';
   step?: string;
@@ -41,6 +43,7 @@ export interface ActivityEvent {
   progress?: number;
   total?: number;
   errorCode?: string;
+  organizationId?: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -71,21 +74,43 @@ export function initSocketIO(server: HttpServer): Server {
     socket.join(`user:${userId}`);
     logger.debug({ userId, socketId: socket.id }, 'Socket connected');
 
-    socket.on('subscribe:page', (pageId: string) => {
-      if (typeof pageId === 'string' && pageId.length < 100) {
-        socket.join(`page:${pageId}`);
-      }
+    socket.on('subscribe:org', async (organizationId: string) => {
+      if (typeof organizationId !== 'string' || organizationId.length > 100) return;
+      const member = await prisma.organizationMember.findFirst({
+        where: { userId, organizationId, isActive: true },
+        select: { id: true },
+      });
+      if (!member) return;
+      (socket as any).organizationId = organizationId;
+      socket.join(`org:${organizationId}`);
+    });
+
+    socket.on('subscribe:page', async (pageId: string) => {
+      if (typeof pageId !== 'string' || pageId.length > 100) return;
+      const orgId = (socket as any).organizationId;
+      if (!orgId) return;
+      const page = await prisma.page.findUnique({
+        where: { id: pageId },
+        select: { organizationId: true },
+      });
+      if (!page || page.organizationId !== orgId) return;
+      socket.join(`page:${pageId}`);
     });
 
     socket.on('unsubscribe:page', (pageId: string) => {
       socket.leave(`page:${pageId}`);
     });
 
-    socket.on('subscribe:scope', (data: { type: string; pageIds: string[] }) => {
-      if (data?.pageIds?.length) {
-        for (const pid of data.pageIds.slice(0, 500)) {
-          socket.join(`page:${pid}`);
-        }
+    socket.on('subscribe:scope', async (data: { type: string; pageIds: string[] }) => {
+      if (!data?.pageIds?.length) return;
+      const orgId = (socket as any).organizationId;
+      if (!orgId) return;
+      const validPages = await prisma.page.findMany({
+        where: { id: { in: data.pageIds.slice(0, 500) }, organizationId: orgId },
+        select: { id: true },
+      });
+      for (const p of validPages) {
+        socket.join(`page:${p.id}`);
       }
     });
 
@@ -104,7 +129,9 @@ export function getIO(): Server | null {
 
 export function emitActivity(event: ActivityEvent) {
   if (!io) return;
-  io.emit('activity:update', event);
+  if (event.organizationId) {
+    io.to(`org:${event.organizationId}`).emit('activity:update', event);
+  }
 }
 
 export function emitContentUpdate(event: ContentEvent) {
@@ -112,7 +139,9 @@ export function emitContentUpdate(event: ContentEvent) {
   if (event.pageId) {
     io.to(`page:${event.pageId}`).emit('content:update', event);
   }
-  io.emit('content:update:global', event);
+  if (event.organizationId) {
+    io.to(`org:${event.organizationId}`).emit('content:update:global', event);
+  }
 }
 
 export function emitStatusCounts(pageId: string, counts: Record<string, number>) {

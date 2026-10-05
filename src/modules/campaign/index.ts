@@ -1,13 +1,15 @@
-import { Router, Request, Response } from 'express';
+import { Router, Response } from 'express';
 import multer from 'multer';
 import * as XLSX from 'xlsx';
 import { prisma } from '../../utils/db';
 import { parseExcelToSchedule } from './excel-parser';
 import { resolvePageIds } from '../workspace';
+import { OrgRequest, requireOrganization, requireOrgRole, getAccessiblePageIds } from '../../middleware/organization';
+
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } });
 const router = Router();
 
-router.get('/template', (req: Request, res: Response) => {
+router.get('/template', (req: OrgRequest, res: Response) => {
   const type = req.query.type === 'ai' ? 'ai' : 'ready';
   let headers: string[];
   let examples: string[][];
@@ -42,13 +44,23 @@ router.get('/template', (req: Request, res: Response) => {
   res.send(buf);
 });
 
-router.post('/import', upload.single('file'), async (req: Request, res: Response) => {
+router.post('/import', requireOrganization, upload.single('file'), async (req: OrgRequest, res: Response) => {
   try {
     if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
 
-    const { pageId, campaignId, campaignName, userId } = req.body;
-    if (!pageId || !userId) {
-      return res.status(400).json({ error: 'pageId and userId required' });
+    const { pageId, campaignId, campaignName } = req.body;
+    if (!pageId) {
+      return res.status(400).json({ error: 'pageId required' });
+    }
+
+    const page = await prisma.page.findUnique({ where: { id: pageId }, select: { organizationId: true } });
+    if (!page || page.organizationId !== req.organizationId) {
+      return res.status(404).json({ error: 'Page not found in this organization' });
+    }
+
+    const accessiblePages = await getAccessiblePageIds(req);
+    if (accessiblePages && !accessiblePages.includes(pageId)) {
+      return res.status(403).json({ error: 'No access to this page' });
     }
 
     const rows = parseExcelToSchedule(req.file.buffer);
@@ -56,18 +68,21 @@ router.post('/import', upload.single('file'), async (req: Request, res: Response
 
     let campaign: { id: string; name: string };
     if (campaignId) {
-      const existing = await prisma.campaign.findUnique({ where: { id: campaignId } });
-      if (!existing) return res.status(404).json({ error: 'Campaign not found' });
+      const existing = await prisma.campaign.findUnique({ where: { id: campaignId }, select: { id: true, name: true, organizationId: true } });
+      if (!existing || existing.organizationId !== req.organizationId) {
+        return res.status(404).json({ error: 'Campaign not found' });
+      }
       campaign = existing;
     } else {
       const name = campaignName || `Import ${new Date().toLocaleDateString('vi-VN')}`;
       campaign = await prisma.campaign.create({
         data: {
+          organizationId: req.organizationId!,
           name,
           pageId,
           startDate: rows[0].scheduledAt,
           endDate: rows[rows.length - 1].scheduledAt,
-          userId,
+          userId: req.userId!,
         },
       });
     }
@@ -77,6 +92,7 @@ router.post('/import', upload.single('file'), async (req: Request, res: Response
       const hasContent = !!(row.generatedText || row.imageUrl || row.videoUrl);
       await prisma.contentItem.create({
         data: {
+          organizationId: req.organizationId!,
           campaignId: campaign.id,
           pageId,
           scheduledAt: row.scheduledAt,
@@ -105,18 +121,27 @@ router.post('/import', upload.single('file'), async (req: Request, res: Response
   }
 });
 
-router.get('/', async (req: Request, res: Response) => {
+router.get('/', requireOrganization, async (req: OrgRequest, res: Response) => {
   const { scopeType, scopeId, pageId } = req.query;
+  const accessiblePages = await getAccessiblePageIds(req);
 
-  const where: Record<string, unknown> = {};
+  const where: Record<string, unknown> = { organizationId: req.organizationId! };
 
   if (pageId) {
-    where.pageId = String(pageId);
+    const pid = String(pageId);
+    if (accessiblePages && !accessiblePages.includes(pid)) {
+      return res.json([]);
+    }
+    where.pageId = pid;
   } else if (scopeType && scopeType !== 'all') {
-    const scopePageIds = await resolvePageIds(String(scopeType), scopeId ? String(scopeId) : undefined);
+    const scopePageIds = await resolvePageIds(String(scopeType), scopeId ? String(scopeId) : undefined, req.organizationId!, accessiblePages);
     if (scopePageIds.length) {
       where.pageId = { in: scopePageIds };
+    } else {
+      return res.json([]);
     }
+  } else if (accessiblePages) {
+    where.pageId = { in: accessiblePages };
   }
 
   const campaigns = await prisma.campaign.findMany({
@@ -130,12 +155,24 @@ router.get('/', async (req: Request, res: Response) => {
   res.json(campaigns);
 });
 
-router.post('/', async (req: Request, res: Response) => {
+router.post('/', requireOrganization, requireOrgRole('OWNER', 'ADMIN', 'MANAGER'), async (req: OrgRequest, res: Response) => {
   try {
-    const { name, description, pageId, startDate, endDate, genLeadTime, autoApprove, userId } = req.body;
+    const { name, description, pageId, startDate, endDate, genLeadTime, autoApprove } = req.body;
     if (!name || !pageId) return res.status(400).json({ error: 'name and pageId required' });
+
+    const page = await prisma.page.findUnique({ where: { id: pageId }, select: { organizationId: true } });
+    if (!page || page.organizationId !== req.organizationId) {
+      return res.status(404).json({ error: 'Page not found in this organization' });
+    }
+
+    const accessiblePages = await getAccessiblePageIds(req);
+    if (accessiblePages && !accessiblePages.includes(pageId)) {
+      return res.status(403).json({ error: 'No access to this page' });
+    }
+
     const campaign = await prisma.campaign.create({
       data: {
+        organizationId: req.organizationId!,
         name,
         description: description || null,
         pageId,
@@ -143,7 +180,7 @@ router.post('/', async (req: Request, res: Response) => {
         endDate: endDate ? new Date(endDate) : null,
         genLeadTime: genLeadTime ?? 30,
         autoApprove: autoApprove ?? false,
-        userId: userId || (req as any).user?.id,
+        userId: req.userId!,
       },
       include: {
         page: { select: { id: true, name: true, platform: true, externalId: true } },
@@ -156,7 +193,7 @@ router.post('/', async (req: Request, res: Response) => {
   }
 });
 
-router.get('/:id', async (req: Request, res: Response) => {
+router.get('/:id', requireOrganization, async (req: OrgRequest, res: Response) => {
   const campaign = await prisma.campaign.findUnique({
     where: { id: String(req.params.id) },
     include: {
@@ -167,13 +204,20 @@ router.get('/:id', async (req: Request, res: Response) => {
       },
     },
   });
-  if (!campaign) return res.status(404).json({ error: 'Campaign not found' });
+  if (!campaign || campaign.organizationId !== req.organizationId) {
+    return res.status(404).json({ error: 'Campaign not found' });
+  }
   res.json(campaign);
 });
 
-router.put('/:id', async (req: Request, res: Response) => {
+router.put('/:id', requireOrganization, requireOrgRole('OWNER', 'ADMIN', 'MANAGER'), async (req: OrgRequest, res: Response) => {
   try {
     const id = String(req.params.id);
+    const existing = await prisma.campaign.findUnique({ where: { id }, select: { organizationId: true } });
+    if (!existing || existing.organizationId !== req.organizationId) {
+      return res.status(404).json({ error: 'Campaign not found' });
+    }
+
     const { name, description, genLeadTime, autoApprove, startDate, endDate } = req.body;
     const data: Record<string, unknown> = {};
     if (name !== undefined) data.name = name;
@@ -196,9 +240,14 @@ router.put('/:id', async (req: Request, res: Response) => {
   }
 });
 
-router.delete('/:id', async (req: Request, res: Response) => {
-  await prisma.contentItem.deleteMany({ where: { campaignId: String(req.params.id) } });
-  await prisma.campaign.delete({ where: { id: String(req.params.id) } });
+router.delete('/:id', requireOrganization, requireOrgRole('OWNER', 'ADMIN'), async (req: OrgRequest, res: Response) => {
+  const id = String(req.params.id);
+  const existing = await prisma.campaign.findUnique({ where: { id }, select: { organizationId: true } });
+  if (!existing || existing.organizationId !== req.organizationId) {
+    return res.status(404).json({ error: 'Campaign not found' });
+  }
+  await prisma.contentItem.deleteMany({ where: { campaignId: id } });
+  await prisma.campaign.delete({ where: { id } });
   res.json({ success: true });
 });
 

@@ -16,6 +16,7 @@ interface LogOptions {
   total?: number;
   status?: Status;
   errorCode?: string;
+  organizationId?: string;
 }
 
 const SAFE_ERROR_MAP: Record<string, string> = {
@@ -57,6 +58,7 @@ export async function logActivity(opts: LogOptions): Promise<string> {
         progress: opts.progress,
         total: opts.total,
         errorCode: opts.errorCode,
+        organizationId: opts.organizationId || null,
       },
     });
     return record.id;

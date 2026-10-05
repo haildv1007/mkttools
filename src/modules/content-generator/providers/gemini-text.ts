@@ -5,14 +5,17 @@ export class GeminiTextProvider implements TextProvider {
   name = 'gemini';
 
   async generate(options: TextGeneratorOptions): Promise<GeneratedContent> {
+    const apiKey = options.apiKey || config.ai.text.geminiApiKey;
+    if (!apiKey) throw new Error('GEMINI_API_KEY chưa được cấu hình cho tổ chức này');
+
     const systemPrompt = `Bạn là chuyên gia content marketing mạng xã hội tại Việt Nam.
 Viết content hấp dẫn, tự nhiên, phù hợp với nền tảng mạng xã hội.
 Trả về JSON với format: {"text": "nội dung bài đăng", "hashtags": ["tag1", "tag2"], "cta": "câu kêu gọi hành động"}`;
 
     const userPrompt = this.buildPrompt(options);
 
-    const model = config.ai.text.defaultModel || 'gemini-3.8-flash';
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${config.ai.text.geminiApiKey}`;
+    const model = options.model || config.ai.text.defaultModel || 'gemini-3.8-flash';
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
 
     const response = await fetch(url, {
       method: 'POST',
