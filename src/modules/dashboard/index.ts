@@ -1139,7 +1139,7 @@ const CONTENT_LIST_SELECT = {
   generatedVideoUrl: true,
   pageId: true,
   campaignId: true,
-  page: { select: { id: true, name: true, platform: true } },
+  page: { select: { id: true, name: true, platform: true, externalId: true } },
   campaign: { select: { id: true, name: true } },
 } as const;
 

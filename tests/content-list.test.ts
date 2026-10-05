@@ -74,6 +74,14 @@ describe('Content list optimization', () => {
       expect(selectBlock).toContain('scheduledAt: true');
       expect(selectBlock).toContain('createdAt: true');
       expect(selectBlock).toContain('generatedImageUrl: true');
+      expect(selectBlock).toContain('externalId: true');
+    });
+
+    it('page avatar has a Facebook icon fallback when the Graph image fails', () => {
+      const html = fs.readFileSync('public/pages/content.html', 'utf8');
+      expect(html).toContain("item.page.externalId+'/picture?type=small'");
+      expect(html).toContain("this.nextElementSibling.style.display='inline-flex'");
+      expect(html).toContain('ri-facebook-circle-fill');
     });
   });
 

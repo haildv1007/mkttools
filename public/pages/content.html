@@ -23,7 +23,8 @@
                 </button>
                 <template x-for="p in scopePages" :key="p.id">
                   <button @click="contentFilter.pageId=p.id; contentPageDrop=false; dgPage=1; loadContent()" class="w-full flex items-center gap-2 px-3 py-2 text-sm hover:bg-gray-50 text-left" :class="contentFilter.pageId===p.id && 'bg-brand-50 text-brand-700'">
-                    <img x-show="p.platform==='FACEBOOK'" :src="'https://graph.facebook.com/'+p.externalId+'/picture?type=small'" class="w-4 h-4 rounded-full shrink-0" onerror="this.style.display='none'">
+                    <img x-show="p.platform==='FACEBOOK' && p.externalId" :src="'https://graph.facebook.com/'+p.externalId+'/picture?type=small'" class="w-4 h-4 rounded-full shrink-0 object-cover" onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-flex'">
+                    <i x-show="p.platform==='FACEBOOK' && !p.externalId" class="ri-facebook-circle-fill w-4 h-4 shrink-0 items-center justify-center text-[#1877f2] text-base"></i>
                     <span class="truncate" x-text="p.name"></span>
                   </button>
                 </template>
@@ -384,8 +385,10 @@
                           <!-- Page -->
                           <template x-if="col.key==='page'">
                             <div class="flex items-center gap-1 truncate">
-                              <img x-show="item.page?.platform==='FACEBOOK'" :src="'https://graph.facebook.com/'+item.page?.externalId+'/picture?type=small'"
-                                class="w-4 h-4 rounded-full object-cover flex-shrink-0 bg-gray-100" onerror="this.style.display='none'">
+                              <img x-show="item.page?.platform==='FACEBOOK' && item.page?.externalId" :src="'https://graph.facebook.com/'+item.page.externalId+'/picture?type=small'"
+                                class="w-4 h-4 rounded-full object-cover flex-shrink-0" onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-flex'">
+                              <i x-show="item.page?.platform==='FACEBOOK' && !item.page?.externalId" class="ri-facebook-circle-fill w-4 h-4 flex-shrink-0 items-center justify-center text-[#1877f2] text-base"></i>
+                              <i x-show="item.page && item.page.platform!=='FACEBOOK'" class="ri-pages-line w-4 h-4 flex-shrink-0 inline-flex items-center justify-center text-gray-400"></i>
                               <span class="truncate" x-text="item.page?.name" :title="item.page?.name"></span>
                             </div>
                           </template>
@@ -843,7 +846,8 @@
                   <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium" :class="statusClass(drawerItem.status)" x-text="statusLabel(drawerItem.status)"></span>
                   <span class="text-xs text-gray-400">·</span>
                   <span class="text-xs text-gray-600 flex items-center gap-1">
-                    <img x-show="drawerItem.page?.platform==='FACEBOOK'" :src="'https://graph.facebook.com/'+drawerItem.page?.externalId+'/picture?type=small'" class="w-3.5 h-3.5 rounded-full" onerror="this.style.display='none'">
+                    <img x-show="drawerItem.page?.platform==='FACEBOOK' && drawerItem.page?.externalId" :src="'https://graph.facebook.com/'+drawerItem.page.externalId+'/picture?type=small'" class="w-3.5 h-3.5 rounded-full object-cover" onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-flex'">
+                    <i x-show="drawerItem.page?.platform==='FACEBOOK' && !drawerItem.page?.externalId" class="ri-facebook-circle-fill w-3.5 h-3.5 items-center justify-center text-[#1877f2]"></i>
                     <span x-text="drawerItem.page?.name"></span>
                   </span>
                   <span class="text-xs text-gray-400">·</span>
