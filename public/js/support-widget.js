@@ -25,11 +25,11 @@
       const root = document.createElement('div');
       root.className = 'mkt-support';
       root.innerHTML = '<section class="mkt-support__panel" id="mkt-support-panel" role="dialog" aria-modal="false" aria-labelledby="mkt-support-title">'
-        + '<header class="mkt-support__head"><span class="mkt-support__head-icon">' + icons.chat + '</span><div class="mkt-support__heading"><h2 class="mkt-support__title" id="mkt-support-title">' + escapeHtml(support.title || 'Hỗ trợ khách hàng') + '</h2><div class="mkt-support__status"><span class="mkt-support__status-dot"></span>Đang trực tuyến</div></div><button class="mkt-support__close" type="button" aria-label="Đóng hỗ trợ">×</button></header>'
-        + '<div class="mkt-support__body"><div class="mkt-support__hero">' + icons.chat + '</div><h3>Liên hệ hỗ trợ</h3><p class="mkt-support__subtitle">' + escapeHtml(support.subtitle || 'Đội ngũ luôn sẵn sàng hỗ trợ bạn') + '</p><div class="mkt-support__channels">'
+        + '<header class="mkt-support__head"><span class="mkt-support__head-icon">' + icons.chat + '</span><div class="mkt-support__heading"><h2 class="mkt-support__title" id="mkt-support-title">' + escapeHtml(support.title || 'Hỗ trợ khách hàng') + '</h2><p class="mkt-support__subtitle">' + escapeHtml(support.subtitle || 'Đội ngũ luôn sẵn sàng hỗ trợ bạn') + '</p></div><button class="mkt-support__close" type="button" aria-label="Đóng hỗ trợ">×</button></header>'
+        + '<div class="mkt-support__status"><span class="mkt-support__status-dot"></span>Đang trực tuyến</div><div class="mkt-support__channels">'
         + channels.map((item) => '<a class="mkt-support__channel mkt-support__channel--' + item.id + '" href="' + escapeHtml(safeUrl(item.url)) + '" target="_blank" rel="noopener noreferrer"><span class="mkt-support__channel-icon">' + icons[item.id] + '</span><span class="mkt-support__channel-text"><strong>' + escapeHtml(item.label || item.id) + '</strong><span>' + hints[item.id] + '</span></span><span class="mkt-support__arrow" aria-hidden="true">›</span></a>').join('')
-        + '</div><p class="mkt-support__foot">Thường phản hồi trong vài phút ⚡</p></div></section>'
-        + '<button class="mkt-support__launcher" type="button" aria-label="Mở hỗ trợ" aria-controls="mkt-support-panel" aria-expanded="false">' + icons.chat + '<span class="mkt-support__online"></span></button>';
+        + '</div></section>'
+        + '<button class="mkt-support__launcher" type="button" aria-label="Mở hỗ trợ" aria-controls="mkt-support-panel" aria-expanded="false">' + icons.chat + '<span>Hỗ trợ</span></button>';
       document.body.appendChild(root);
       const launcher = root.querySelector('.mkt-support__launcher');
       const close = root.querySelector('.mkt-support__close');
