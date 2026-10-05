@@ -44,11 +44,11 @@ export async function publishToFacebook(options: FacebookPostOptions): Promise<P
       const photoIds: string[] = [];
       for (const img of options.images) {
         const localPath = img.localPath && fs.existsSync(img.localPath) ? img.localPath : null;
-        if (localPath) {
+        if (img.url) {
+          photoIds.push(await uploadUnpublishedPhotoUrl(options.pageId, options.accessToken, img.url));
+        } else if (localPath) {
           const id = await uploadUnpublishedPhoto(options.pageId, options.accessToken, localPath);
           photoIds.push(id);
-        } else {
-          photoIds.push(await uploadUnpublishedPhotoUrl(options.pageId, options.accessToken, img.url));
         }
       }
       if (photoIds.length === 0) {
@@ -76,20 +76,7 @@ export async function publishToFacebook(options: FacebookPostOptions): Promise<P
     let fetchBody: string | FormData | URLSearchParams;
     let headers: Record<string, string> = {};
 
-    if (options.imageLocalPath && fs.existsSync(options.imageLocalPath)) {
-      // Upload image file directly to Facebook
-      endpoint = `${GRAPH_API}/${options.pageId}/photos`;
-      const form = new FormData();
-      const fileBuffer = fs.readFileSync(options.imageLocalPath);
-      form.append('source', new Blob([fileBuffer], { type: 'image/png' }), 'image.png');
-      form.append('caption', options.message);
-      form.append('access_token', options.accessToken);
-      if (options.scheduledTime) {
-        form.append('published', 'false');
-        form.append('scheduled_publish_time', String(options.scheduledTime));
-      }
-      fetchBody = form;
-    } else if (options.imageUrl) {
+    if (options.imageUrl) {
       await verifyPublicImageUrl(options.imageUrl);
       endpoint = `${GRAPH_API}/${options.pageId}/photos`;
       const body: Record<string, string> = {
@@ -103,6 +90,19 @@ export async function publishToFacebook(options: FacebookPostOptions): Promise<P
       }
       headers['Content-Type'] = 'application/x-www-form-urlencoded';
       fetchBody = new URLSearchParams(body);
+    } else if (options.imageLocalPath && fs.existsSync(options.imageLocalPath)) {
+      // Upload image file directly to Facebook
+      endpoint = `${GRAPH_API}/${options.pageId}/photos`;
+      const form = new FormData();
+      const fileBuffer = fs.readFileSync(options.imageLocalPath);
+      form.append('source', new Blob([fileBuffer], { type: 'image/png' }), 'image.png');
+      form.append('caption', options.message);
+      form.append('access_token', options.accessToken);
+      if (options.scheduledTime) {
+        form.append('published', 'false');
+        form.append('scheduled_publish_time', String(options.scheduledTime));
+      }
+      fetchBody = form;
     } else {
       endpoint = `${GRAPH_API}/${options.pageId}/feed`;
       const body: Record<string, string> = {
