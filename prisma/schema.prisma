@@ -425,6 +425,11 @@ model ContentItem {
   @@index([pageId, scheduledAt])
   @@index([organizationId, status])
   @@index([organizationId, createdAt])
+  @@index([organizationId, scheduledAt])
+  @@index([organizationId, pageId, status])
+  @@index([campaignId])
+  @@index([source])
+  @@index([organizationId, status, publishedAt])
   @@map("content_items")
 }
 

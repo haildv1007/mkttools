@@ -1,5 +1,6 @@
 import * as path from 'path';
 import { prisma } from '../../utils/db';
+import { decryptPageToken } from '../../utils/crypto';
 import { publishToFacebook } from './providers/facebook';
 import { extractCleanText } from '../../utils/clean-text';
 import type { PublishResult } from '../../types';
@@ -41,9 +42,10 @@ export async function publishContent(contentItemId: string, expectedOrganization
         }
       }
       const images = multiImages && multiImages.length > 1 ? multiImages : undefined;
+      const pageAccessToken = decryptPageToken(item.page.accessToken);
       result = await publishToFacebook({
         pageId: item.page.externalId,
-        accessToken: item.page.accessToken,
+        accessToken: pageAccessToken,
         message,
         imageUrl: images ? undefined : imageUrl,
         imageLocalPath: images ? undefined : imageLocalPath,

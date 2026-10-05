@@ -1,0 +1,100 @@
+<!-- Customer organization settings -->
+<div x-show="page==='settings' && currentOrganization?.role==='OWNER'" class="settings-page fade-in">
+  <header class="settings-header">
+    <div class="flex items-center gap-4 min-w-0">
+      <div class="settings-header-icon"><i class="ri-settings-3-fill"></i></div>
+      <div class="min-w-0"><h2 class="text-2xl font-bold tracking-tight text-gray-950">Cài đặt hệ thống</h2><p class="mt-0.5 text-sm text-gray-500">Cấu hình các dịch vụ và tích hợp cho tổ chức hiện tại</p></div>
+    </div>
+    <button @click="saveSettings()" :disabled="settingsSaving" class="settings-primary-button shrink-0"><i :class="settingsSaving ? 'ri-loader-4-line animate-spin' : 'ri-save-3-line'"></i><span x-text="settingsSaving ? 'Đang lưu...' : 'Lưu thay đổi'"></span></button>
+  </header>
+
+  <div class="settings-stack">
+    <section class="settings-section-card">
+      <div class="settings-section-heading"><div class="settings-section-icon settings-section-icon--ai"><i class="ri-sparkling-2-fill"></i></div><div><h3>Cấu hình AI</h3><p>Thiết lập nhà cung cấp và model AI để tạo nội dung và hình ảnh</p></div></div>
+      <div class="settings-ai-grid">
+        <template x-for="opDef in [{op:'TEXT_GENERATION',label:'AI Text (Viết bài)',description:'Chọn nhà cung cấp và model cho AI tạo nội dung',icon:'ri-quill-pen-line'},{op:'IMAGE_GENERATION',label:'AI Image (Tạo ảnh)',description:'Chọn nhà cung cấp và model cho AI tạo hình ảnh',icon:'ri-image-line'}]" :key="opDef.op">
+          <div class="settings-inner-card">
+            <div class="flex items-start gap-3"><div class="settings-mini-icon"><i :class="opDef.icon"></i></div><div><h4 class="text-sm font-semibold text-gray-900" x-text="opDef.label"></h4><p class="mt-0.5 text-xs leading-5 text-gray-400" x-text="opDef.description"></p></div></div>
+            <div class="mt-5 space-y-4">
+              <div class="settings-select" @click.outside="settingsDropdown = settingsDropdown === opDef.op+'-provider' ? '' : settingsDropdown">
+                <label class="settings-label">Nhà cung cấp</label>
+                <button type="button" class="settings-select-trigger" role="combobox" aria-haspopup="listbox" :aria-expanded="settingsDropdown===opDef.op+'-provider'" @click="settingsDropdown = settingsDropdown===opDef.op+'-provider' ? '' : opDef.op+'-provider'" @keydown.escape.stop="settingsDropdown=''">
+                  <span x-text="aiProviderName(orgOpForm[opDef.op].provider)"></span><i class="ri-arrow-down-s-line" :class="settingsDropdown===opDef.op+'-provider' && 'rotate-180'"></i>
+                </button>
+                <div x-show="settingsDropdown===opDef.op+'-provider'" x-transition.opacity.duration.100ms x-cloak class="settings-select-menu" role="listbox">
+                  <template x-for="provider in aiProvidersForOperation(opDef.op)" :key="provider"><button type="button" class="settings-select-option" :class="orgOpForm[opDef.op].provider===provider && 'is-selected'" @click="selectOrgProvider(opDef.op, provider)" role="option" :aria-selected="orgOpForm[opDef.op].provider===provider"><span class="settings-option-icon" x-text="provider==='gemini' ? 'G' : provider==='openai' ? '◎' : 'AI'"></span><span x-text="aiProviderName(provider)"></span><i x-show="orgOpForm[opDef.op].provider===provider" class="ri-check-line ml-auto"></i></button></template>
+                </div>
+              </div>
+              <div>
+                <div class="flex items-center justify-between gap-3"><label class="settings-label">Model</label><button type="button" @click="toggleManualModel(opDef.op)" class="text-[11px] font-medium text-brand-600 hover:text-brand-700" x-text="orgOpForm[opDef.op].useManualModel ? 'Chọn từ danh sách' : 'Nhập Model ID khác'"></button></div>
+                <div x-show="!orgOpForm[opDef.op].useManualModel" class="settings-select" @click.outside="settingsDropdown = settingsDropdown === opDef.op+'-model' ? '' : settingsDropdown">
+                  <button type="button" class="settings-select-trigger" role="combobox" aria-haspopup="listbox" :aria-expanded="settingsDropdown===opDef.op+'-model'" @click="settingsDropdown = settingsDropdown===opDef.op+'-model' ? '' : opDef.op+'-model'" @keydown.escape.stop="settingsDropdown=''">
+                    <span :class="!orgOpForm[opDef.op].model && 'text-gray-400'" x-text="selectedModelLabel(opDef.op)"></span><i class="ri-arrow-down-s-line" :class="settingsDropdown===opDef.op+'-model' && 'rotate-180'"></i>
+                  </button>
+                  <div x-show="settingsDropdown===opDef.op+'-model'" x-transition.opacity.duration.100ms x-cloak class="settings-select-menu settings-select-menu--models" role="listbox">
+                    <button type="button" class="settings-select-option" :class="!orgOpForm[opDef.op].model && 'is-selected'" @click="selectOrgModel(opDef.op, '')"><span class="settings-option-icon"><i class="ri-subtract-line"></i></span><span>Chọn model</span><i x-show="!orgOpForm[opDef.op].model" class="ri-check-line ml-auto"></i></button>
+                    <template x-for="model in orgOpModelOptions[opDef.op]" :key="model.id"><button type="button" class="settings-select-option" :class="orgOpForm[opDef.op].model===model.id && 'is-selected'" @click="selectOrgModel(opDef.op, model.id)" role="option" :aria-selected="orgOpForm[opDef.op].model===model.id"><span class="settings-option-icon"><i class="ri-box-3-line"></i></span><span class="min-w-0 truncate" x-text="model.name || model.id"></span><i x-show="orgOpForm[opDef.op].model===model.id" class="ri-check-line ml-auto"></i></button></template>
+                  </div>
+                </div>
+                <input x-show="orgOpForm[opDef.op].useManualModel" x-model="orgOpForm[opDef.op].manualModel" type="text" placeholder="Nhập Model ID" class="settings-control font-mono">
+              </div>
+            </div>
+            <div class="mt-4 flex items-center justify-between gap-3"><p class="min-w-0 text-[11px]" :class="orgOpCredentialConfigured[opDef.op] ? 'text-gray-400' : 'text-amber-600'"><i :class="orgOpCredentialConfigured[opDef.op] ? 'ri-checkbox-circle-line' : 'ri-error-warning-line'"></i> <span x-text="orgOpCredentialConfigured[opDef.op] ? 'API key đã sẵn sàng' : 'Chưa có API key cho nhà cung cấp này'"></span></p><button type="button" @click="saveOrgOpSetting(opDef.op)" class="settings-secondary-button">Lưu</button></div>
+          </div>
+        </template>
+
+        <div class="settings-inner-card settings-credentials-card">
+          <div class="flex items-start gap-3"><div class="settings-mini-icon"><i class="ri-key-2-line"></i></div><div><h4 class="text-sm font-semibold text-gray-900">API Credentials</h4><p class="mt-0.5 text-xs leading-5 text-gray-400">Quản lý API key cho các dịch vụ AI</p></div></div>
+          <div class="mt-3 divide-y divide-gray-100">
+            <template x-for="provider in (orgAiCreds?.supportedProviders || ['gemini','openai','claude'])" :key="provider">
+              <div class="settings-credential-row">
+                <div class="settings-provider-logo" :class="'settings-provider-logo--'+provider"><span x-text="provider==='gemini' ? 'G' : provider==='openai' ? '◎' : 'AI'"></span></div>
+                <div class="min-w-0 flex-1"><div class="flex flex-wrap items-center gap-2"><p class="text-sm font-semibold text-gray-900" x-text="aiProviderName(provider)"></p><span class="settings-status-pill" :class="credentialStatusClass(provider)" x-text="credentialStatusLabel(provider)"></span></div><p class="mt-1 truncate text-[11px] text-gray-400" x-text="credentialSummary(provider)"></p></div>
+                <div class="flex items-center gap-1.5"><button x-show="credentialFor(provider)" type="button" @click="testAiCredential(provider)" class="settings-icon-button" title="Kiểm tra kết nối"><i class="ri-pulse-line"></i></button><button type="button" @click="openAiCredentialModal(provider)" class="settings-action-button"><i class="ri-pencil-line"></i><span x-text="credentialFor(provider) ? 'Thay đổi' : 'Cấu hình'"></span></button><button x-show="credentialFor(provider)" type="button" @click="removeAiCredential(provider)" class="settings-icon-button settings-icon-button--danger" title="Xóa API key"><i class="ri-delete-bin-6-line"></i></button></div>
+              </div>
+            </template>
+          </div>
+        </div>
+      </div>
+      <p x-show="orgAiError" x-text="orgAiError" class="mt-3 text-xs font-medium text-red-600"></p>
+    </section>
+
+    <section class="settings-section-card settings-horizontal-card">
+      <div class="settings-form-content">
+        <div class="settings-section-heading"><div class="settings-section-icon settings-section-icon--facebook"><i class="ri-facebook-fill"></i></div><div><h3>Cấu hình Facebook App</h3><p>Thiết lập ứng dụng Facebook cho việc kết nối và quản lý Pages</p></div></div>
+        <div class="settings-two-column-form">
+          <div><label class="settings-label">App ID</label><input x-model="settingsForm.FACEBOOK_APP_ID" type="text" autocomplete="off" placeholder="Nhập Facebook App ID" class="settings-control font-mono"><p class="settings-helper">App ID của ứng dụng Facebook</p></div>
+          <div><label class="settings-label">App Secret</label><div class="relative"><input x-model="settingsForm.FACEBOOK_APP_SECRET" :type="showKeys.fbSecret ? 'text' : 'password'" autocomplete="new-password" :placeholder="secretConfigured.facebook ? '••••••••••••••••' : 'Nhập App Secret'" class="settings-control pr-10 font-mono"><button x-show="settingsForm.FACEBOOK_APP_SECRET" @click="showKeys.fbSecret=!showKeys.fbSecret" type="button" class="settings-reveal-button"><i :class="showKeys.fbSecret ? 'ri-eye-off-line' : 'ri-eye-line'"></i></button></div><p class="settings-helper" x-text="secretConfigured.facebook ? 'Đã cấu hình — để trống nếu không muốn thay đổi' : 'Chưa cấu hình App Secret'"></p></div>
+        </div>
+      </div>
+      <aside class="settings-info-box"><h4><i class="ri-information-line"></i> Lưu ý</h4><ul><li>Lấy App ID và App Secret tại <a href="https://developers.facebook.com/apps/" target="_blank" rel="noopener noreferrer" class="settings-guide-link">Facebook Developers <i class="ri-external-link-line"></i></a>.</li><li>Xem <a href="https://developers.facebook.com/docs/development/create-an-app/" target="_blank" rel="noopener noreferrer" class="settings-guide-link">hướng dẫn tạo ứng dụng <i class="ri-external-link-line"></i></a> nếu chưa có Facebook App.</li><li>Việc kết nối và import Pages được thực hiện tại <a href="/pages" @click.prevent="navigate('pages')" class="settings-guide-link">Quản lý Pages &amp; Nhóm <i class="ri-arrow-right-line"></i></a>.</li></ul></aside>
+    </section>
+
+    <section class="settings-section-card settings-horizontal-card">
+      <div class="settings-form-content">
+        <div class="settings-section-heading"><div class="settings-section-icon settings-section-icon--telegram"><i class="ri-telegram-fill"></i></div><div class="min-w-0 flex-1"><div class="flex flex-wrap items-center gap-2"><h3>Cấu hình Telegram Bot</h3><span class="settings-status-pill" :class="secretConfigured.telegram ? 'bg-emerald-50 text-emerald-700' : 'bg-gray-100 text-gray-500'" x-text="secretConfigured.telegram ? 'Đã cấu hình' : 'Chưa cấu hình'"></span></div><p>Thiết lập bot Telegram cho việc duyệt nội dung và nhận thông báo</p></div></div>
+        <div class="settings-two-column-form">
+          <div><label class="settings-label">Bot Token</label><div class="relative"><input x-model="settingsForm.TELEGRAM_BOT_TOKEN" :type="showKeys.telegram ? 'text' : 'password'" autocomplete="new-password" :placeholder="secretConfigured.telegram ? '••••••••••••••••' : 'Nhập Bot Token'" class="settings-control pr-10 font-mono"><button x-show="settingsForm.TELEGRAM_BOT_TOKEN" @click="showKeys.telegram=!showKeys.telegram" type="button" class="settings-reveal-button"><i :class="showKeys.telegram ? 'ri-eye-off-line' : 'ri-eye-line'"></i></button></div><p class="settings-helper"><span x-show="secretConfigured.telegram">Đã cấu hình — để trống nếu không muốn thay đổi · </span>Lấy token từ <a href="https://t.me/BotFather" target="_blank" rel="noopener noreferrer" class="settings-guide-link">@BotFather <i class="ri-external-link-line"></i></a> trên Telegram</p></div>
+          <div><label class="settings-label">Chat duyệt nội dung</label><input x-model="settingsForm.TELEGRAM_ADMIN_CHAT_IDS" type="text" placeholder="-1001234567890, -1009876543210" class="settings-control font-mono"><p class="settings-helper">Nhập một hoặc nhiều Chat ID nhận nội dung cần duyệt.</p></div>
+        </div>
+      </div>
+      <aside class="settings-info-box"><h4><i class="ri-information-line"></i> Hướng dẫn lấy Chat ID</h4><ol><li><a href="https://t.me/BotFather" target="_blank" rel="noopener noreferrer" class="settings-guide-link">Tạo bot với @BotFather <i class="ri-external-link-line"></i></a>, sau đó thêm bot vào group hoặc chat cá nhân.</li><li>Gửi một tin nhắn bất kỳ trong group.</li><li>Mở <a href="https://core.telegram.org/bots/api#getupdates" target="_blank" rel="noopener noreferrer" class="settings-guide-link">tài liệu API getUpdates <i class="ri-external-link-line"></i></a> và gọi endpoint bằng Bot Token của bạn.</li><li>Tìm trường <span class="font-mono">message.chat.id</span> trong kết quả.</li></ol></aside>
+    </section>
+
+    <section class="settings-section-card settings-general-card">
+      <div class="settings-section-heading mb-0"><div class="settings-section-icon settings-section-icon--general"><i class="ri-settings-4-fill"></i></div><div><h3>Thiết lập chung</h3><p>Cấu hình các thiết lập chung của tổ chức</p></div></div>
+      <div><label class="settings-label">Múi giờ mặc định</label><div class="settings-select" @click.outside="settingsDropdown = settingsDropdown==='timezone' ? '' : settingsDropdown"><button type="button" class="settings-select-trigger" role="combobox" aria-haspopup="listbox" :aria-expanded="settingsDropdown==='timezone'" @click="settingsDropdown = settingsDropdown==='timezone' ? '' : 'timezone'" @keydown.escape.stop="settingsDropdown=''"><span x-text="timezoneLabel(settingsForm.DEFAULT_TIMEZONE)"></span><i class="ri-arrow-down-s-line" :class="settingsDropdown==='timezone' && 'rotate-180'"></i></button><div x-show="settingsDropdown==='timezone'" x-transition.opacity.duration.100ms x-cloak class="settings-select-menu settings-select-menu--up" role="listbox"><template x-for="timezone in timezoneOptions()" :key="timezone.value"><button type="button" class="settings-select-option" :class="settingsForm.DEFAULT_TIMEZONE===timezone.value && 'is-selected'" @click="selectTimezone(timezone.value)" role="option" :aria-selected="settingsForm.DEFAULT_TIMEZONE===timezone.value"><span class="settings-option-icon"><i class="ri-time-zone-line"></i></span><span x-text="timezone.label"></span><i x-show="settingsForm.DEFAULT_TIMEZONE===timezone.value" class="ri-check-line ml-auto"></i></button></template></div></div><p class="settings-helper">Múi giờ được sử dụng cho lịch đăng và hiển thị thời gian trong tổ chức.</p></div>
+      <aside class="settings-info-box settings-info-box--compact"><h4><i class="ri-information-line"></i> Thông tin</h4><p>Múi giờ này sẽ được sử dụng làm mặc định cho tất cả thành viên trong tổ chức.</p></aside>
+    </section>
+  </div>
+
+  <div x-show="credentialModal.open" x-cloak class="fixed inset-0 z-50 flex items-center justify-center bg-gray-950/45 p-4" @click.self="closeAiCredentialModal()" @keydown.escape.window="closeAiCredentialModal()">
+    <div class="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl fade-in" role="dialog" aria-modal="true" aria-labelledby="credential-modal-title">
+      <div class="flex items-start justify-between gap-4"><div><h3 id="credential-modal-title" class="text-lg font-bold text-gray-950">Cấu hình <span x-text="aiProviderName(credentialModal.provider)"></span></h3><p class="mt-1 text-xs leading-5 text-gray-500">API key hiện tại không bao giờ được hiển thị. Nhập key mới để thêm hoặc thay thế.</p></div><button type="button" @click="closeAiCredentialModal()" class="settings-icon-button"><i class="ri-close-line text-lg"></i></button></div>
+      <div class="mt-5"><label class="settings-label">API Key</label><div class="relative"><input x-ref="credentialApiKey" x-model="credentialModal.apiKey" :type="credentialModal.showKey ? 'text' : 'password'" autocomplete="new-password" placeholder="Nhập API key mới" class="settings-control pr-10 font-mono"><button type="button" @click="credentialModal.showKey=!credentialModal.showKey" class="settings-reveal-button"><i :class="credentialModal.showKey ? 'ri-eye-off-line' : 'ri-eye-line'"></i></button></div><p x-show="credentialModal.error" x-text="credentialModal.error" class="mt-2 text-xs font-medium text-red-600"></p></div>
+      <div class="mt-6 flex justify-end gap-2"><button type="button" @click="closeAiCredentialModal()" class="rounded-lg border border-gray-200 px-4 py-2 text-sm font-medium text-gray-600 hover:bg-gray-50">Hủy</button><button type="button" @click="saveAiCredential()" :disabled="credentialModal.saving" class="settings-primary-button"><i :class="credentialModal.saving ? 'ri-loader-4-line animate-spin' : 'ri-save-3-line'"></i><span x-text="credentialModal.saving ? 'Đang lưu...' : 'Lưu API key'"></span></button></div>
+    </div>
+  </div>
+</div>
+
+<div x-show="page==='settings' && currentOrganization && currentOrganization.role!=='OWNER'" class="rounded-xl border border-gray-200 bg-white p-8 text-center shadow-sm"><i class="ri-lock-2-line text-3xl text-gray-300"></i><h2 class="mt-3 text-lg font-semibold text-gray-900">Bạn không có quyền truy cập</h2><p class="mt-1 text-sm text-gray-500">Chỉ Owner của tổ chức có thể quản lý cài đặt hệ thống.</p></div>

@@ -1,0 +1,1613 @@
+<!-- Content List (Sheet View) -->
+      <div x-show="page==='content'" class="fade-in min-w-0 max-w-full">
+        <!-- Toolbar -->
+        <div class="flex items-center justify-between mb-3 min-w-0 max-w-full">
+          <div class="flex items-center gap-3 min-w-0 flex-1 flex-wrap">
+            <h2 class="text-xl font-bold">Content</h2>
+            <div class="relative flex-shrink-0" style="min-width:220px">
+              <i class="ri-search-line absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm"></i>
+              <input x-model="contentFilter.search" @input.debounce.300ms="dgPage=1; loadContent()" type="text" placeholder="Tìm theo chủ đề..."
+                class="w-full pl-9 pr-3 py-1.5 border border-gray-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-brand-500 bg-gray-50">
+            </div>
+            <!-- Filter dropdowns -->
+            <div x-show="currentScope.type!=='page'" class="relative" @click.outside="contentPageDrop=false">
+              <button @click="contentPageDrop=!contentPageDrop" class="flex items-center gap-1 px-2.5 py-1.5 border border-gray-200 rounded-lg text-xs hover:border-brand-300 bg-white"
+                :class="contentFilter.pageId && 'border-brand-300 bg-brand-50'">
+                <i class="ri-store-2-line"></i>
+                <span class="truncate max-w-[100px]" x-text="contentFilter.pageId ? (scopePages.find(p=>p.id===contentFilter.pageId)?.name||'Page') : 'Page'"></span>
+                <i class="ri-arrow-down-s-line text-gray-400"></i>
+              </button>
+              <div x-show="contentPageDrop" x-cloak class="absolute top-full mt-1 left-0 bg-white border border-gray-200 rounded-lg shadow-lg z-50 min-w-[200px] max-h-[250px] overflow-y-auto">
+                <button @click="contentFilter.pageId=''; contentPageDrop=false; dgPage=1; loadContent()" class="w-full flex items-center gap-2 px-3 py-2 text-sm hover:bg-gray-50 text-left" :class="!contentFilter.pageId && 'bg-brand-50 text-brand-700'">
+                  <i class="ri-global-line text-sm text-gray-400"></i> Tất cả
+                </button>
+                <template x-for="p in scopePages" :key="p.id">
+                  <button @click="contentFilter.pageId=p.id; contentPageDrop=false; dgPage=1; loadContent()" class="w-full flex items-center gap-2 px-3 py-2 text-sm hover:bg-gray-50 text-left" :class="contentFilter.pageId===p.id && 'bg-brand-50 text-brand-700'">
+                    <img x-show="p.platform==='FACEBOOK'" :src="'https://graph.facebook.com/'+p.externalId+'/picture?type=small'" class="w-4 h-4 rounded-full shrink-0" onerror="this.style.display='none'">
+                    <span class="truncate" x-text="p.name"></span>
+                  </button>
+                </template>
+              </div>
+            </div>
+            <div class="relative" @click.outside="sourceDrop=false">
+              <button @click="sourceDrop=!sourceDrop" class="flex items-center gap-1 px-2.5 py-1.5 border border-gray-200 rounded-lg text-xs hover:border-brand-300 bg-white"
+                :class="contentFilter.source && 'border-brand-300 bg-brand-50'">
+                <i class="ri-flashlight-line"></i>
+                <span class="truncate max-w-[120px]" x-text="contentFilter.source ? {AI_GEN:'AI Gen',MANUAL:'Thủ công'}[contentFilter.source] : 'Nguồn'"></span>
+                <i class="ri-arrow-down-s-line text-gray-400"></i>
+              </button>
+              <div x-show="sourceDrop" x-cloak class="absolute top-full mt-1 left-0 bg-white border border-gray-200 rounded-lg shadow-lg z-50 min-w-[180px] max-h-[250px] overflow-y-auto">
+                <button @click="contentFilter.source=''; sourceDrop=false; dgPage=1; loadContent()" class="w-full flex items-center gap-2 px-3 py-2 text-sm hover:bg-gray-50 text-left" :class="!contentFilter.source && 'bg-brand-50 text-brand-700'">
+                  <i class="ri-global-line text-sm text-gray-400"></i> Tất cả
+                </button>
+                <button @click="contentFilter.source='AI_GEN'; sourceDrop=false; dgPage=1; loadContent()" class="w-full flex items-center gap-2 px-3 py-2 text-sm hover:bg-gray-50 text-left" :class="contentFilter.source==='AI_GEN' && 'bg-brand-50 text-brand-700'">
+                  <i class="ri-magic-line text-sm text-purple-400"></i> AI Gen
+                </button>
+                <button @click="contentFilter.source='MANUAL'; sourceDrop=false; dgPage=1; loadContent()" class="w-full flex items-center gap-2 px-3 py-2 text-sm hover:bg-gray-50 text-left" :class="contentFilter.source==='MANUAL' && 'bg-brand-50 text-brand-700'">
+                  <i class="ri-edit-line text-sm text-blue-400"></i> Thủ công
+                </button>
+              </div>
+            </div>
+            <div class="relative" @click.outside="campaignDrop=false">
+              <button @click="campaignDrop=!campaignDrop" class="flex items-center gap-1 px-2.5 py-1.5 border border-gray-200 rounded-lg text-xs hover:border-brand-300 bg-white"
+                :class="contentFilter.campaignId && 'border-brand-300 bg-brand-50'">
+                <i class="ri-megaphone-line"></i>
+                <span class="truncate max-w-[120px]" x-text="contentFilter.campaignId ? (campaigns.find(c=>c.id===contentFilter.campaignId)?.name||'Campaign') : 'Campaign'"></span>
+                <i class="ri-arrow-down-s-line text-gray-400"></i>
+              </button>
+              <div x-show="campaignDrop" x-cloak class="absolute top-full mt-1 left-0 bg-white border border-gray-200 rounded-lg shadow-lg z-50 min-w-[200px] max-h-[250px] overflow-y-auto">
+                <button @click="contentFilter.campaignId=''; campaignDrop=false; dgPage=1; loadContent()" class="w-full flex items-center gap-2 px-3 py-2 text-sm hover:bg-gray-50 text-left" :class="!contentFilter.campaignId && 'bg-brand-50 text-brand-700'">
+                  <i class="ri-global-line text-sm text-gray-400"></i> Tất cả
+                </button>
+                <template x-for="c in campaigns" :key="c.id">
+                  <button @click="contentFilter.campaignId=c.id; campaignDrop=false; dgPage=1; loadContent()" class="w-full flex items-center gap-2 px-3 py-2 text-sm hover:bg-gray-50 text-left" :class="contentFilter.campaignId===c.id && 'bg-brand-50 text-brand-700'">
+                    <i class="ri-megaphone-line text-sm text-gray-400"></i>
+                    <span class="truncate" x-text="c.name"></span>
+                  </button>
+                </template>
+              </div>
+            </div>
+            <div class="relative" @click.outside="mediaDrop=false">
+              <button @click="mediaDrop=!mediaDrop" class="flex items-center gap-1 px-2.5 py-1.5 border border-gray-200 rounded-lg text-xs hover:border-brand-300 bg-white"
+                :class="contentFilter.media?.length && 'border-brand-300 bg-brand-50'">
+                <i class="ri-image-2-line"></i>
+                <span x-text="contentFilter.media?.length ? 'Media (' + contentFilter.media.length + ')' : 'Media'"></span>
+                <i class="ri-arrow-down-s-line text-gray-400"></i>
+              </button>
+              <div x-show="mediaDrop" x-cloak class="absolute top-full mt-1 left-0 bg-white border border-gray-200 rounded-lg shadow-lg z-50 min-w-[170px] py-1">
+                <template x-for="mo in [{v:'IMAGE',l:'Có ảnh'},{v:'VIDEO',l:'Có video'},{v:'TEXT_ONLY',l:'Chỉ văn bản'}]" :key="mo.v">
+                  <label class="flex items-center gap-2 px-3 py-2 text-sm hover:bg-gray-50 cursor-pointer">
+                    <input type="checkbox" :value="mo.v" :checked="contentFilter.media?.includes(mo.v)"
+                      @change="toggleMediaFilter(mo.v)" class="rounded border-gray-300 text-brand-600 focus:ring-brand-500 w-3.5 h-3.5">
+                    <span x-text="mo.l"></span>
+                  </label>
+                </template>
+                <div x-show="contentFilter.media?.length" class="border-t border-gray-100 mt-1 pt-1">
+                  <button @click="contentFilter.media=[]; mediaDrop=false; dgPage=1; loadContent()" class="w-full text-left px-3 py-1.5 text-xs text-gray-500 hover:text-red-500 hover:bg-gray-50">Xóa bộ lọc</button>
+                </div>
+              </div>
+            </div>
+            <div class="relative" @click.outside="dateDrop=false">
+              <button @click="dateDrop=!dateDrop" class="flex items-center gap-1 px-2.5 py-1.5 border border-gray-200 rounded-lg text-xs hover:border-brand-300 bg-white"
+                :class="(contentFilter.dateFrom||contentFilter.dateTo) && 'border-brand-300 bg-brand-50'">
+                <i class="ri-calendar-line"></i>
+                <span x-text="contentFilter._dateLabel || 'Thời gian'"></span>
+                <i class="ri-arrow-down-s-line text-gray-400"></i>
+              </button>
+              <div x-show="dateDrop" x-cloak class="absolute top-full mt-1 right-0 bg-white border border-gray-200 rounded-lg shadow-lg z-50 min-w-[180px]">
+                <template x-for="dp in [
+                  {k:'today',l:'Hôm nay'},{k:'yesterday',l:'Hôm qua'},{k:'week',l:'Tuần này'},{k:'month',l:'Tháng này'},{k:'custom',l:'Tùy chỉnh'}
+                ]" :key="dp.k">
+                  <button @click="setDatePreset(dp.k)" class="w-full text-left px-3 py-2 text-sm hover:bg-gray-50"
+                    :class="contentFilter._datePreset===dp.k && 'bg-brand-50 text-brand-700'" x-text="dp.l"></button>
+                </template>
+                <div x-show="contentFilter._datePreset==='custom'" class="px-3 py-2 border-t border-gray-100 flex flex-col gap-1.5">
+                  <input x-model="contentFilter.dateFrom" @change="dgPage=1; loadContent()" type="date" class="w-full px-2 py-1 border border-gray-200 rounded text-xs outline-none">
+                  <input x-model="contentFilter.dateTo" @change="dgPage=1; loadContent()" type="date" class="w-full px-2 py-1 border border-gray-200 rounded text-xs outline-none">
+                </div>
+              </div>
+            </div>
+            <button x-show="contentFilter.search || contentFilter.status || contentFilter.pageId || contentFilter.dateFrom || contentFilter.dateTo || contentFilter.source || contentFilter.campaignId || contentFilter.media?.length"
+              @click="contentFilter={status:'',pageId:'',search:'',dateFrom:'',dateTo:'',source:'',campaignId:'',media:[],_datePreset:'',_dateLabel:''}; dgPage=1; loadContent()"
+              class="p-1.5 text-gray-400 hover:text-red-500 text-xs" title="Xóa bộ lọc"><i class="ri-filter-off-line"></i></button>
+          </div>
+          <div class="flex items-center gap-2 flex-shrink-0">
+            <!-- Density toggle -->
+            <div class="flex border border-gray-200 rounded-lg overflow-hidden">
+              <button @click="dgDensity='compact'" :class="dgDensity==='compact' ? 'bg-gray-100 text-gray-700' : 'text-gray-400'" class="px-2 py-1" title="Thu gọn"><i class="ri-list-check text-sm"></i></button>
+              <button @click="dgDensity='normal'" :class="dgDensity==='normal' ? 'bg-gray-100 text-gray-700' : 'text-gray-400'" class="px-2 py-1" title="Bình thường"><i class="ri-list-unordered text-sm"></i></button>
+            </div>
+            <button @click="dgColPanel=!dgColPanel" class="px-2.5 py-1.5 border border-gray-200 rounded-lg text-xs hover:bg-gray-50 flex items-center gap-1" :class="dgColPanel && 'bg-brand-50 border-brand-300'">
+              <i class="ri-layout-column-line"></i> Cột
+            </button>
+            <button @click="genAllDrafts()" x-show="contentItems.some(i => i.status==='DRAFT')"
+              class="px-2.5 py-1.5 bg-purple-500 text-white rounded-lg text-xs font-medium hover:bg-purple-600 transition flex items-center gap-1">
+              <i class="ri-magic-line"></i> Gen Draft
+            </button>
+            <button @click="openContentForm()"
+              class="px-2.5 py-1.5 bg-brand-600 text-white rounded-lg text-xs font-medium hover:bg-brand-700 transition flex items-center gap-1">
+              <i class="ri-add-line"></i> Thêm
+            </button>
+          </div>
+        </div>
+
+        <!-- View Presets + Status Tabs -->
+        <div class="flex items-center gap-2 mb-3 min-w-0 max-w-full overflow-x-auto" style="scrollbar-width:none">
+          <div class="flex border border-gray-200 rounded-lg overflow-hidden bg-white">
+            <template x-for="preset in dgPresets" :key="preset.key">
+              <button @click="dgSetPreset(preset.key); dgActiveView=null" class="px-3 py-1.5 text-xs font-medium transition border-r border-gray-200 last:border-r-0"
+                :class="dgActivePreset===preset.key && dgActiveView===null ? 'bg-brand-50 text-brand-700' : 'text-gray-500 hover:bg-gray-50'"
+                x-text="preset.label"></button>
+            </template>
+          </div>
+          <template x-for="(sv, svi) in dgSavedViews" :key="svi">
+            <button @click="dgApplyView(svi)" class="px-2.5 py-1.5 text-xs font-medium rounded-lg border transition"
+              :class="dgActiveView===svi ? 'bg-brand-50 border-brand-300 text-brand-700' : 'border-gray-200 text-gray-500 hover:bg-gray-50'"
+              x-text="sv.name"></button>
+          </template>
+          <div class="w-px h-5 bg-gray-200"></div>
+          <!-- Status tabs -->
+          <div class="flex gap-1">
+            <button @click="activeTab=false; contentFilter.status=''; dgPage=1; loadContent()" class="px-2.5 py-1 rounded-full text-xs font-medium transition"
+              :class="!contentFilter.status && !activeTab ? 'bg-gray-800 text-white' : 'text-gray-500 hover:bg-gray-100'">
+              Tất cả <span class="ml-1 opacity-70" x-text="dgStatusCounts.ALL || 0"></span>
+            </button>
+            <button @click="activeTab=true; contentFilter.status=''" class="px-2.5 py-1 rounded-full text-xs font-medium transition flex items-center gap-1"
+              :class="activeTab ? 'bg-blue-600 text-white' : 'text-gray-500 hover:bg-gray-100'"
+              x-show="scopedActiveItems().length > 0">
+              <i class="ri-loader-4-line text-[10px]" :class="activeTab ? 'spin-slow' : ''"></i>
+              Đang thực hiện <span class="ml-0.5 opacity-70" x-text="scopedActiveItems().length"></span>
+            </button>
+            <template x-for="st in [{k:'DRAFT',l:'Nháp'},{k:'QUEUED',l:'Chờ gen'},{k:'GENERATING',l:'Đang gen'},{k:'PENDING_REVIEW',l:'Chờ duyệt'},{k:'APPROVED',l:'Đã duyệt'},{k:'PUBLISHING',l:'Đang đăng'},{k:'PUBLISHED',l:'Đã đăng'},{k:'FAILED',l:'Lỗi'},{k:'CANCELLED',l:'Đã hủy'}]" :key="st.k">
+              <button @click="activeTab=false; contentFilter.status=st.k; dgPage=1; loadContent()" class="px-2.5 py-1 rounded-full text-xs font-medium transition"
+                :class="contentFilter.status===st.k && !activeTab ? 'bg-gray-800 text-white' : 'text-gray-500 hover:bg-gray-100'"
+                >
+                <span x-text="st.l"></span> <span class="ml-0.5 opacity-70" x-text="st.k==='PENDING_REVIEW' ? ((dgStatusCounts['PENDING_REVIEW']||0)+(dgStatusCounts['REVISION_REQUESTED']||0)) : dgStatusCounts[st.k]"></span>
+              </button>
+            </template>
+          </div>
+        </div>
+
+        <!-- Active Processing Tab View — compact rows -->
+        <div x-show="activeTab" x-cloak class="bg-white rounded-xl border border-gray-100 shadow-sm mb-3 overflow-hidden">
+          <div class="flex items-center gap-2 px-4 py-2.5 border-b border-gray-100">
+            <i class="ri-loader-4-line text-blue-500 spin-slow text-sm"></i>
+            <span class="text-sm font-semibold text-gray-800">Đang thực hiện</span>
+            <span class="text-xs px-1.5 py-0.5 bg-blue-100 text-blue-700 rounded-full font-medium" x-text="scopedActiveItems().length"></span>
+          </div>
+          <div class="max-h-[520px] overflow-y-auto divide-y divide-gray-100">
+            <template x-for="ai in scopedActiveItems()" :key="ai.contentId">
+              <div class="relative group transition-colors"
+                :class="ai.status==='completed' ? 'bg-green-50/40' : ai.status==='failed' ? 'bg-red-50/40' : 'hover:bg-gray-50/60'">
+                <div class="flex items-center gap-2.5 px-4 py-2">
+                  <div class="shrink-0 w-7 h-7 rounded-full overflow-hidden bg-gray-100 flex items-center justify-center">
+                    <img x-show="ai.pageAvatar" :src="ai.pageAvatar" class="w-full h-full object-cover" onerror="this.style.display='none'">
+                    <i x-show="!ai.pageAvatar" class="ri-pages-line text-gray-400 text-xs"></i>
+                  </div>
+                  <div class="flex-1 min-w-0 flex flex-wrap items-center gap-x-3 gap-y-0.5">
+                    <p class="text-sm font-medium text-gray-800 truncate max-w-[280px] sm:max-w-[360px] lg:max-w-none" x-text="ai.contentTitle || 'Nội dung'"></p>
+                    <span class="text-xs text-gray-400 truncate hidden sm:inline" x-text="(ai.pageName||'')+(ai.campaignName ? ' · '+ai.campaignName : '')"></span>
+                  </div>
+                  <div class="shrink-0 flex items-center gap-2.5">
+                    <template x-if="ai.status==='queued'">
+                      <span class="flex items-center gap-1 text-xs text-amber-600 whitespace-nowrap">
+                        <i class="ri-time-line text-[10px]"></i> Chờ đến lượt
+                      </span>
+                    </template>
+                    <template x-if="ai.status==='started' || ai.status==='progress'">
+                      <span class="flex items-center gap-1 text-xs text-blue-600 whitespace-nowrap">
+                        <i class="ri-loader-4-line spin-slow text-[10px]"></i>
+                        <span x-text="ai.step || (ai.operation==='generate' ? 'Đang gen' : 'Đang đăng')"></span>
+                      </span>
+                    </template>
+                    <template x-if="ai.status==='completed'">
+                      <span class="flex items-center gap-1 text-xs text-green-600 whitespace-nowrap">
+                        <i class="ri-check-line"></i> Hoàn tất
+                      </span>
+                    </template>
+                    <template x-if="ai.status==='failed'">
+                      <span class="flex items-center gap-1 text-xs text-red-600 whitespace-nowrap">
+                        <i class="ri-close-circle-line"></i> Thất bại
+                      </span>
+                    </template>
+                    <span x-show="ai.progressTotal && ai.progressTotal > 1" class="text-[10px] text-gray-400 whitespace-nowrap tabular-nums" x-text="(ai.progressCurrent||0)+'/'+ai.progressTotal"></span>
+                    <span class="text-[10px] text-gray-400 whitespace-nowrap tabular-nums w-10 text-right" x-text="activeElapsed(ai)"></span>
+                  </div>
+                </div>
+                <div x-show="ai.progressTotal && ai.progressTotal > 1 && ai.status!=='completed' && ai.status!=='failed'" class="absolute bottom-0 left-0 right-0 h-[2px] bg-gray-100">
+                  <div class="h-full bg-blue-500 transition-all duration-300" :style="'width:'+Math.round(((ai.progressCurrent||0)/ai.progressTotal)*100)+'%'"></div>
+                </div>
+              </div>
+            </template>
+            <div x-show="scopedActiveItems().length === 0" class="text-center py-8 text-gray-400 text-sm">
+              <i class="ri-check-double-line text-2xl mb-2 block"></i>
+              Không có nội dung đang xử lý
+            </div>
+          </div>
+        </div>
+
+        <!-- Active Lane in "Tất cả" tab — compact rows -->
+        <div x-show="!activeTab && !contentFilter.status && scopedActiveItems().length > 0" x-cloak class="bg-white rounded-xl border border-gray-100 shadow-sm mb-3 overflow-hidden">
+          <div class="flex items-center justify-between px-4 py-2 border-b border-gray-100">
+            <div class="flex items-center gap-2">
+              <i class="ri-loader-4-line text-blue-500 spin-slow text-xs"></i>
+              <span class="text-xs font-semibold text-blue-700">ĐANG THỰC HIỆN</span>
+              <span class="text-[10px] px-1.5 py-0.5 bg-blue-100 text-blue-700 rounded-full font-medium" x-text="scopedActiveItems().length"></span>
+            </div>
+            <button x-show="scopedActiveItems().length > 5" @click="activeTab=true" class="text-[10px] text-blue-600 hover:underline">Xem tất cả</button>
+          </div>
+          <div class="divide-y divide-gray-50">
+            <template x-for="ai in scopedActiveItems().slice(0, 5)" :key="ai.contentId">
+              <div class="relative group transition-colors"
+                :class="ai.status==='completed' ? 'bg-green-50/30' : ai.status==='failed' ? 'bg-red-50/30' : 'hover:bg-gray-50/50'">
+                <div class="flex items-center gap-2 px-4 py-1.5">
+                  <div class="shrink-0 w-6 h-6 rounded-full overflow-hidden bg-gray-100 flex items-center justify-center">
+                    <img x-show="ai.pageAvatar" :src="ai.pageAvatar" class="w-full h-full object-cover" onerror="this.style.display='none'">
+                    <i x-show="!ai.pageAvatar" class="ri-pages-line text-gray-400 text-[10px]"></i>
+                  </div>
+                  <p class="text-xs font-medium text-gray-800 truncate flex-1 min-w-0" x-text="ai.contentTitle || 'Nội dung'"></p>
+                  <span class="text-[10px] text-gray-400 hidden sm:inline truncate max-w-[140px]" x-text="ai.pageName"></span>
+                  <span class="text-[10px] whitespace-nowrap"
+                    :class="ai.status==='failed' ? 'text-red-500' : ai.status==='completed' ? 'text-green-600' : ai.status==='queued' ? 'text-amber-600' : 'text-blue-500'"
+                    x-text="ai.status==='completed' ? '✓ Hoàn tất' : ai.status==='failed' ? '✕ Thất bại' : ai.status==='queued' ? '⏳ Chờ đến lượt' : (ai.step || (ai.operation==='generate' ? '⟳ Đang gen' : '⟳ Đang đăng'))"></span>
+                  <span x-show="ai.progressTotal && ai.progressTotal > 1" class="text-[10px] text-gray-400 tabular-nums" x-text="(ai.progressCurrent||0)+'/'+ai.progressTotal"></span>
+                  <span class="text-[10px] text-gray-400 tabular-nums w-8 text-right" x-text="activeElapsed(ai)"></span>
+                </div>
+                <div x-show="ai.progressTotal && ai.progressTotal > 1 && ai.status!=='completed' && ai.status!=='failed'" class="absolute bottom-0 left-0 right-0 h-[2px] bg-gray-100">
+                  <div class="h-full bg-blue-500 transition-all duration-300" :style="'width:'+Math.round(((ai.progressCurrent||0)/ai.progressTotal)*100)+'%'"></div>
+                </div>
+              </div>
+            </template>
+          </div>
+          <div x-show="scopedActiveItems().length > 5" class="text-center py-1.5 border-t border-gray-100">
+            <button @click="activeTab=true" class="text-xs text-blue-600 hover:underline">+ <span x-text="scopedActiveItems().length - 5"></span> nội dung khác</button>
+          </div>
+        </div>
+
+        <div class="relative min-w-0 max-w-full" x-show="!activeTab">
+          <!-- Data Grid -->
+          <div class="bg-white rounded-xl border border-gray-100 shadow-sm min-w-0 max-w-full flex flex-col" x-ref="dgGridShell" :style="dgGridMaxH ? 'max-height:'+dgGridMaxH+'px' : ''">
+            <!-- Bulk Selection Bar -->
+            <div x-show="dgBulkSelected.length > 0" class="flex-shrink-0 flex items-center gap-2 px-4 py-1.5 bg-brand-50 border-b border-brand-200 text-sm">
+              <span class="font-medium text-brand-700" x-text="dgBulkSelected.length + ' mục đã chọn'"></span>
+              <div class="flex gap-1 ml-2">
+                <button x-show="!contentFilter.status||contentFilter.status==='DRAFT'" @click="bulkGenerate()" class="px-2.5 py-1 rounded bg-purple-500 text-white text-xs font-medium hover:bg-purple-600 flex items-center gap-1"><i class="ri-magic-line"></i> Gen</button>
+                <button x-show="contentFilter.status==='PENDING_REVIEW'||contentFilter.status==='APPROVED'" @click="bulkRegenerate()" class="px-2.5 py-1 rounded bg-orange-500 text-white text-xs font-medium hover:bg-orange-600 flex items-center gap-1"><i class="ri-refresh-line"></i> Gen lại</button>
+                <button x-show="!contentFilter.status||contentFilter.status==='PENDING_REVIEW'" @click="bulkApprove()" class="px-2.5 py-1 rounded bg-green-500 text-white text-xs font-medium hover:bg-green-600 flex items-center gap-1"><i class="ri-check-line"></i> Duyệt</button>
+                <button x-show="!contentFilter.status||contentFilter.status==='APPROVED'||contentFilter.status==='FAILED'" @click="bulkPublish()" class="px-2.5 py-1 rounded bg-brand-600 text-white text-xs font-medium hover:bg-brand-700 flex items-center gap-1"><i class="ri-send-plane-line"></i> Đăng</button>
+                <button x-show="contentFilter.status!=='PUBLISHED'" @click="bulkDelete()" class="px-2.5 py-1 rounded bg-red-500 text-white text-xs font-medium hover:bg-red-600 flex items-center gap-1"><i class="ri-delete-bin-line"></i> Xóa</button>
+              </div>
+              <button @click="dgBulkSelected=[]; dgBulkAll=false" class="text-xs text-gray-500 hover:text-gray-700 underline ml-auto">Bỏ chọn</button>
+            </div>
+            <div class="overflow-auto min-h-0 max-w-full" style="scrollbar-width:thin" x-ref="dgScroll">
+
+              <table class="border-collapse" style="min-width:100%;width:max-content" :class="dgDensity==='compact' ? 'text-xs' : 'text-[13px]'">
+                <thead class="bg-gray-50 border-b border-gray-200 sticky top-0 z-10">
+                  <tr>
+                    <th class="text-center font-semibold text-gray-500 uppercase w-10 sticky left-0 z-20 bg-gray-50"
+                      :class="dgDensity==='compact' ? 'px-1 py-1.5 text-[10px]' : 'px-1.5 py-2 text-xs'">
+                      <input type="checkbox" :checked="dgBulkAll" @click.stop="dgToggleAll()" class="rounded border-gray-300 text-brand-600 focus:ring-brand-500">
+                    </th>
+                    <th class="text-center font-semibold text-gray-500 uppercase w-10 sticky left-[40px] z-20 bg-gray-50"
+                      :class="dgDensity==='compact' ? 'px-1 py-1.5 text-[10px]' : 'px-1.5 py-2 text-xs'"
+                      style="box-shadow: 2px 0 4px -2px rgba(0,0,0,0.1)">
+                      <i class="ri-more-fill"></i>
+                    </th>
+                    <template x-for="(col, ci) in dgVisibleCols" :key="col.key">
+                      <th class="text-left font-semibold text-gray-500 uppercase border-r border-gray-100 select-none whitespace-nowrap"
+                        :class="[dgDensity==='compact' ? 'px-2 py-1.5 text-[10px]' : 'px-3 py-2 text-xs', col.pinned ? 'sticky z-20 bg-gray-50' : '', dgDragCol===col.key ? 'opacity-50' : '']"
+                        :style="dgColStyle(col, ci)"
+                        :draggable="col.key!=='checkbox'"
+                        @dragstart="dgDragCol=col.key"
+                        @dragover.prevent
+                        @drop.prevent="dgDropCol(col.key)"
+                        @dragend="dgDragCol=null"
+                        @click="col.sortable !== false && dgSort(col.key)"
+                        @contextmenu.prevent="dgOpenCtxMenu($event, col)">
+                        <template x-if="col.key==='checkbox'">
+                          <input type="checkbox" :checked="dgBulkAll" @click.stop="dgToggleAll()" class="rounded border-gray-300 text-brand-600 focus:ring-brand-500">
+                        </template>
+                        <template x-if="col.key!=='checkbox'">
+                          <span>
+                            <span x-text="col.label"></span>
+                            <i x-show="dgSortBy===col.key" class="ml-0.5" :class="dgSortDir==='asc' ? 'ri-arrow-up-s-line' : 'ri-arrow-down-s-line'"></i>
+                            <i x-show="dgHasHeaderFilter(col.key)" class="ml-0.5 ri-filter-3-fill text-brand-500 text-[10px]"></i>
+                          </span>
+                        </template>
+                        <div x-show="col.key!=='checkbox'" class="absolute right-0 top-0 bottom-0 w-1 cursor-col-resize hover:bg-brand-400"
+                          @mousedown.prevent.stop="dgStartResize($event, col)"></div>
+                      </th>
+                    </template>
+                  </tr>
+                </thead>
+                <tbody class="divide-y divide-gray-50" :class="contentLoading && contentItems.length > 0 && 'opacity-60 pointer-events-none transition-opacity'">
+                  <!-- Skeleton rows during initial load -->
+                  <template x-if="contentLoading && contentItems.length === 0">
+                    <template x-for="i in 8" :key="'skel-'+i">
+                      <tr class="animate-pulse">
+                        <td class="px-1.5 py-2 sticky left-0 bg-white w-10"><div class="w-4 h-4 bg-gray-100 rounded mx-auto"></div></td>
+                        <td class="px-1.5 py-2 sticky left-[40px] bg-white"><div class="w-5 h-5 bg-gray-100 rounded mx-auto"></div></td>
+                        <td class="px-3 py-2"><div class="w-8 h-8 bg-gray-100 rounded"></div></td>
+                        <td class="px-3 py-2"><div class="h-3 bg-gray-100 rounded w-3/4"></div></td>
+                        <td class="px-3 py-2"><div class="h-3 bg-gray-100 rounded w-16"></div></td>
+                        <td class="px-3 py-2"><div class="h-3 bg-gray-100 rounded w-20"></div></td>
+                        <td class="px-3 py-2"><div class="h-3 bg-gray-100 rounded w-16"></div></td>
+                        <td class="px-3 py-2"><div class="h-3 bg-gray-100 rounded w-12"></div></td>
+                        <td class="px-3 py-2"><div class="h-3 bg-gray-100 rounded w-10"></div></td>
+                        <td class="px-3 py-2"><div class="h-3 bg-gray-100 rounded w-14"></div></td>
+                      </tr>
+                    </template>
+                  </template>
+                  <template x-for="item in contentItems" :key="item.id">
+                    <tr class="hover:bg-blue-50/30 transition group cursor-pointer" :class="[dgBulkSelected.includes(item.id) && 'bg-brand-50/40', drawerItem?.id===item.id && 'bg-brand-50/60 ring-1 ring-brand-200']"
+                      @click="openDrawer(item)">
+                      <!-- Checkbox (leftmost) -->
+                      <td class="text-center sticky left-0 z-[5] bg-white w-10" :class="dgDensity==='compact' ? 'px-1 py-1' : 'px-1.5 py-1.5'" @click.stop>
+                        <input type="checkbox" :checked="dgBulkSelected.includes(item.id)" @click.stop="dgToggleRow(item.id)" class="rounded border-gray-300 text-brand-600 focus:ring-brand-500">
+                      </td>
+                      <!-- Actions -->
+                      <td class="text-center sticky left-[40px] z-[5] bg-white" :class="dgDensity==='compact' ? 'px-1 py-1' : 'px-1.5 py-1.5'" @click.stop
+                        style="box-shadow: 2px 0 4px -2px rgba(0,0,0,0.1)">
+                        <button @click="dgOpenRowMenu($event, item)" class="p-1 text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded transition">
+                          <i class="ri-more-2-fill text-sm"></i>
+                        </button>
+                      </td>
+                      <template x-for="(col, ci) in dgVisibleCols" :key="col.key">
+                        <td class="border-r border-gray-50"
+                          :class="[dgDensity==='compact' ? 'px-2 py-1' : 'px-3 py-1.5', col.pinned ? 'sticky z-[5] bg-white' : '']"
+                          :style="dgColStyle(col, ci)">
+                          <!-- Checkbox -->
+                          <template x-if="col.key==='checkbox'">
+                            <input type="checkbox" :checked="dgBulkSelected.includes(item.id)" @click.stop="dgToggleRow(item.id)" class="rounded border-gray-300 text-brand-600 focus:ring-brand-500">
+                          </template>
+                          <!-- Thumbnail (lazy loaded via IntersectionObserver) -->
+                          <template x-if="col.key==='thumbnail'">
+                            <div class="flex items-center justify-center" :style="'width:'+(dgDensity==='compact'?28:32)+'px;height:'+(dgDensity==='compact'?28:32)+'px'">
+                              <template x-if="item.thumbnailUrl">
+                                <img :data-src="item.thumbnailUrl"
+                                  class="rounded object-cover bg-gray-100 cursor-pointer hover:opacity-80"
+                                  :style="'width:'+(dgDensity==='compact'?28:32)+'px;height:'+(dgDensity==='compact'?28:32)+'px'"
+                                  @click="viewResult(item)"
+                                  @error="$el.src=''; $el.style.display='none'; $el.nextElementSibling&&($el.nextElementSibling.style.display='')">
+                              </template>
+                              <i x-show="!item.thumbnailUrl && item.generatedVideoUrl" class="ri-video-line text-purple-300" :class="dgDensity==='compact' ? 'text-xs' : 'text-sm'"></i>
+                              <i x-show="!item.thumbnailUrl && !item.generatedVideoUrl" class="ri-image-line text-gray-200" :class="dgDensity==='compact' ? 'text-xs' : 'text-sm'"></i>
+                            </div>
+                          </template>
+                          <!-- Topic -->
+                          <template x-if="col.key==='topic'">
+                            <div class="font-medium text-gray-800 leading-snug cursor-pointer hover:text-brand-600 truncate" :title="item.topic"
+                              x-text="item.topic" @click="viewResult(item)"></div>
+                          </template>
+                          <!-- Status -->
+                          <template x-if="col.key==='status'">
+                            <span class="inline-flex items-center px-1.5 py-0.5 rounded-full font-medium whitespace-nowrap"
+                              :class="[statusClass(item.status), dgDensity==='compact' ? 'text-[10px]' : 'text-xs']"
+                              x-text="statusLabel(item.status)"></span>
+                          </template>
+                          <!-- Page -->
+                          <template x-if="col.key==='page'">
+                            <div class="flex items-center gap-1 truncate">
+                              <img x-show="item.page?.platform==='FACEBOOK'" :src="'https://graph.facebook.com/'+item.page?.externalId+'/picture?type=small'"
+                                class="w-4 h-4 rounded-full object-cover flex-shrink-0 bg-gray-100" onerror="this.style.display='none'">
+                              <span class="truncate" x-text="item.page?.name" :title="item.page?.name"></span>
+                            </div>
+                          </template>
+                          <!-- Campaign -->
+                          <template x-if="col.key==='campaign'">
+                            <span class="truncate block text-gray-600" x-text="item.campaign?.name || '—'" :title="item.campaign?.name"></span>
+                          </template>
+                          <!-- Content Type -->
+                          <template x-if="col.key==='contentType'">
+                            <span class="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded"
+                              :class="{'bg-blue-50 text-blue-600': item.contentType==='IMAGE', 'bg-purple-50 text-purple-600': item.contentType==='VIDEO', 'bg-gray-100 text-gray-600': item.contentType==='TEXT'}">
+                              <i :class="{'ri-image-line': item.contentType==='IMAGE', 'ri-video-line': item.contentType==='VIDEO', 'ri-text': item.contentType==='TEXT'}" class="text-[10px]"></i>
+                              <span x-text="item.contentType" class="text-[10px]"></span>
+                            </span>
+                          </template>
+                          <!-- Source -->
+                          <template x-if="col.key==='source'">
+                            <span class="px-1.5 py-0.5 rounded whitespace-nowrap text-[10px]"
+                              :class="{'bg-purple-50 text-purple-600': item.source==='AI_GEN'||item.source==='AI', 'bg-teal-50 text-teal-600': item.source==='MANUAL'}"
+                              x-text="sourceLabel(item.source)"></span>
+                          </template>
+                          <!-- Scheduled At -->
+                          <template x-if="col.key==='scheduledAt'">
+                            <div>
+                              <div class="text-gray-700 font-medium" :class="dgDensity==='compact' ? 'text-[10px]' : 'text-xs'"
+                                x-text="new Date(item.scheduledAt).toLocaleDateString('vi-VN',{timeZone:'Asia/Ho_Chi_Minh',day:'2-digit',month:'2-digit',year:'numeric'})"></div>
+                              <div class="text-gray-400" :class="dgDensity==='compact' ? 'text-[9px]' : 'text-[11px]'"
+                                x-text="new Date(item.scheduledAt).toLocaleTimeString('vi-VN',{timeZone:'Asia/Ho_Chi_Minh',hour:'2-digit',minute:'2-digit'})"></div>
+                            </div>
+                          </template>
+                          <!-- Created At -->
+                          <template x-if="col.key==='createdAt'">
+                            <div class="text-gray-500" :class="dgDensity==='compact' ? 'text-[10px]' : 'text-xs'"
+                              x-text="new Date(item.createdAt).toLocaleDateString('vi-VN',{timeZone:'Asia/Ho_Chi_Minh',day:'2-digit',month:'2-digit'})"></div>
+                          </template>
+                          <!-- Published At -->
+                          <template x-if="col.key==='publishedAt'">
+                            <div x-text="item.publishedAt ? new Date(item.publishedAt).toLocaleDateString('vi-VN',{timeZone:'Asia/Ho_Chi_Minh',day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}) : '—'"
+                              class="text-gray-500" :class="dgDensity==='compact' ? 'text-[10px]' : 'text-xs'"></div>
+                          </template>
+                          <!-- Notes -->
+                          <template x-if="col.key==='notes'">
+                            <div class="text-gray-500 truncate" :class="dgDensity==='compact' ? 'text-[10px]' : 'text-[11px]'"
+                              x-text="item.notes || '—'" :title="item.notes"></div>
+                          </template>
+                          <!-- Result preview -->
+                          <template x-if="col.key==='result'">
+                            <div>
+                              <div x-show="item.generatedText" class="text-gray-500 truncate cursor-pointer hover:text-gray-800" :class="dgDensity==='compact' ? 'text-[10px]' : 'text-[11px]'"
+                                x-text="(item.generatedText||'').substring(0,50)" @click="viewResult(item)"></div>
+                              <span x-show="!item.generatedText && item.status==='GENERATING'" class="text-purple-400 text-[10px]"><i class="ri-loader-4-line animate-spin"></i></span>
+                              <span x-show="!item.generatedText && item.status!=='GENERATING'" class="text-gray-200 text-[10px]">—</span>
+                            </div>
+                          </template>
+                          <!-- Metrics: Người xem -->
+                          <template x-if="col.key==='viewers'">
+                            <span class="tabular-nums" x-text="dgMetric(item,'fb_reach')"></span>
+                          </template>
+                          <!-- Metrics: Lượt xem -->
+                          <template x-if="col.key==='mediaViews'">
+                            <span class="tabular-nums" x-text="dgMetric(item,'fb_media_views')"></span>
+                          </template>
+                          <!-- Metrics: Engagement -->
+                          <template x-if="col.key==='engagement'">
+                            <span class="tabular-nums" x-text="dgEngagement(item)"></span>
+                          </template>
+                          <!-- Metrics: Reactions -->
+                          <template x-if="col.key==='reactions'">
+                            <span class="tabular-nums" x-text="dgMetric(item,'fb_reactions')"></span>
+                          </template>
+                          <!-- Metrics: Comments -->
+                          <template x-if="col.key==='comments'">
+                            <span class="tabular-nums" x-text="dgMetric(item,'fb_comments')"></span>
+                          </template>
+                          <!-- Metrics: Shares -->
+                          <template x-if="col.key==='shares'">
+                            <span class="tabular-nums" x-text="dgMetric(item,'fb_shares')"></span>
+                          </template>
+                          <!-- Metrics: Clicks -->
+                          <template x-if="col.key==='clicks'">
+                            <span class="tabular-nums" x-text="dgMetric(item,'fb_clicks')"></span>
+                          </template>
+                          <!-- Metrics: Eng/Viewer -->
+                          <template x-if="col.key==='engPerViewer'">
+                            <span class="tabular-nums" x-text="dgEngPerViewer(item)"></span>
+                          </template>
+                        </td>
+                      </template>
+                    </tr>
+                  </template>
+                </tbody>
+                <!-- Summary tfoot: same table layout = perfect column alignment -->
+                <tfoot x-show="dgSummaryVisible && dgSummary && contentItems.length > 0" class="sticky bottom-0 z-[8] border-t-2 border-gray-200 bg-gray-50/95 backdrop-blur-sm">
+                  <tr>
+                    <td class="w-10 sticky left-0 z-[9] bg-gray-50"></td>
+                    <td class="w-10 sticky left-[40px] z-[9] bg-gray-50" style="box-shadow: 2px 0 4px -2px rgba(0,0,0,0.1)"></td>
+                    <template x-for="(col, ci) in dgVisibleCols" :key="col.key">
+                      <td class="border-r border-gray-100"
+                        :class="[dgDensity==='compact' ? 'px-2 py-1.5' : 'px-3 py-2', col.pinned ? 'sticky z-[9] bg-gray-50' : '']"
+                        :style="dgColStyle(col, ci)">
+                        <template x-if="col.key==='topic'">
+                          <div>
+                            <div class="text-xs font-semibold text-gray-700" x-text="'Kết quả từ ' + (dgSummary?.resultCount||0).toLocaleString('vi-VN') + ' nội dung'"></div>
+                            <button @click="dgSummaryVisible=false; try{localStorage.setItem('mkt_dg_summary','hidden')}catch{}" class="text-[10px] text-gray-400 hover:text-brand-500">Ẩn kết quả</button>
+                          </div>
+                        </template>
+                        <template x-if="col.key==='checkbox' || col.key==='thumbnail'"><span></span></template>
+                        <template x-if="col.key==='viewers'">
+                          <div class="text-right">
+                            <div class="text-xs font-bold tabular-nums text-gray-800" x-text="dgSummary?.viewersSum!=null ? dgSummary.viewersSum.toLocaleString('vi-VN') : '—'"></div>
+                            <div class="text-[9px] text-gray-400" title="Tổng số người xem duy nhất của từng bài. Một người xem nhiều bài có thể được tính nhiều lần.">Tổng theo bài</div>
+                          </div>
+                        </template>
+                        <template x-if="col.key==='mediaViews'">
+                          <div class="text-right">
+                            <div class="text-xs font-bold tabular-nums text-gray-800" x-text="dgSummary?.viewsSum!=null ? dgSummary.viewsSum.toLocaleString('vi-VN') : '—'"></div>
+                            <div class="text-[9px] text-gray-400" title="Tổng lượt xem của các bài trong kết quả hiện tại.">Tổng</div>
+                          </div>
+                        </template>
+                        <template x-if="col.key==='engagement'">
+                          <div class="text-right">
+                            <div class="text-xs font-bold tabular-nums text-gray-800" x-text="dgSummary?.engagementSum!=null ? dgSummary.engagementSum.toLocaleString('vi-VN') : '—'"></div>
+                            <div class="text-[9px] text-gray-400" title="Tổng Reactions + Comments + Shares.">Tổng</div>
+                          </div>
+                        </template>
+                        <template x-if="col.key==='reactions'">
+                          <div class="text-right">
+                            <div class="text-xs font-bold tabular-nums text-gray-800" x-text="dgSummary?.reactionsSum!=null ? dgSummary.reactionsSum.toLocaleString('vi-VN') : '—'"></div>
+                            <div class="text-[9px] text-gray-400">Tổng</div>
+                          </div>
+                        </template>
+                        <template x-if="col.key==='comments'">
+                          <div class="text-right">
+                            <div class="text-xs font-bold tabular-nums text-gray-800" x-text="dgSummary?.commentsSum!=null ? dgSummary.commentsSum.toLocaleString('vi-VN') : '—'"></div>
+                            <div class="text-[9px] text-gray-400">Tổng</div>
+                          </div>
+                        </template>
+                        <template x-if="col.key==='shares'">
+                          <div class="text-right">
+                            <div class="text-xs font-bold tabular-nums text-gray-800" x-text="dgSummary?.sharesSum!=null ? dgSummary.sharesSum.toLocaleString('vi-VN') : '—'"></div>
+                            <div class="text-[9px] text-gray-400">Tổng</div>
+                          </div>
+                        </template>
+                        <template x-if="col.key==='clicks'">
+                          <div class="text-right">
+                            <div class="text-xs font-bold tabular-nums text-gray-800" x-text="dgSummary?.clicksSum!=null ? dgSummary.clicksSum.toLocaleString('vi-VN') : '—'"></div>
+                            <div class="text-[9px] text-gray-400">Tổng</div>
+                          </div>
+                        </template>
+                        <template x-if="col.key==='engPerViewer'">
+                          <div class="text-right">
+                            <div class="text-xs font-bold tabular-nums text-gray-800" x-text="dgSummary?.engViewer!=null ? dgSummary.engViewer.toFixed(2)+'%' : '—'"></div>
+                            <div class="text-[9px] text-gray-400" title="Engagement tổng chia cho Tổng người xem theo bài.">Tổng hợp</div>
+                          </div>
+                        </template>
+                        <template x-if="!['checkbox','thumbnail','topic','viewers','mediaViews','engagement','reactions','comments','shares','clicks','engPerViewer'].includes(col.key)">
+                          <span></span>
+                        </template>
+                      </td>
+                    </template>
+                  </tr>
+                </tfoot>
+              </table>
+              <div x-show="contentItems.length===0" class="text-center py-12 text-gray-400">
+                <i class="ri-article-line text-4xl mb-2"></i>
+                <p>Chưa có content nào.</p>
+              </div>
+            </div>
+            <!-- Show summary toggle -->
+            <div x-show="!dgSummaryVisible && contentItems.length > 0" class="flex-shrink-0 border-t border-gray-100 px-3 py-1.5 bg-gray-50/50">
+              <button @click="dgSummaryVisible=true; try{localStorage.setItem('mkt_dg_summary','visible')}catch{}" class="text-[10px] text-gray-400 hover:text-brand-500">Hiện kết quả</button>
+            </div>
+            <!-- Row Actions Dropdown (portal outside scroll) -->
+            <div x-show="dgRowMenu.open" @click.away="dgRowMenu.open=false" x-transition
+              class="fixed bg-white rounded-lg shadow-lg border border-gray-100 py-1 z-[100] min-w-[150px]"
+              :style="'top:'+dgRowMenu.y+'px;left:'+dgRowMenu.x+'px'">
+              <template x-if="dgRowMenu.item">
+                <div>
+                  <button x-show="dgRowMenu.item.generatedText || dgRowMenu.item.generatedImageUrl || dgRowMenu.item.generatedVideoUrl" @click="viewResult(dgRowMenu.item); dgRowMenu.open=false"
+                    class="w-full text-left px-3 py-1.5 text-xs hover:bg-gray-50 flex items-center gap-2"><i class="ri-eye-line text-brand-500"></i> Xem</button>
+                  <button x-show="dgRowMenu.item.status==='DRAFT'&&dgRowMenu.item.source!=='MANUAL'" @click="regenerateContent(dgRowMenu.item.id); dgRowMenu.open=false"
+                    class="w-full text-left px-3 py-1.5 text-xs hover:bg-gray-50 flex items-center gap-2"><i class="ri-magic-line text-purple-500"></i> Gen</button>
+                  <button x-show="dgRowMenu.item.status==='PENDING_REVIEW'||dgRowMenu.item.status==='REVISION_REQUESTED'" @click="approveContent(dgRowMenu.item.id); dgRowMenu.open=false"
+                    class="w-full text-left px-3 py-1.5 text-xs hover:bg-gray-50 flex items-center gap-2"><i class="ri-check-line text-green-500"></i> Duyệt</button>
+                  <button x-show="(dgRowMenu.item.status==='PENDING_REVIEW'||dgRowMenu.item.status==='REVISION_REQUESTED')&&dgRowMenu.item.source!=='MANUAL'" @click="openRevisionModal(dgRowMenu.item); dgRowMenu.open=false"
+                    class="w-full text-left px-3 py-1.5 text-xs hover:bg-gray-50 flex items-center gap-2"><i class="ri-magic-line text-purple-500"></i> Tinh chỉnh AI</button>
+                  <button x-show="(dgRowMenu.item.status==='PENDING_REVIEW'||dgRowMenu.item.status==='REVISION_REQUESTED')&&dgRowMenu.item.source!=='MANUAL'" @click="editContent(dgRowMenu.item, 'ai'); dgRowMenu.open=false"
+                    class="w-full text-left px-3 py-1.5 text-xs hover:bg-gray-50 flex items-center gap-2"><i class="ri-refresh-line text-orange-500"></i> Gen lại</button>
+                  <button x-show="dgRowMenu.item.status==='PENDING_REVIEW'||dgRowMenu.item.status==='REVISION_REQUESTED'" @click="editContent(dgRowMenu.item, 'manual'); dgRowMenu.open=false"
+                    class="w-full text-left px-3 py-1.5 text-xs hover:bg-gray-50 flex items-center gap-2"><i class="ri-pencil-line text-gray-500"></i> Sửa</button>
+                  <button x-show="dgRowMenu.item.status==='PENDING_REVIEW'||dgRowMenu.item.status==='REVISION_REQUESTED'" @click="rejectContent(dgRowMenu.item.id); dgRowMenu.open=false"
+                    class="w-full text-left px-3 py-1.5 text-xs hover:bg-red-50 flex items-center gap-2 text-red-500"><i class="ri-close-line"></i> Từ chối</button>
+                  <button x-show="dgRowMenu.item.status==='APPROVED'" @click="publishNow(dgRowMenu.item.id); dgRowMenu.open=false"
+                    class="w-full text-left px-3 py-1.5 text-xs hover:bg-gray-50 flex items-center gap-2"><i class="ri-send-plane-line text-green-500"></i> Đăng ngay</button>
+                  <button x-show="dgRowMenu.item.status==='APPROVED'" @click="editContent(dgRowMenu.item, 'manual'); dgRowMenu.open=false"
+                    class="w-full text-left px-3 py-1.5 text-xs hover:bg-gray-50 flex items-center gap-2"><i class="ri-pencil-line text-gray-500"></i> Sửa</button>
+                  <button x-show="dgRowMenu.item.status==='APPROVED'&&dgRowMenu.item.source!=='MANUAL'" @click="openRevisionModal(dgRowMenu.item); dgRowMenu.open=false"
+                    class="w-full text-left px-3 py-1.5 text-xs hover:bg-gray-50 flex items-center gap-2"><i class="ri-magic-line text-purple-500"></i> Tinh chỉnh AI</button>
+                  <button x-show="dgRowMenu.item.status==='APPROVED'&&dgRowMenu.item.source!=='MANUAL'" @click="editContent(dgRowMenu.item, 'ai'); dgRowMenu.open=false"
+                    class="w-full text-left px-3 py-1.5 text-xs hover:bg-gray-50 flex items-center gap-2"><i class="ri-refresh-line text-orange-500"></i> Gen lại</button>
+                  <button x-show="dgRowMenu.item.status==='FAILED'&&dgRowMenu.item.source!=='MANUAL'" @click="regenerateContent(dgRowMenu.item.id); dgRowMenu.open=false"
+                    class="w-full text-left px-3 py-1.5 text-xs hover:bg-gray-50 flex items-center gap-2"><i class="ri-refresh-line text-orange-500"></i> Gen lại</button>
+                  <button x-show="dgRowMenu.item.status==='FAILED'" @click="publishNow(dgRowMenu.item.id); dgRowMenu.open=false"
+                    class="w-full text-left px-3 py-1.5 text-xs hover:bg-gray-50 flex items-center gap-2"><i class="ri-restart-line text-orange-500"></i> Đăng lại</button>
+                  <div x-show="dgRowMenu.item.status!=='PUBLISHED'&&dgRowMenu.item.status!=='GENERATING'&&dgRowMenu.item.status!=='PENDING_REVIEW'&&dgRowMenu.item.status!=='REVISION_REQUESTED'&&dgRowMenu.item.status!=='APPROVED'" class="border-t border-gray-100 my-1"></div>
+                  <button x-show="dgRowMenu.item.status!=='PUBLISHED'&&dgRowMenu.item.status!=='GENERATING'&&dgRowMenu.item.status!=='PENDING_REVIEW'&&dgRowMenu.item.status!=='REVISION_REQUESTED'&&dgRowMenu.item.status!=='APPROVED'" @click="editContent(dgRowMenu.item); dgRowMenu.open=false"
+                    class="w-full text-left px-3 py-1.5 text-xs hover:bg-gray-50 flex items-center gap-2"><i class="ri-pencil-line text-gray-500"></i> Sửa</button>
+                  <button x-show="dgRowMenu.item.status!=='PUBLISHED'&&dgRowMenu.item.status!=='GENERATING'&&dgRowMenu.item.status!=='QUEUED'" @click="deleteContent(dgRowMenu.item.id, dgRowMenu.item.topic); dgRowMenu.open=false"
+                    class="w-full text-left px-3 py-1.5 text-xs hover:bg-red-50 flex items-center gap-2 text-red-500"><i class="ri-delete-bin-line"></i> Xóa</button>
+                  <button x-show="dgRowMenu.item.status==='FAILED'&&dgRowMenu.item.errorMessage" @click="viewError(dgRowMenu.item); dgRowMenu.open=false"
+                    class="w-full text-left px-3 py-1.5 text-xs hover:bg-red-50 flex items-center gap-2 text-red-500"><i class="ri-error-warning-line"></i> Xem lỗi</button>
+                </div>
+              </template>
+            </div>
+            <!-- Pagination -->
+            <div x-show="contentTotal > 0" class="flex-shrink-0 flex items-center justify-between px-4 py-1.5 border-t border-gray-100 bg-white rounded-b-xl">
+              <div class="text-xs text-gray-500">
+                <span x-text="((dgPage-1)*dgPageSize+1)"></span>–<span x-text="Math.min(dgPage*dgPageSize, contentTotal)"></span> / <span x-text="contentTotal"></span>
+              </div>
+              <div class="flex items-center gap-2">
+                <select x-model="dgPageSize" @change="dgPage=1; loadContent()" class="px-2 py-1 border border-gray-200 rounded text-xs outline-none">
+                  <option value="25">25</option>
+                  <option value="50">50</option>
+                  <option value="100">100</option>
+                </select>
+                <span class="text-xs text-gray-400">/ trang</span>
+                <div class="flex gap-1 ml-2">
+                  <button @click="dgPage=Math.max(1,dgPage-1); loadContent()" :disabled="dgPage<=1"
+                    class="px-2 py-1 border border-gray-200 rounded text-xs hover:bg-gray-100 disabled:opacity-30"><i class="ri-arrow-left-s-line"></i></button>
+                  <span class="px-2 py-1 text-xs text-gray-600" x-text="dgPage + ' / ' + Math.ceil(contentTotal/dgPageSize)"></span>
+                  <button @click="dgPage=Math.min(Math.ceil(contentTotal/dgPageSize),dgPage+1); loadContent()" :disabled="dgPage>=Math.ceil(contentTotal/dgPageSize)"
+                    class="px-2 py-1 border border-gray-200 rounded text-xs hover:bg-gray-100 disabled:opacity-30"><i class="ri-arrow-right-s-line"></i></button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Column Manager Panel (Enhanced) -->
+          <div x-show="dgColPanel" x-cloak class="w-72 bg-white border border-gray-200 rounded-xl shadow-lg overflow-y-auto absolute top-0 right-0 z-30" style="max-height:calc(100vh - 200px)">
+            <div class="p-3 border-b border-gray-100">
+              <div class="flex items-center justify-between mb-2">
+                <h3 class="text-sm font-semibold">Tùy chỉnh cột</h3>
+                <button @click="dgColPanel=false" class="text-gray-400 hover:text-gray-600"><i class="ri-close-line"></i></button>
+              </div>
+              <input x-model="dgColSearch" type="text" placeholder="Tìm cột..." class="w-full px-2.5 py-1.5 border border-gray-200 rounded-lg text-xs outline-none focus:ring-1 focus:ring-brand-500 bg-gray-50">
+            </div>
+            <div class="p-2 space-y-0.5">
+              <template x-for="col in dgAllCols.filter(c => c.key !== 'checkbox' && (!dgColSearch || c.label.toLowerCase().includes(dgColSearch.toLowerCase())))" :key="col.key">
+                <div class="flex items-center gap-1 px-2 py-1.5 rounded hover:bg-gray-50 text-xs group"
+                  draggable="true" @dragstart="dgDragCol=col.key" @dragover.prevent @drop.prevent="dgDropCol(col.key)" @dragend="dgDragCol=null"
+                  :class="dgDragCol===col.key && 'opacity-50'">
+                  <i class="ri-draggable text-gray-300 cursor-grab text-sm mr-0.5"></i>
+                  <input type="checkbox" :checked="col.visible" @change="col.visible=!col.visible; dgSaveCols()" class="rounded border-gray-300 text-brand-600 focus:ring-brand-500 shrink-0">
+                  <span x-text="col.label" class="text-gray-700 flex-1 truncate"></span>
+                  <button @click="col.pinned=!col.pinned; dgSaveCols()" class="p-0.5 rounded hover:bg-gray-200 transition"
+                    :class="col.pinned ? 'text-brand-500' : 'text-gray-300 opacity-0 group-hover:opacity-100'" :title="col.pinned ? 'Bỏ ghim' : 'Ghim'">
+                    <i class="ri-pushpin-line text-xs"></i>
+                  </button>
+                  <span x-show="col.group==='metrics'" class="text-[9px] text-gray-400">📊</span>
+                </div>
+              </template>
+            </div>
+            <div class="p-3 border-t border-gray-100 space-y-2">
+              <p class="text-[10px] text-gray-400">Presets</p>
+              <div class="flex flex-wrap gap-1">
+                <template x-for="preset in dgPresets" :key="preset.key">
+                  <button @click="dgSetPreset(preset.key)" class="px-2 py-1 rounded text-[10px] border transition"
+                    :class="dgActivePreset===preset.key ? 'bg-brand-50 border-brand-300 text-brand-700' : 'border-gray-200 text-gray-500 hover:bg-gray-50'"
+                    x-text="preset.label"></button>
+                </template>
+              </div>
+              <template x-if="dgSavedViews.length">
+                <div>
+                  <p class="text-[10px] text-gray-400 mt-2">Views đã lưu</p>
+                  <div class="flex flex-wrap gap-1 mt-1">
+                    <template x-for="(v,vi) in dgSavedViews" :key="vi">
+                      <div class="flex items-center gap-0.5">
+                        <button @click="dgApplyView(vi)" class="px-2 py-1 rounded text-[10px] border transition"
+                          :class="dgActiveView===vi ? 'bg-brand-50 border-brand-300 text-brand-700' : 'border-gray-200 text-gray-500 hover:bg-gray-50'"
+                          x-text="v.name"></button>
+                        <button @click="dgDeleteView(vi)" class="text-gray-300 hover:text-red-400 text-[10px]"><i class="ri-close-line"></i></button>
+                      </div>
+                    </template>
+                  </div>
+                </div>
+              </template>
+              <div class="flex gap-1 mt-2">
+                <button @click="dgShowSaveView=!dgShowSaveView" class="flex-1 px-2 py-1.5 border border-gray-200 rounded text-[10px] text-gray-500 hover:bg-gray-50 flex items-center justify-center gap-1">
+                  <i class="ri-save-line"></i> Lưu View
+                </button>
+                <button @click="dgResetCols()" class="px-2 py-1.5 border border-gray-200 rounded text-[10px] text-gray-500 hover:bg-gray-50" title="Mặc định">
+                  <i class="ri-refresh-line"></i>
+                </button>
+              </div>
+              <div x-show="dgShowSaveView" class="flex gap-1">
+                <input x-model="dgNewViewName" type="text" placeholder="Tên view..." class="flex-1 px-2 py-1 border border-gray-200 rounded text-xs outline-none focus:ring-1 focus:ring-brand-500">
+                <button @click="dgSaveView()" :disabled="!dgNewViewName.trim()" class="px-2 py-1 bg-brand-600 text-white rounded text-xs disabled:opacity-40">Lưu</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Column Context Menu -->
+        <div x-show="dgCtxMenu" x-cloak @click.away="dgCtxMenu=null" x-transition
+          class="fixed bg-white rounded-lg shadow-lg border border-gray-100 py-1 z-[200] min-w-[170px]"
+          :style="dgCtxMenu ? 'left:'+dgCtxMenu.x+'px;top:'+dgCtxMenu.y+'px' : ''">
+          <template x-if="dgCtxMenu">
+            <div>
+              <button x-show="dgCtxMenu.col.sortable !== false" @click="dgSortBy=dgCtxMenu.col.key; dgSortDir='asc'; dgPage=1; loadContent(); dgCtxMenu=null"
+                class="w-full text-left px-3 py-1.5 text-xs hover:bg-gray-50 flex items-center gap-2"><i class="ri-sort-asc text-gray-400"></i> Sắp xếp tăng dần</button>
+              <button x-show="dgCtxMenu.col.sortable !== false" @click="dgSortBy=dgCtxMenu.col.key; dgSortDir='desc'; dgPage=1; loadContent(); dgCtxMenu=null"
+                class="w-full text-left px-3 py-1.5 text-xs hover:bg-gray-50 flex items-center gap-2"><i class="ri-sort-desc text-gray-400"></i> Sắp xếp giảm dần</button>
+              <button x-show="dgCtxMenu.col.filterable" @click="dgOpenHeaderFilter(dgCtxMenu.col, dgCtxMenu.x, dgCtxMenu.y); dgCtxMenu=null"
+                class="w-full text-left px-3 py-1.5 text-xs hover:bg-gray-50 flex items-center gap-2"><i class="ri-filter-3-line text-gray-400"></i> Lọc cột này</button>
+              <div class="border-t border-gray-100 my-1"></div>
+              <button @click="dgCtxMenu.col.pinned=!dgCtxMenu.col.pinned; dgSaveCols(); dgCtxMenu=null"
+                class="w-full text-left px-3 py-1.5 text-xs hover:bg-gray-50 flex items-center gap-2">
+                <i :class="dgCtxMenu.col.pinned ? 'ri-unpin-line text-gray-400' : 'ri-pushpin-line text-gray-400'"></i>
+                <span x-text="dgCtxMenu.col.pinned ? 'Bỏ ghim' : 'Ghim trái'"></span>
+              </button>
+              <button @click="dgCtxMenu.col.visible=false; dgSaveCols(); dgCtxMenu=null"
+                class="w-full text-left px-3 py-1.5 text-xs hover:bg-gray-50 flex items-center gap-2"><i class="ri-eye-off-line text-gray-400"></i> Ẩn cột</button>
+              <button @click="dgAutoSize(dgCtxMenu.col); dgCtxMenu=null"
+                class="w-full text-left px-3 py-1.5 text-xs hover:bg-gray-50 flex items-center gap-2"><i class="ri-arrows-left-right-line text-gray-400"></i> Auto-size</button>
+            </div>
+          </template>
+        </div>
+
+        <!-- Header Filter Popover -->
+        <div x-show="dgHeaderFilter" x-cloak @click.away="dgHeaderFilter=null" x-transition
+          class="fixed bg-white rounded-lg shadow-lg border border-gray-200 z-[200] p-3 min-w-[220px] max-w-[280px]"
+          :style="dgHeaderFilter ? 'left:'+dgHeaderFilter.x+'px;top:'+dgHeaderFilter.y+'px' : ''">
+          <template x-if="dgHeaderFilter">
+            <div>
+              <div class="text-xs font-semibold text-gray-700 mb-2" x-text="'Lọc: ' + dgHeaderFilter.col.label"></div>
+
+              <!-- Multi-select filter (status, source, contentType) -->
+              <template x-if="dgHeaderFilter.col.filterable==='multi-select'">
+                <div class="space-y-1 max-h-[200px] overflow-y-auto">
+                  <template x-for="opt in dgHeaderFilter.col.filterOptions" :key="opt">
+                    <label class="flex items-center gap-2 px-2 py-1 rounded hover:bg-gray-50 cursor-pointer text-xs">
+                      <input type="checkbox" :checked="(dgHeaderFilterData[dgHeaderFilter.col.key]||[]).includes(opt)"
+                        @change="dgToggleHeaderFilterOpt(dgHeaderFilter.col.key, opt)"
+                        class="rounded border-gray-300 text-brand-600 focus:ring-brand-500">
+                      <span x-text="dgHeaderFilter.col.key==='status' ? statusLabel(opt) : (dgHeaderFilter.col.key==='source' ? sourceLabel(opt) : opt)"></span>
+                    </label>
+                  </template>
+                </div>
+              </template>
+
+              <!-- Page multi-select -->
+              <template x-if="dgHeaderFilter.col.filterable==='page-select'">
+                <div class="space-y-1 max-h-[200px] overflow-y-auto">
+                  <template x-for="p in scopePages" :key="p.id">
+                    <label class="flex items-center gap-2 px-2 py-1 rounded hover:bg-gray-50 cursor-pointer text-xs">
+                      <input type="checkbox" :checked="(dgHeaderFilterData.pageIds||[]).includes(p.id)"
+                        @change="dgToggleHeaderFilterOpt('pageIds', p.id)"
+                        class="rounded border-gray-300 text-brand-600 focus:ring-brand-500">
+                      <span class="truncate" x-text="p.name"></span>
+                    </label>
+                  </template>
+                </div>
+              </template>
+
+              <!-- Campaign cascade select -->
+              <template x-if="dgHeaderFilter.col.filterable==='campaign-select'">
+                <div class="space-y-1 max-h-[200px] overflow-y-auto">
+                  <template x-if="dgCascadeCampaigns.length===0">
+                    <p class="text-xs text-gray-400 py-2">Chọn Page trước để lọc Campaign</p>
+                  </template>
+                  <template x-for="c in dgCascadeCampaigns" :key="c.id">
+                    <label class="flex items-center gap-2 px-2 py-1 rounded hover:bg-gray-50 cursor-pointer text-xs">
+                      <input type="checkbox" :checked="(dgHeaderFilterData.campaignIds||[]).includes(c.id)"
+                        @change="dgToggleHeaderFilterOpt('campaignIds', c.id)"
+                        class="rounded border-gray-300 text-brand-600 focus:ring-brand-500">
+                      <span class="truncate" x-text="c.name"></span>
+                    </label>
+                  </template>
+                </div>
+              </template>
+
+              <!-- Numeric filter (metrics) -->
+              <template x-if="dgHeaderFilter.col.filterable==='numeric'">
+                <div class="space-y-2" x-init="if(!dgHeaderFilterData[dgHeaderFilter.col.key]) dgHeaderFilterData[dgHeaderFilter.col.key]={op:'gt',val:''}">
+                  <select :value="(dgHeaderFilterData[dgHeaderFilter.col.key]||{}).op||'gt'"
+                    @change="dgHeaderFilterData[dgHeaderFilter.col.key].op=$event.target.value"
+                    class="w-full px-2 py-1.5 border border-gray-200 rounded text-xs outline-none">
+                    <option value="gt">Lớn hơn (&gt;)</option>
+                    <option value="gte">Lớn hơn hoặc bằng (&gt;=)</option>
+                    <option value="lt">Nhỏ hơn (&lt;)</option>
+                    <option value="lte">Nhỏ hơn hoặc bằng (&lt;=)</option>
+                    <option value="equals">Bằng (=)</option>
+                  </select>
+                  <input type="number" :value="(dgHeaderFilterData[dgHeaderFilter.col.key]||{}).val||''"
+                    @input="dgHeaderFilterData[dgHeaderFilter.col.key].val=$event.target.value"
+                    placeholder="Giá trị..." class="w-full px-2 py-1.5 border border-gray-200 rounded text-xs outline-none focus:ring-1 focus:ring-brand-500">
+                </div>
+              </template>
+
+              <!-- Date range filter -->
+              <template x-if="dgHeaderFilter.col.filterable==='date-range'">
+                <div class="space-y-2">
+                  <div>
+                    <label class="text-[10px] text-gray-500">Từ</label>
+                    <input type="date" :value="(dgHeaderFilterData[dgHeaderFilter.col.key+'_from'])||''"
+                      @input="dgHeaderFilterData[dgHeaderFilter.col.key+'_from']=$event.target.value"
+                      class="w-full px-2 py-1.5 border border-gray-200 rounded text-xs outline-none">
+                  </div>
+                  <div>
+                    <label class="text-[10px] text-gray-500">Đến</label>
+                    <input type="date" :value="(dgHeaderFilterData[dgHeaderFilter.col.key+'_to'])||''"
+                      @input="dgHeaderFilterData[dgHeaderFilter.col.key+'_to']=$event.target.value"
+                      class="w-full px-2 py-1.5 border border-gray-200 rounded text-xs outline-none">
+                  </div>
+                </div>
+              </template>
+
+              <div class="flex gap-2 mt-3">
+                <button @click="dgClearHeaderFilter(dgHeaderFilter.col.key); dgHeaderFilter=null" class="flex-1 px-2 py-1.5 border border-gray-200 rounded text-xs text-gray-500 hover:bg-gray-50">Xóa</button>
+                <button @click="dgApplyHeaderFilter(); dgHeaderFilter=null" class="flex-1 px-2 py-1.5 bg-brand-600 text-white rounded text-xs hover:bg-brand-700">Áp dụng</button>
+              </div>
+            </div>
+          </template>
+        </div>
+      </div>
+
+      <!-- Content Detail Drawer -->
+      <div x-show="drawerOpen" x-cloak class="fixed inset-0 z-40" @keydown.escape.window="drawerOpen && closeDrawer()">
+        <div class="absolute inset-0 bg-black/20" @click="closeDrawer()"></div>
+        <div class="absolute right-0 top-0 bottom-0 bg-white shadow-2xl border-l border-gray-200 flex flex-col"
+          style="width:min(620px, 45vw); min-width:380px"
+          x-show="drawerOpen" x-transition:enter="transition ease-out duration-200" x-transition:enter-start="translate-x-full" x-transition:enter-end="translate-x-0"
+          x-transition:leave="transition ease-in duration-150" x-transition:leave-start="translate-x-0" x-transition:leave-end="translate-x-full"
+          @click.stop>
+
+          <!-- Drawer Header -->
+          <div class="flex-shrink-0 border-b border-gray-100 px-5 py-4">
+            <div class="flex items-center justify-between mb-2">
+              <div class="flex items-center gap-2 text-xs text-gray-500">
+                <i class="ri-article-line"></i> Chi tiết Content
+              </div>
+              <div class="flex items-center gap-1">
+                <button @click="(drawerItem?.status==='PENDING_REVIEW'||drawerItem?.status==='REVISION_REQUESTED') ? openRevisionModal(drawerItem) : drawerEditContent()" class="p-1.5 rounded hover:bg-gray-100 text-gray-500 hover:text-gray-700 transition" :title="(drawerItem?.status==='PENDING_REVIEW'||drawerItem?.status==='REVISION_REQUESTED') ? 'Tinh chỉnh AI' : 'Sửa'">
+                  <i class="text-sm" :class="drawerItem?.status==='PENDING_REVIEW' ? 'ri-magic-line text-purple-500' : 'ri-pencil-line'"></i>
+                </button>
+                <button @click="closeDrawer()" class="p-1.5 rounded hover:bg-gray-100 text-gray-400 hover:text-gray-600 transition" title="Đóng">
+                  <i class="ri-close-line text-lg"></i>
+                </button>
+              </div>
+            </div>
+            <template x-if="drawerItem">
+              <div>
+                <h3 class="text-base font-bold text-gray-900 leading-snug mb-1.5" x-text="drawerItem.topic"></h3>
+                <div class="flex items-center gap-2 flex-wrap">
+                  <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium" :class="statusClass(drawerItem.status)" x-text="statusLabel(drawerItem.status)"></span>
+                  <span class="text-xs text-gray-400">·</span>
+                  <span class="text-xs text-gray-600 flex items-center gap-1">
+                    <img x-show="drawerItem.page?.platform==='FACEBOOK'" :src="'https://graph.facebook.com/'+drawerItem.page?.externalId+'/picture?type=small'" class="w-3.5 h-3.5 rounded-full" onerror="this.style.display='none'">
+                    <span x-text="drawerItem.page?.name"></span>
+                  </span>
+                  <span class="text-xs text-gray-400">·</span>
+                  <span class="text-xs text-gray-600" x-text="drawerItem.campaign?.name || '—'"></span>
+                  <span class="text-xs text-gray-400">·</span>
+                  <span class="text-xs px-1.5 py-0.5 rounded"
+                    :class="{'bg-blue-50 text-blue-600': drawerItem.contentType==='IMAGE', 'bg-purple-50 text-purple-600': drawerItem.contentType==='VIDEO', 'bg-gray-100 text-gray-600': drawerItem.contentType==='TEXT'}"
+                    x-text="drawerItem.contentType"></span>
+                </div>
+              </div>
+            </template>
+            <!-- Prev/Next -->
+            <div class="flex items-center justify-between mt-3 pt-2 border-t border-gray-50">
+              <button @click="drawerPrev()" :disabled="drawerPrevDisabled()" class="text-xs text-gray-500 hover:text-brand-600 disabled:opacity-30 disabled:cursor-not-allowed flex items-center gap-1">
+                <i class="ri-arrow-left-s-line"></i> Bài trước
+              </button>
+              <span class="text-[10px] text-gray-400" x-text="drawerNavLabel()"></span>
+              <button @click="drawerNext()" :disabled="drawerNextDisabled()" class="text-xs text-gray-500 hover:text-brand-600 disabled:opacity-30 disabled:cursor-not-allowed flex items-center gap-1">
+                Bài tiếp <i class="ri-arrow-right-s-line"></i>
+              </button>
+            </div>
+          </div>
+
+          <!-- Loading skeleton -->
+          <div x-show="drawerLoading" class="flex-1 p-5 space-y-4">
+            <div class="animate-pulse space-y-3">
+              <div class="h-40 bg-gray-100 rounded-lg"></div>
+              <div class="h-4 bg-gray-100 rounded w-3/4"></div>
+              <div class="h-4 bg-gray-100 rounded w-1/2"></div>
+              <div class="h-20 bg-gray-100 rounded"></div>
+            </div>
+          </div>
+
+          <!-- Tabs + Content -->
+          <template x-if="drawerItem && !drawerLoading">
+            <div class="flex-1 flex flex-col overflow-hidden">
+              <!-- Tabs -->
+              <div class="flex-shrink-0 border-b border-gray-100 px-5">
+                <div class="flex gap-0">
+                  <template x-for="t in [{k:'content',l:'Nội dung',i:'ri-file-text-line'},{k:'ops',l:'Vận hành',i:'ri-settings-3-line'},{k:'perf',l:'Hiệu suất',i:'ri-bar-chart-line'},{k:'history',l:'Lịch sử',i:'ri-time-line'}]" :key="t.k">
+                    <button @click="drawerTab=t.k" class="px-3 py-2.5 text-xs font-medium border-b-2 transition flex items-center gap-1"
+                      :class="drawerTab===t.k ? 'border-brand-500 text-brand-700' : 'border-transparent text-gray-500 hover:text-gray-700'">
+                      <i :class="t.i" class="text-sm"></i> <span x-text="t.l"></span>
+                    </button>
+                  </template>
+                </div>
+              </div>
+
+              <!-- Tab: Nội dung -->
+              <div x-show="drawerTab==='content'" class="flex-1 overflow-y-auto p-5 space-y-4">
+                <!-- Media -->
+                <div>
+                  <template x-if="drawerItem.generatedImages?.length > 0">
+                    <div class="grid gap-2" :class="drawerItem.generatedImages.length > 1 ? 'grid-cols-2' : 'grid-cols-1'">
+                      <template x-for="(img, ii) in drawerItem.generatedImages" :key="ii">
+                        <img :src="img.url || img.localPath" class="w-full rounded-lg object-cover bg-gray-50 cursor-pointer hover:opacity-90" style="max-height:280px"
+                          @click="openLightbox(drawerItem.generatedImages, ii)" onerror="this.style.display='none'">
+                      </template>
+                    </div>
+                  </template>
+                  <template x-if="!drawerItem.generatedImages?.length && drawerItem.generatedImageUrl">
+                    <img :src="drawerItem.generatedImageUrl" class="w-full rounded-lg object-cover bg-gray-50 cursor-pointer hover:opacity-90" style="max-height:320px"
+                      @click="openLightbox([drawerItem.generatedImageUrl], 0)" onerror="this.style.display='none'">
+                  </template>
+                  <template x-if="drawerItem.generatedVideoUrl">
+                    <video :src="drawerItem.generatedVideoUrl" controls class="w-full rounded-lg bg-black" style="max-height:320px"></video>
+                  </template>
+                  <template x-if="!drawerItem.generatedImages?.length && !drawerItem.generatedImageUrl && !drawerItem.generatedVideoUrl">
+                    <div class="flex items-center justify-center h-32 bg-gray-50 rounded-lg border border-dashed border-gray-200">
+                      <div class="text-center text-gray-300">
+                        <i class="ri-image-line text-3xl"></i>
+                        <p class="text-xs mt-1">Chưa có media</p>
+                      </div>
+                    </div>
+                  </template>
+                </div>
+                <!-- Caption -->
+                <div x-show="drawerItem.generatedText">
+                  <div class="flex items-center justify-between mb-1">
+                    <h4 class="text-xs font-semibold text-gray-500 uppercase">Caption</h4>
+                    <button @click="navigator.clipboard.writeText(cleanText(drawerItem.generatedText)).then(()=>showToast('Đã copy'))" class="text-xs text-gray-400 hover:text-brand-500" title="Copy">
+                      <i class="ri-file-copy-line"></i>
+                    </button>
+                  </div>
+                  <div x-data="{expanded:false}">
+                    <div class="text-sm text-gray-700 leading-relaxed whitespace-pre-wrap break-words" :class="!expanded && 'line-clamp-6'" x-text="cleanText(drawerItem.generatedText)"></div>
+                    <button x-show="(cleanText(drawerItem.generatedText)||'').length > 300" @click="expanded=!expanded" class="text-xs text-brand-500 hover:text-brand-700 mt-1" x-text="expanded ? 'Thu gọn' : 'Xem đầy đủ'"></button>
+                  </div>
+                </div>
+                <!-- Info fields -->
+                <div class="space-y-2 text-xs">
+                  <div class="flex justify-between py-1.5 border-b border-gray-50">
+                    <span class="text-gray-500">Chủ đề</span>
+                    <span class="text-gray-800 font-medium text-right max-w-[60%] truncate" x-text="drawerItem.topic"></span>
+                  </div>
+                  <div x-show="drawerItem.notes" class="flex justify-between py-1.5 border-b border-gray-50">
+                    <span class="text-gray-500">Ghi chú</span>
+                    <span class="text-gray-700 text-right max-w-[60%]" x-text="drawerItem.notes"></span>
+                  </div>
+                  <div class="flex justify-between py-1.5 border-b border-gray-50">
+                    <span class="text-gray-500">Nguồn</span>
+                    <span class="px-1.5 py-0.5 rounded"
+                      :class="{'bg-purple-50 text-purple-600': drawerItem.source==='AI'||drawerItem.source==='AI_GEN', 'bg-teal-50 text-teal-600': drawerItem.source==='MANUAL'||drawerItem.source==='IMPORT'}"
+                      x-text="sourceLabel(drawerItem.source)"></span>
+                  </div>
+                  <div class="flex justify-between py-1.5 border-b border-gray-50">
+                    <span class="text-gray-500">Loại</span>
+                    <span x-text="drawerItem.contentType" class="text-gray-700"></span>
+                  </div>
+                  <div class="flex justify-between py-1.5">
+                    <span class="text-gray-500">Ngày tạo</span>
+                    <span class="text-gray-700" x-text="new Date(drawerItem.createdAt).toLocaleString('vi-VN',{timeZone:'Asia/Ho_Chi_Minh',day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'})"></span>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Tab: Vận hành -->
+              <div x-show="drawerTab==='ops'" class="flex-1 overflow-y-auto p-5 space-y-4">
+                <!-- Workflow progress -->
+                <div class="flex items-center gap-0 text-[10px] font-medium mb-4">
+                  <template x-for="(step, si) in drawerWorkflowSteps()" :key="si">
+                    <div class="flex items-center">
+                      <div class="flex items-center gap-1 px-2 py-1 rounded-full"
+                        :class="{'bg-green-100 text-green-700': step.state==='done', 'bg-blue-100 text-blue-700': step.state==='current', 'bg-red-100 text-red-600': step.state==='error', 'bg-gray-100 text-gray-400': step.state==='pending'}">
+                        <i :class="step.icon" class="text-xs"></i>
+                        <span x-text="step.label"></span>
+                      </div>
+                      <i x-show="si < drawerWorkflowSteps().length - 1" class="ri-arrow-right-s-line text-gray-300 mx-0.5"></i>
+                    </div>
+                  </template>
+                </div>
+                <!-- Sections -->
+                <div class="space-y-3 text-xs">
+                  <div class="bg-gray-50 rounded-lg p-3 space-y-2">
+                    <h4 class="font-semibold text-gray-600 flex items-center gap-1"><i class="ri-store-2-line text-sm"></i> Page & Campaign</h4>
+                    <div class="flex justify-between"><span class="text-gray-500">Page</span><span class="text-gray-800" x-text="drawerItem.page?.name"></span></div>
+                    <div class="flex justify-between"><span class="text-gray-500">Campaign</span><span class="text-gray-800" x-text="drawerItem.campaign?.name || '—'"></span></div>
+                  </div>
+                  <div class="bg-gray-50 rounded-lg p-3 space-y-2">
+                    <h4 class="font-semibold text-gray-600 flex items-center gap-1"><i class="ri-magic-line text-sm"></i> Generation</h4>
+                    <div class="flex justify-between"><span class="text-gray-500">Nguồn</span><span x-text="sourceLabel(drawerItem.source)"></span></div>
+                    <div class="flex justify-between"><span class="text-gray-500">Trạng thái</span><span x-text="drawerItem.status==='GENERATING' ? 'Đang tạo...' : (drawerItem.generatedText || drawerItem.generatedImageUrl ? 'Đã tạo' : 'Chưa tạo')"></span></div>
+                    <div x-show="drawerItem.aiModel" class="flex justify-between"><span class="text-gray-500">AI Model</span><span class="text-gray-700" x-text="drawerItem.aiModel"></span></div>
+                  </div>
+                  <div class="bg-gray-50 rounded-lg p-3 space-y-2">
+                    <h4 class="font-semibold text-gray-600 flex items-center gap-1"><i class="ri-checkbox-circle-line text-sm"></i> Approval</h4>
+                    <div class="flex justify-between"><span class="text-gray-500">Trạng thái</span>
+                      <span class="inline-flex items-center px-1.5 py-0.5 rounded-full font-medium" :class="statusClass(drawerItem.status)" x-text="statusLabel(drawerItem.status)"></span>
+                    </div>
+                    <template x-if="drawerItem.approvalLogs?.length > 0">
+                      <div class="space-y-1 mt-1">
+                        <template x-for="log in drawerItem.approvalLogs" :key="log.id">
+                          <div class="flex items-center gap-2 text-[11px] text-gray-500">
+                            <i :class="{'ri-check-line text-green-500': log.action==='APPROVE', 'ri-close-line text-red-500': log.action==='REJECT', 'ri-edit-line text-orange-500': log.action==='REQUEST_EDIT'}"></i>
+                            <span x-text="log.user?.name || 'System'"></span>
+                            <span class="text-gray-300">·</span>
+                            <span x-text="new Date(log.createdAt).toLocaleString('vi-VN',{timeZone:'Asia/Ho_Chi_Minh',day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'})"></span>
+                            <span x-show="log.feedback" class="text-gray-400 truncate max-w-[120px]" :title="log.feedback" x-text="log.feedback"></span>
+                          </div>
+                        </template>
+                      </div>
+                    </template>
+                  </div>
+                  <div class="bg-gray-50 rounded-lg p-3 space-y-2">
+                    <h4 class="font-semibold text-gray-600 flex items-center gap-1"><i class="ri-calendar-line text-sm"></i> Scheduling</h4>
+                    <div class="flex justify-between"><span class="text-gray-500">Lịch đăng</span>
+                      <span class="text-gray-800" x-text="new Date(drawerItem.scheduledAt).toLocaleString('vi-VN',{timeZone:'Asia/Ho_Chi_Minh',day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'})"></span>
+                    </div>
+                    <div class="flex justify-between"><span class="text-gray-500">Múi giờ</span><span class="text-gray-700">Asia/Ho_Chi_Minh</span></div>
+                  </div>
+                  <div class="bg-gray-50 rounded-lg p-3 space-y-2">
+                    <h4 class="font-semibold text-gray-600 flex items-center gap-1"><i class="ri-send-plane-line text-sm"></i> Publishing</h4>
+                    <div class="flex justify-between"><span class="text-gray-500">Trạng thái</span>
+                      <span x-text="drawerItem.status==='PUBLISHED' ? 'Đã đăng' : (drawerItem.status==='PUBLISHING' ? 'Đang đăng...' : (drawerItem.status==='FAILED' ? 'Lỗi' : 'Chưa đăng'))"></span>
+                    </div>
+                    <div x-show="drawerItem.publishedAt" class="flex justify-between"><span class="text-gray-500">Ngày đăng</span>
+                      <span class="text-gray-800" x-text="drawerItem.publishedAt ? new Date(drawerItem.publishedAt).toLocaleString('vi-VN',{timeZone:'Asia/Ho_Chi_Minh',day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'}) : '—'"></span>
+                    </div>
+                    <div x-show="drawerItem.socialPostId" class="flex justify-between"><span class="text-gray-500">Facebook Post ID</span>
+                      <span class="text-gray-600 font-mono text-[10px]" x-text="drawerItem.socialPostId"></span>
+                    </div>
+                    <div x-show="drawerItem.socialPostId && drawerItem.page?.externalId" class="mt-1">
+                      <a :href="'https://facebook.com/'+drawerItem.page.externalId+'/posts/'+drawerItem.socialPostId.split('_')[1]" target="_blank"
+                        class="text-xs text-brand-500 hover:text-brand-700 flex items-center gap-1"><i class="ri-external-link-line"></i> Xem trên Facebook</a>
+                    </div>
+                    <div x-show="drawerItem.errorMessage" class="mt-2 p-2 bg-red-50 rounded border border-red-100">
+                      <p class="text-red-600 text-[11px] font-medium mb-1"><i class="ri-error-warning-line"></i> Lỗi</p>
+                      <p class="text-red-500 text-[10px]" x-text="drawerItem.errorMessage"></p>
+                    </div>
+                  </div>
+                </div>
+                <!-- Quick Actions -->
+                <div class="border-t border-gray-100 pt-3 flex flex-wrap gap-2">
+                  <button x-show="drawerItem.status==='DRAFT'&&drawerItem.source==='AI'" @click="regenerateContent(drawerItem.id); showToast('Đã thêm vào hàng đợi gen')"
+                    class="px-3 py-1.5 bg-purple-500 text-white rounded-lg text-xs font-medium hover:bg-purple-600 flex items-center gap-1"><i class="ri-magic-line"></i> Gen nội dung</button>
+                  <button x-show="drawerItem.status==='FAILED'&&drawerItem.source==='AI'" @click="regenerateContent(drawerItem.id); showToast('Đã thêm vào hàng đợi gen')"
+                    class="px-3 py-1.5 bg-orange-500 text-white rounded-lg text-xs font-medium hover:bg-orange-600 flex items-center gap-1"><i class="ri-refresh-line"></i> Gen lại</button>
+                  <button x-show="drawerItem.status==='FAILED'" @click="publishNow(drawerItem.id)"
+                    class="px-3 py-1.5 bg-brand-600 text-white rounded-lg text-xs font-medium hover:bg-brand-700 flex items-center gap-1"><i class="ri-restart-line"></i> Đăng lại</button>
+                  <button x-show="drawerItem.status==='PENDING_REVIEW'||drawerItem.status==='REVISION_REQUESTED'" @click="approveContent(drawerItem.id).then(()=>refreshDrawer(drawerItem.id))"
+                    class="px-3 py-1.5 bg-green-500 text-white rounded-lg text-xs font-medium hover:bg-green-600 flex items-center gap-1"><i class="ri-check-line"></i> Duyệt</button>
+                  <button x-show="(drawerItem.status==='PENDING_REVIEW'||drawerItem.status==='REVISION_REQUESTED')&&drawerItem.source==='AI'" @click="openRevisionModal(drawerItem)"
+                    class="px-3 py-1.5 bg-purple-500 text-white rounded-lg text-xs font-medium hover:bg-purple-600 flex items-center gap-1"><i class="ri-magic-line"></i> Tinh chỉnh AI</button>
+                  <button x-show="(drawerItem.status==='PENDING_REVIEW'||drawerItem.status==='REVISION_REQUESTED')&&drawerItem.source==='AI'" @click="let _i=drawerItem; closeDrawer(); editContent(_i, 'ai')"
+                    class="px-3 py-1.5 bg-orange-500 text-white rounded-lg text-xs font-medium hover:bg-orange-600 flex items-center gap-1"><i class="ri-refresh-line"></i> Gen lại</button>
+                  <button x-show="drawerItem.status==='PENDING_REVIEW'||drawerItem.status==='REVISION_REQUESTED'" @click="let _i=drawerItem; closeDrawer(); editContent(_i, 'manual')"
+                    class="px-3 py-1.5 border border-gray-300 text-gray-600 rounded-lg text-xs font-medium hover:bg-gray-50 flex items-center gap-1"><i class="ri-pencil-line"></i> Sửa</button>
+                  <button x-show="drawerItem.status==='PENDING_REVIEW'||drawerItem.status==='REVISION_REQUESTED'" @click="rejectContent(drawerItem.id).then(()=>refreshDrawer(drawerItem.id))"
+                    class="px-3 py-1.5 bg-red-500 text-white rounded-lg text-xs font-medium hover:bg-red-600 flex items-center gap-1"><i class="ri-close-line"></i> Từ chối</button>
+                  <button x-show="drawerItem.status==='APPROVED'" @click="publishNow(drawerItem.id)"
+                    class="px-3 py-1.5 bg-brand-600 text-white rounded-lg text-xs font-medium hover:bg-brand-700 flex items-center gap-1"><i class="ri-send-plane-line"></i> Đăng ngay</button>
+                  <button x-show="drawerItem.status==='APPROVED'" @click="let _i=drawerItem; closeDrawer(); editContent(_i, 'manual')"
+                    class="px-3 py-1.5 border border-gray-300 text-gray-600 rounded-lg text-xs font-medium hover:bg-gray-50 flex items-center gap-1"><i class="ri-pencil-line"></i> Sửa</button>
+                  <button x-show="drawerItem.status==='APPROVED'&&drawerItem.source==='AI'" @click="openRevisionModal(drawerItem)"
+                    class="px-3 py-1.5 bg-purple-500 text-white rounded-lg text-xs font-medium hover:bg-purple-600 flex items-center gap-1"><i class="ri-magic-line"></i> Tinh chỉnh AI</button>
+                  <button x-show="drawerItem.status==='APPROVED'&&drawerItem.source==='AI'" @click="let _i=drawerItem; closeDrawer(); editContent(_i, 'ai')"
+                    class="px-3 py-1.5 bg-orange-500 text-white rounded-lg text-xs font-medium hover:bg-orange-600 flex items-center gap-1"><i class="ri-refresh-line"></i> Gen lại</button>
+                  <button x-show="drawerItem.status==='PUBLISHED' && drawerItem.socialPostId" @click="drawerSyncMetrics()"
+                    class="px-3 py-1.5 border border-gray-200 rounded-lg text-xs font-medium hover:bg-gray-50 flex items-center gap-1" :disabled="drawerSyncing">
+                    <i class="ri-refresh-line" :class="drawerSyncing && 'animate-spin'"></i> Sync metrics
+                  </button>
+                </div>
+              </div>
+
+              <!-- Tab: Hiệu suất -->
+              <div x-show="drawerTab==='perf'" class="flex-1 overflow-y-auto p-5 space-y-4">
+                <template x-if="drawerItem.status!=='PUBLISHED' || !drawerItem.socialPostId">
+                  <div class="text-center py-12 text-gray-400">
+                    <i class="ri-bar-chart-line text-4xl mb-2"></i>
+                    <p class="text-sm">Chưa có dữ liệu hiệu suất</p>
+                    <p class="text-xs mt-1">Dữ liệu sẽ có sau khi content được đăng lên Facebook.</p>
+                  </div>
+                </template>
+                <template x-if="drawerItem.status==='PUBLISHED' && drawerItem.socialPostId">
+                  <div class="space-y-4">
+                    <!-- Top metrics -->
+                    <div class="grid grid-cols-2 gap-3">
+                      <template x-for="m in [{k:'fb_reach',l:'Người xem',tip:'Số người xem duy nhất của nội dung theo Facebook.'},{k:'fb_media_views',l:'Lượt xem',tip:'Tổng số lượt nội dung được xem/displayed/played; một người có thể tạo nhiều lượt xem.'},{k:'_engagement',l:'Engagement',tip:'MKT Tools = Reactions + Comments + Shares.'},{k:'_eng_per_viewer',l:'Eng/Viewer',tip:'Engagement chia cho số Người xem duy nhất.'}]" :key="m.k">
+                        <div class="bg-gray-50 rounded-lg p-3 relative group">
+                          <div class="text-[10px] text-gray-500 mb-1 flex items-center gap-1">
+                            <span x-text="m.l"></span>
+                            <i class="ri-question-line text-gray-300 cursor-help" :title="m.tip"></i>
+                          </div>
+                          <div class="text-lg font-bold tabular-nums" x-text="drawerPerfVal(m.k)"></div>
+                        </div>
+                      </template>
+                    </div>
+                    <!-- Detail metrics -->
+                    <div class="grid grid-cols-2 gap-3">
+                      <template x-for="m in [{k:'fb_reactions',l:'Reactions',tip:'Tổng reactions trên bài viết.'},{k:'fb_comments',l:'Comments',tip:'Tổng comments trên bài viết.'},{k:'fb_shares',l:'Shares',tip:'Tổng shares trên bài viết.'},{k:'fb_clicks',l:'Post Clicks',tip:'Tổng lượt click trên bài viết theo Facebook.'}]" :key="m.k">
+                        <div class="bg-gray-50 rounded-lg p-3">
+                          <div class="text-[10px] text-gray-500 mb-1 flex items-center gap-1">
+                            <span x-text="m.l"></span>
+                            <i class="ri-question-line text-gray-300 cursor-help" :title="m.tip"></i>
+                          </div>
+                          <div class="text-base font-bold tabular-nums" x-text="drawerPerfVal(m.k)"></div>
+                        </div>
+                      </template>
+                    </div>
+                    <!-- Reaction breakdown -->
+                    <template x-if="drawerItem.metrics?.fb_reactions_by_type">
+                      <div class="bg-gray-50 rounded-lg p-3">
+                        <h4 class="text-[10px] text-gray-500 font-semibold uppercase mb-2">Reactions chi tiết</h4>
+                        <div class="grid grid-cols-3 gap-2">
+                          <template x-for="r in [{k:'like',e:'👍'},{k:'love',e:'❤️'},{k:'haha',e:'😂'},{k:'wow',e:'😮'},{k:'sorry',e:'😢'},{k:'anger',e:'😡'}]" :key="r.k">
+                            <div x-show="drawerItem.metrics.fb_reactions_by_type[r.k] > 0" class="flex items-center gap-1 text-xs">
+                              <span x-text="r.e"></span>
+                              <span class="tabular-nums font-medium" x-text="(drawerItem.metrics.fb_reactions_by_type[r.k]||0).toLocaleString('vi-VN')"></span>
+                            </div>
+                          </template>
+                        </div>
+                      </div>
+                    </template>
+                    <!-- Click breakdown -->
+                    <template x-if="drawerItem.metrics?.fb_clicks_by_type">
+                      <div class="bg-gray-50 rounded-lg p-3">
+                        <h4 class="text-[10px] text-gray-500 font-semibold uppercase mb-2">Clicks chi tiết</h4>
+                        <div class="space-y-1">
+                          <template x-for="(val, key) in drawerItem.metrics.fb_clicks_by_type" :key="key">
+                            <div x-show="val > 0" class="flex justify-between text-xs">
+                              <span class="text-gray-600 capitalize" x-text="key.replace(/_/g, ' ')"></span>
+                              <span class="tabular-nums font-medium" x-text="Number(val).toLocaleString('vi-VN')"></span>
+                            </div>
+                          </template>
+                        </div>
+                      </div>
+                    </template>
+                    <!-- Facebook info -->
+                    <div class="bg-gray-50 rounded-lg p-3 space-y-2 text-xs">
+                      <h4 class="font-semibold text-gray-600 flex items-center gap-1"><i class="ri-facebook-circle-line text-blue-500 text-sm"></i> Facebook</h4>
+                      <div class="flex justify-between"><span class="text-gray-500">Post ID</span><span class="font-mono text-[10px] text-gray-600" x-text="drawerItem.socialPostId"></span></div>
+                      <div x-show="drawerItem.publishedAt" class="flex justify-between"><span class="text-gray-500">Published</span>
+                        <span x-text="new Date(drawerItem.publishedAt).toLocaleString('vi-VN',{timeZone:'Asia/Ho_Chi_Minh',day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'})"></span>
+                      </div>
+                      <div x-show="drawerItem.metrics?.fb_synced_at" class="flex justify-between"><span class="text-gray-500">Last Sync</span>
+                        <span x-text="new Date(drawerItem.metrics.fb_synced_at).toLocaleString('vi-VN',{timeZone:'Asia/Ho_Chi_Minh',day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'})"></span>
+                      </div>
+                      <div class="flex gap-2 mt-2">
+                        <button @click="drawerSyncMetrics()" :disabled="drawerSyncing"
+                          class="px-2.5 py-1.5 border border-gray-200 rounded text-xs hover:bg-gray-100 flex items-center gap-1 disabled:opacity-40">
+                          <i class="ri-refresh-line" :class="drawerSyncing && 'animate-spin'"></i> Sync metrics
+                        </button>
+                        <a :href="'https://facebook.com/'+drawerItem.page?.externalId+'/posts/'+drawerItem.socialPostId.split('_')[1]" target="_blank"
+                          class="px-2.5 py-1.5 border border-gray-200 rounded text-xs hover:bg-gray-100 flex items-center gap-1">
+                          <i class="ri-external-link-line"></i> Xem bài
+                        </a>
+                      </div>
+                      <div x-show="drawerSyncError" class="mt-2 p-2 bg-red-50 rounded border border-red-100 text-[11px] text-red-600">
+                        <i class="ri-error-warning-line"></i> <span x-text="drawerSyncError"></span>
+                      </div>
+                    </div>
+                  </div>
+                </template>
+              </div>
+
+              <!-- Tab: Lịch sử -->
+              <div x-show="drawerTab==='history'" class="flex-1 overflow-y-auto p-5">
+                <div class="space-y-0">
+                  <template x-for="(evt, ei) in drawerHistory()" :key="ei">
+                    <div class="flex gap-3 pb-4">
+                      <div class="flex flex-col items-center">
+                        <div class="w-2 h-2 rounded-full mt-1.5" :class="evt.color"></div>
+                        <div x-show="ei < drawerHistory().length - 1" class="flex-1 w-px bg-gray-200 mt-1"></div>
+                      </div>
+                      <div class="flex-1 pb-1">
+                        <div class="text-xs font-medium text-gray-800" x-text="evt.label"></div>
+                        <div class="text-[10px] text-gray-400 mt-0.5" x-text="evt.time"></div>
+                        <div x-show="evt.detail" class="text-[11px] text-gray-500 mt-0.5" x-text="evt.detail"></div>
+                      </div>
+                    </div>
+                  </template>
+                  <div x-show="drawerHistory().length === 0" class="text-center py-8 text-gray-400 text-sm">
+                    <i class="ri-time-line text-3xl mb-2"></i>
+                    <p>Không có lịch sử</p>
+                  </div>
+                </div>
+              </div>
+
+            </div>
+          </template>
+
+          <!-- Error state -->
+          <template x-if="!drawerItem && !drawerLoading">
+            <div class="flex-1 flex items-center justify-center text-gray-400 text-sm">
+              <div class="text-center">
+                <i class="ri-error-warning-line text-3xl mb-2"></i>
+                <p>Không thể tải chi tiết nội dung.</p>
+                <button @click="closeDrawer()" class="mt-2 text-xs text-brand-500 hover:text-brand-700">Đóng</button>
+              </div>
+            </div>
+          </template>
+        </div>
+      </div>
+
+      <!-- Content Form Modal (Add/Edit) -->
+      <div x-show="showContentForm" class="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" @click.self="showContentForm=false">
+        <div class="bg-white rounded-2xl shadow-xl w-full max-w-2xl p-6 fade-in max-h-[90vh] overflow-y-auto">
+          <h3 class="text-lg font-bold mb-4" x-text="editingContent ? (contentForm._locked ? (contentForm.mode==='ai' ? 'Gen lại nội dung' : 'Sửa bài viết') : 'Sửa Content') : 'Thêm Content mới'"></h3>
+          <div class="space-y-4">
+            <!-- Mode toggle (hidden when locked to a specific mode) -->
+            <div x-show="!contentForm._locked && !editingContent" class="flex rounded-lg border border-gray-200 overflow-hidden">
+              <button @click="contentForm.mode='ai'" :class="contentForm.mode==='ai' ? 'bg-purple-500 text-white' : 'bg-white text-gray-600 hover:bg-gray-50'"
+                class="flex-1 py-2 text-sm font-medium transition flex items-center justify-center gap-1">
+                <i class="ri-magic-line"></i> AI tạo nội dung
+              </button>
+              <button @click="contentForm.mode='manual'" :class="contentForm.mode==='manual' ? 'bg-teal-500 text-white' : 'bg-white text-gray-600 hover:bg-gray-50'"
+                class="flex-1 py-2 text-sm font-medium transition flex items-center justify-center gap-1">
+                <i class="ri-file-text-line"></i> Nội dung có sẵn
+              </button>
+            </div>
+
+            <div class="grid grid-cols-2 gap-4">
+              <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">Page <span class="text-red-500">*</span></label>
+                <div class="relative">
+                  <select x-model="contentForm.pageId"
+                    class="w-full pl-10 pr-4 py-2.5 border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-brand-500 text-sm appearance-none">
+                    <option value="">Chọn page</option>
+                    <template x-for="p in scopePages" :key="p.id">
+                      <option :value="p.id" x-text="p.name + ' (' + p.platform + ')'"></option>
+                    </template>
+                  </select>
+                  <template x-if="contentForm.pageId">
+                    <img :src="'https://graph.facebook.com/' + (pages.find(p=>p.id===contentForm.pageId)?.externalId) + '/picture?type=small'"
+                      class="absolute left-2.5 top-1/2 -translate-y-1/2 w-6 h-6 rounded-full object-cover bg-gray-100" onerror="this.style.display='none'">
+                  </template>
+                  <i x-show="!contentForm.pageId" class="ri-store-2-line absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"></i>
+                </div>
+              </div>
+              <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">Loại content</label>
+                <select x-model="contentForm.contentType"
+                  class="w-full px-4 py-2.5 border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-brand-500 text-sm">
+                  <option value="TEXT">TEXT (Chỉ text)</option>
+                  <option value="IMAGE">IMAGE (Text + Ảnh)</option>
+                  <option value="VIDEO">VIDEO (Có video)</option>
+                </select>
+              </div>
+            </div>
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-1">Chủ đề <span class="text-red-500">*</span></label>
+              <input x-model="contentForm.topic" type="text" placeholder="VD: Khuyến mãi mùa thu, sản phẩm mới..."
+                class="w-full px-4 py-2.5 border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-brand-500 text-sm">
+            </div>
+            <div class="grid grid-cols-2 gap-4">
+              <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">Ngày đăng <span class="text-red-500">*</span></label>
+                <input x-model="contentForm.scheduledDate" type="date"
+                  class="w-full px-4 py-2.5 border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-brand-500 text-sm">
+              </div>
+              <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">Giờ đăng</label>
+                <input x-model="contentForm.scheduledTime" type="time"
+                  class="w-full px-4 py-2.5 border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-brand-500 text-sm">
+              </div>
+            </div>
+
+            <!-- AI mode fields -->
+            <div x-show="contentForm.mode==='ai'">
+              <label class="block text-sm font-medium text-gray-700 mb-1">Ghi chú / Yêu cầu cho AI</label>
+              <textarea x-model="contentForm.notes" rows="2" placeholder="VD: Tone vui vẻ, nhắc đến giảm giá 30%, viết bằng tiếng Việt..."
+                class="w-full px-4 py-2.5 border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-brand-500 text-sm"></textarea>
+            </div>
+            <div x-show="contentForm.mode==='ai' && contentForm.contentType === 'IMAGE'">
+              <label class="block text-sm font-medium text-gray-700 mb-1">Mô tả ảnh (AI gen)</label>
+              <textarea x-model="contentForm.imageDescriptions" rows="2" placeholder="Mô tả từng ảnh, cách nhau bằng dấu | VD: Ảnh sản phẩm chính | Ảnh lifestyle khách hàng"
+                class="w-full px-4 py-2.5 border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-brand-500 text-sm"></textarea>
+              <p class="text-xs text-gray-400 mt-1">Nhiều ảnh cách nhau bằng dấu <b>|</b></p>
+            </div>
+
+            <!-- Manual mode fields -->
+            <div x-show="contentForm.mode==='manual'">
+              <label class="block text-sm font-medium text-gray-700 mb-1">Bài viết / Caption <span class="text-red-500">*</span></label>
+              <textarea x-model="contentForm.generatedText" rows="4" placeholder="Nhập nội dung bài viết đầy đủ..."
+                class="w-full px-4 py-2.5 border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-brand-500 text-sm"></textarea>
+            </div>
+
+            <!-- Image upload (chỉ hiện khi manual + IMAGE, hoặc khi đang edit có ảnh) -->
+            <div x-show="contentForm.contentType === 'IMAGE' && (contentForm.mode==='manual' || (contentForm.mode==='ai' && contentForm.images.length > 0)) && !(contentForm._locked && contentForm.mode==='ai')">
+              <label class="block text-sm font-medium text-gray-700 mb-1">Ảnh <span class="text-xs text-gray-400 font-normal">(tối đa 10 ảnh, kéo để sắp xếp)</span></label>
+              <!-- Image list with drag reorder -->
+              <div class="space-y-2 mb-2">
+                <template x-for="(img, idx) in contentForm.images" :key="idx">
+                  <div class="flex items-center gap-2 p-2 bg-gray-50 rounded-lg group" draggable="true"
+                    @dragstart="contentForm._dragIdx=idx" @dragover.prevent @drop.prevent="reorderImage(contentForm._dragIdx, idx)">
+                    <i class="ri-draggable text-gray-300 cursor-grab"></i>
+                    <img :src="img.url || (img.file ? URL.createObjectURL(img.file) : '')" class="w-12 h-12 rounded object-cover bg-gray-200 flex-shrink-0" onerror="this.src=''">
+                    <div class="flex-1 min-w-0">
+                      <p class="text-xs text-gray-600 truncate" x-text="img.file?.name || img.url || ''"></p>
+                      <p class="text-[11px] text-gray-400" x-text="'Ảnh ' + (idx+1)"></p>
+                    </div>
+                    <button @click="contentForm.images.splice(idx,1)" type="button" class="p-1 text-gray-300 hover:text-red-500 transition">
+                      <i class="ri-close-line"></i>
+                    </button>
+                  </div>
+                </template>
+              </div>
+              <!-- Add more images -->
+              <div x-show="contentForm.images.length < 10">
+                <div class="flex gap-2 mb-2">
+                  <button @click="contentForm.imageInputMode='upload'" type="button"
+                    :class="contentForm.imageInputMode==='upload' ? 'bg-brand-50 text-brand-600 border-brand-300' : 'bg-white text-gray-500 border-gray-200'"
+                    class="flex-1 py-1.5 text-xs font-medium border rounded-lg transition flex items-center justify-center gap-1">
+                    <i class="ri-upload-2-line"></i> Upload file
+                  </button>
+                  <button @click="contentForm.imageInputMode='url'" type="button"
+                    :class="contentForm.imageInputMode==='url' ? 'bg-brand-50 text-brand-600 border-brand-300' : 'bg-white text-gray-500 border-gray-200'"
+                    class="flex-1 py-1.5 text-xs font-medium border rounded-lg transition flex items-center justify-center gap-1">
+                    <i class="ri-link"></i> Nhập URL
+                  </button>
+                </div>
+                <div x-show="contentForm.imageInputMode==='upload'">
+                  <div class="border-2 border-dashed border-gray-300 rounded-xl p-4 text-center hover:border-brand-400 transition cursor-pointer"
+                    @click="$refs.multiImageInput.click()" @dragover.prevent @drop.prevent="addImageFiles($event.dataTransfer.files)">
+                    <input type="file" x-ref="multiImageInput" accept=".jpg,.jpeg,.png,.gif,.webp" multiple @change="addImageFiles($event.target.files); $event.target.value=''" class="hidden">
+                    <i class="ri-image-add-line text-2xl text-gray-300 mb-1"></i>
+                    <p class="text-xs text-gray-400">Kéo thả hoặc click để chọn ảnh (chọn nhiều)</p>
+                  </div>
+                  <p class="text-xs text-gray-400 mt-1">JPG, PNG, GIF, WebP — tối đa 20MB/ảnh</p>
+                </div>
+                <div x-show="contentForm.imageInputMode==='url'" class="flex gap-2">
+                  <input x-ref="imageUrlInput" type="url" placeholder="https://... (link ảnh trực tiếp)"
+                    class="flex-1 px-4 py-2.5 border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-brand-500 text-sm"
+                    @keydown.enter.prevent="addImageUrl($refs.imageUrlInput.value); $refs.imageUrlInput.value=''">
+                  <button @click="addImageUrl($refs.imageUrlInput.value); $refs.imageUrlInput.value=''" type="button"
+                    class="px-3 py-2 bg-brand-50 text-brand-600 rounded-lg text-xs font-medium hover:bg-brand-100 transition">Thêm</button>
+                </div>
+              </div>
+            </div>
+
+            <!-- Video: upload hoặc URL (cả 2 mode, khi contentType=VIDEO) -->
+            <div x-show="contentForm.contentType === 'VIDEO'">
+              <label class="block text-sm font-medium text-gray-700 mb-1">Video</label>
+              <div x-show="!contentForm.videoUrl && !contentForm.videoFile">
+                <div class="flex gap-2 mb-2">
+                  <button @click="contentForm.videoInputMode='upload'" type="button"
+                    :class="contentForm.videoInputMode==='upload' ? 'bg-brand-50 text-brand-600 border-brand-300' : 'bg-white text-gray-500 border-gray-200'"
+                    class="flex-1 py-1.5 text-xs font-medium border rounded-lg transition flex items-center justify-center gap-1">
+                    <i class="ri-upload-2-line"></i> Upload file
+                  </button>
+                  <button @click="contentForm.videoInputMode='url'" type="button"
+                    :class="contentForm.videoInputMode==='url' ? 'bg-brand-50 text-brand-600 border-brand-300' : 'bg-white text-gray-500 border-gray-200'"
+                    class="flex-1 py-1.5 text-xs font-medium border rounded-lg transition flex items-center justify-center gap-1">
+                    <i class="ri-link"></i> Nhập URL
+                  </button>
+                </div>
+                <div x-show="contentForm.videoInputMode==='upload'">
+                  <div class="border-2 border-dashed border-gray-300 rounded-xl p-4 text-center hover:border-brand-400 transition cursor-pointer"
+                    @click="$refs.videoInput.click()" @dragover.prevent @drop.prevent="contentForm.videoFile=$event.dataTransfer.files[0]">
+                    <input type="file" x-ref="videoInput" accept=".mp4,.mov,.avi,.webm,.mkv" @change="contentForm.videoFile=$event.target.files[0]" class="hidden">
+                    <i class="ri-video-upload-line text-2xl text-gray-300 mb-1"></i>
+                    <p x-show="!contentForm.videoFile" class="text-xs text-gray-400">Kéo thả video hoặc click để chọn</p>
+                    <p x-show="contentForm.videoFile" class="text-xs text-brand-600 font-medium" x-text="contentForm.videoFile?.name"></p>
+                    <p x-show="contentForm.videoFile" class="text-xs text-gray-400 mt-0.5" x-text="contentForm.videoFile ? (contentForm.videoFile.size / 1024 / 1024).toFixed(1) + ' MB' : ''"></p>
+                  </div>
+                  <p class="text-xs text-gray-400 mt-1">MP4, MOV, AVI, WebM, MKV — tối đa 500MB</p>
+                </div>
+                <div x-show="contentForm.videoInputMode==='url'">
+                  <input x-model="contentForm.manualVideoUrl" type="url" placeholder="https://... (link video trực tiếp)"
+                    class="w-full px-4 py-2.5 border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-brand-500 text-sm">
+                </div>
+              </div>
+              <div x-show="contentForm.videoUrl" class="space-y-2">
+                <video :src="contentForm.videoUrl" controls class="rounded-lg w-full max-h-48 bg-black"></video>
+                <div class="flex items-center gap-2">
+                  <span class="text-xs text-green-600 flex items-center gap-1"><i class="ri-check-line"></i> Đã có video</span>
+                  <button @click="contentForm.videoUrl=''" type="button" class="text-xs text-red-500 hover:text-red-700">Xóa video</button>
+                </div>
+              </div>
+              <div x-show="contentForm.videoFile && !contentForm.videoUrl" class="flex items-center gap-2 mt-1">
+                <span class="text-xs text-brand-600" x-text="contentForm.videoFile?.name"></span>
+                <span class="text-xs text-gray-400" x-text="contentForm.videoFile ? (contentForm.videoFile.size / 1024 / 1024).toFixed(1) + ' MB' : ''"></span>
+                <button @click="contentForm.videoFile=null" type="button" class="text-xs text-red-500 hover:text-red-700">Xóa</button>
+              </div>
+            </div>
+            <div x-show="contentFormError" class="text-red-500 text-sm" x-text="contentFormError"></div>
+            <div class="flex gap-3 pt-2">
+              <button @click="showContentForm=false" class="flex-1 py-2.5 border border-gray-300 rounded-lg text-gray-600 hover:bg-gray-50 transition">Hủy</button>
+              <template x-if="contentForm._locked && contentForm.mode==='ai'">
+                <button @click="saveAndRegenerate()" :disabled="contentFormSaving"
+                  class="flex-1 py-2.5 bg-orange-500 text-white rounded-lg font-medium hover:bg-orange-600 disabled:opacity-50 transition">
+                  <span x-show="!contentFormSaving"><i class="ri-refresh-line"></i> Gen lại nội dung</span>
+                  <span x-show="contentFormSaving"><i class="ri-loader-4-line animate-spin"></i> Đang lưu...</span>
+                </button>
+              </template>
+              <template x-if="!(contentForm._locked && contentForm.mode==='ai')">
+                <button @click="saveContent()" :disabled="contentFormSaving"
+                  class="flex-1 py-2.5 bg-brand-600 text-white rounded-lg font-medium hover:bg-brand-700 disabled:opacity-50 transition">
+                  <span x-show="!contentFormSaving" x-text="editingContent ? 'Cập nhật' : 'Thêm'"></span>
+                  <span x-show="contentFormSaving"><i class="ri-loader-4-line animate-spin"></i> Đang lưu...</span>
+                </button>
+              </template>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- View Result Modal -->
+
+      <!-- View Error Modal -->
+      <div x-show="showErrorModal" class="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" @click.self="showErrorModal=false">
+        <div class="bg-white rounded-2xl shadow-xl w-full max-w-lg p-6 fade-in">
+          <div class="flex items-center gap-3 mb-4">
+            <div class="w-10 h-10 bg-red-50 rounded-xl flex items-center justify-center">
+              <i class="ri-error-warning-line text-red-500 text-xl"></i>
+            </div>
+            <div>
+              <h3 class="font-bold">Chi tiết lỗi</h3>
+              <p class="text-xs text-gray-400" x-text="errorItem?.topic"></p>
+            </div>
+          </div>
+          <template x-if="errorItem">
+            <div class="space-y-3">
+              <div class="bg-red-50 rounded-lg p-4">
+                <p class="text-sm text-red-700 whitespace-pre-wrap" x-text="errorItem.errorMessage"></p>
+              </div>
+              <div class="text-xs text-gray-400">
+                <p>Số lần thử: <span x-text="errorItem.retryCount || 0"></span></p>
+                <p>AI Model: <span x-text="errorItem.aiModel || '—'"></span></p>
+              </div>
+              <div class="flex gap-3 pt-2">
+                <button @click="showErrorModal=false" class="flex-1 py-2 border border-gray-300 rounded-lg text-gray-600 hover:bg-gray-50 transition text-sm">Đóng</button>
+                <button @click="showErrorModal=false; publishNow(errorItem.id)"
+                  class="flex-1 py-2 bg-brand-600 text-white rounded-lg font-medium hover:bg-brand-700 transition text-sm flex items-center justify-center gap-1">
+                  <i class="ri-restart-line"></i> Đăng lại
+                </button>
+              </div>
+            </div>
+          </template>
+        </div>
+      </div>
+
+      <!-- Image Lightbox -->
+      <div x-show="lightbox.open" x-cloak class="fixed inset-0 bg-black/90 z-[100] flex items-center justify-center" @click.self="lightbox.open=false" @keydown.escape.window="lightbox.open=false" @keydown.left.window="lightbox.open && (lightbox.index = (lightbox.index - 1 + lightbox.images.length) % lightbox.images.length)" @keydown.right.window="lightbox.open && (lightbox.index = (lightbox.index + 1) % lightbox.images.length)">
+        <button @click="lightbox.open=false" class="absolute top-4 right-4 text-white/80 hover:text-white text-2xl z-10"><i class="ri-close-line"></i></button>
+        <button x-show="lightbox.images.length > 1" @click="lightbox.index = (lightbox.index - 1 + lightbox.images.length) % lightbox.images.length"
+          class="absolute left-4 text-white/80 hover:text-white text-3xl z-10"><i class="ri-arrow-left-s-line"></i></button>
+        <button x-show="lightbox.images.length > 1" @click="lightbox.index = (lightbox.index + 1) % lightbox.images.length"
+          class="absolute right-14 text-white/80 hover:text-white text-3xl z-10"><i class="ri-arrow-right-s-line"></i></button>
+        <img :src="lightbox.images[lightbox.index]" class="max-h-[90vh] max-w-[90vw] object-contain rounded-lg shadow-2xl">
+        <div x-show="lightbox.images.length > 1" class="absolute bottom-4 text-white/70 text-sm">
+          <span x-text="lightbox.index + 1"></span> / <span x-text="lightbox.images.length"></span>
+        </div>
+      </div>
+
+      <!-- Tinh chỉnh AI Modal (Chat-style) -->
+      <div x-show="revModal.open" class="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" @click.self="closeRevModal()">
+        <div class="bg-white rounded-2xl shadow-xl w-full max-w-2xl fade-in flex flex-col" style="max-height:85vh">
+          <!-- Header -->
+          <div class="flex items-center justify-between px-5 py-3 border-b border-gray-100">
+            <div class="flex items-center gap-3">
+              <div class="w-8 h-8 bg-purple-50 rounded-lg flex items-center justify-center">
+                <i class="ri-magic-line text-purple-500"></i>
+              </div>
+              <div>
+                <h3 class="font-bold text-sm">Tinh chỉnh AI</h3>
+                <p class="text-xs text-gray-400 truncate max-w-[350px]" x-text="revModal.item?.topic"></p>
+              </div>
+            </div>
+            <button @click="closeRevModal()" class="text-gray-400 hover:text-gray-600"><i class="ri-close-line text-lg"></i></button>
+          </div>
+
+          <!-- Content preview + chat area -->
+          <div class="flex-1 overflow-y-auto px-5 py-4 space-y-4" x-ref="revChatArea">
+            <!-- Original content (selectable) -->
+            <div @click="revModal.selectedVersion = 0" class="rounded-xl p-4 space-y-3 cursor-pointer border-2 transition"
+              :class="revModal.selectedVersion === 0 ? 'border-purple-500 bg-purple-50' : 'border-transparent bg-gray-50 hover:border-gray-300'">
+              <div class="flex items-center justify-between">
+                <div class="flex items-center gap-2 text-xs font-medium" :class="revModal.selectedVersion === 0 ? 'text-purple-600' : 'text-gray-500'">
+                  <i class="ri-article-line"></i> Bản gốc
+                </div>
+                <div x-show="revModal.selectedVersion === 0" class="text-xs bg-purple-500 text-white px-2 py-0.5 rounded-full">Đang chọn</div>
+              </div>
+              <template x-if="revModal.originalText">
+                <div class="text-sm text-gray-700 whitespace-pre-wrap leading-relaxed max-h-40 overflow-y-auto" x-text="revModal.originalText"></div>
+              </template>
+              <template x-if="revModal.originalImages && revModal.originalImages.length > 0">
+                <div class="flex gap-2 overflow-x-auto pb-1">
+                  <template x-for="(img, idx) in revModal.originalImages" :key="idx">
+                    <img :src="img.url || img.localPath" @click.stop="openLightbox(revModal.originalImages, idx)" class="h-20 w-20 rounded-lg object-cover flex-shrink-0 border border-gray-200 cursor-pointer hover:opacity-80 transition">
+                  </template>
+                </div>
+              </template>
+            </div>
+
+            <!-- Chat messages -->
+            <template x-for="(msg, idx) in revModal.chatHistory" :key="idx">
+              <div>
+                <!-- User message -->
+                <div class="flex justify-end mb-2">
+                  <div class="bg-purple-500 text-white rounded-2xl rounded-br-sm px-4 py-2 max-w-[80%]">
+                    <div x-show="msg.type !== 'TEXT'" class="text-xs opacity-80 mb-1">
+                      <span x-text="({TEXT:'Nội dung',IMAGE:'Ảnh',VIDEO:'Video',TEXT_AND_MEDIA:'Tất cả'})[msg.type]"></span>
+                      <template x-if="msg.selImgs && msg.selImgs.length > 0">
+                        <span x-text="' (ảnh ' + msg.selImgs.map(i=>i+1).join(', ') + ')'"></span>
+                      </template>
+                    </div>
+                    <p class="text-sm" x-text="msg.feedback"></p>
+                  </div>
+                </div>
+                <!-- AI response (selectable version) -->
+                <div class="flex justify-start mb-2">
+                  <div @click="msg.status==='done' && (revModal.selectedVersion = idx + 1)"
+                    class="rounded-2xl rounded-bl-sm px-4 py-2 max-w-[80%] transition"
+                    :class="msg.status==='done' ? (revModal.selectedVersion === idx + 1 ? 'bg-purple-100 border-2 border-purple-500 cursor-pointer' : 'bg-gray-100 border-2 border-transparent cursor-pointer hover:border-gray-300') : 'bg-gray-100'">
+                    <template x-if="msg.status==='loading'">
+                      <div class="flex items-center gap-2 text-sm text-gray-500">
+                        <i class="ri-loader-4-line animate-spin"></i> Đang tinh chỉnh...
+                      </div>
+                    </template>
+                    <template x-if="msg.status==='done'">
+                      <div class="space-y-2">
+                        <div class="flex items-center justify-between">
+                          <p class="text-xs text-green-600 font-medium"><i class="ri-check-line"></i> Phiên bản <span x-text="idx + 1"></span></p>
+                          <div x-show="revModal.selectedVersion === idx + 1" class="text-xs bg-purple-500 text-white px-2 py-0.5 rounded-full">Đang chọn</div>
+                        </div>
+                        <template x-if="msg.newText">
+                          <div class="text-sm text-gray-700 whitespace-pre-wrap leading-relaxed max-h-32 overflow-y-auto" x-text="msg.newText"></div>
+                        </template>
+                        <template x-if="msg.newImages && msg.newImages.length > 0">
+                          <div class="flex gap-2 overflow-x-auto">
+                            <template x-for="(img, i) in msg.newImages" :key="i">
+                              <img :src="img.url || img.localPath" @click.stop="openLightbox(msg.newImages, i)" class="h-16 w-16 rounded-lg object-cover flex-shrink-0 cursor-pointer hover:opacity-80 transition">
+                            </template>
+                          </div>
+                        </template>
+                      </div>
+                    </template>
+                    <template x-if="msg.status==='error'">
+                      <p class="text-sm text-red-500"><i class="ri-error-warning-line"></i> <span x-text="msg.error"></span></p>
+                    </template>
+                  </div>
+                </div>
+              </div>
+            </template>
+          </div>
+
+          <!-- Input area -->
+          <div class="border-t border-gray-100 px-5 py-3 space-y-3">
+            <!-- Revision type selector -->
+            <div class="flex flex-wrap gap-1.5">
+              <button @click="revModal.type='TEXT'" :class="revModal.type==='TEXT' ? 'bg-purple-500 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'"
+                class="px-2.5 py-1 rounded-full text-xs font-medium transition">Nội dung</button>
+              <template x-if="revModal.item?.contentType==='IMAGE' || revModal.item?.contentType==='VIDEO'">
+                <button @click="revModal.type='IMAGE'" :class="revModal.type==='IMAGE' ? 'bg-purple-500 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'"
+                  class="px-2.5 py-1 rounded-full text-xs font-medium transition">Ảnh</button>
+              </template>
+              <template x-if="revModal.item?.contentType==='VIDEO'">
+                <button @click="revModal.type='VIDEO'" :class="revModal.type==='VIDEO' ? 'bg-purple-500 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'"
+                  class="px-2.5 py-1 rounded-full text-xs font-medium transition">Video</button>
+              </template>
+              <template x-if="revModal.item?.contentType==='IMAGE' || revModal.item?.contentType==='VIDEO'">
+                <button @click="revModal.type='TEXT_AND_MEDIA'" :class="revModal.type==='TEXT_AND_MEDIA' ? 'bg-purple-500 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'"
+                  class="px-2.5 py-1 rounded-full text-xs font-medium transition">Tất cả</button>
+              </template>
+            </div>
+            <!-- Image selection for multi-image -->
+            <template x-if="(revModal.type==='IMAGE' || revModal.type==='TEXT_AND_MEDIA') && revModal.images.length > 1">
+              <div class="flex gap-1.5 items-center">
+                <span class="text-xs text-gray-500">Chọn ảnh:</span>
+                <template x-for="(img, idx) in revModal.images" :key="idx">
+                  <button @click="revModal.selImgs.includes(idx) ? revModal.selImgs=revModal.selImgs.filter(i=>i!==idx) : revModal.selImgs.push(idx)"
+                    class="w-8 h-8 rounded border-2 overflow-hidden transition"
+                    :class="revModal.selImgs.includes(idx) ? 'border-purple-500' : 'border-gray-200'">
+                    <img :src="img.url || img.localPath" class="w-full h-full object-cover">
+                  </button>
+                </template>
+                <span class="text-xs text-gray-400">(trống = tất cả)</span>
+              </div>
+            </template>
+            <!-- Chat input -->
+            <div class="flex gap-2">
+              <textarea x-model="revModal.feedback" rows="1" placeholder="VD: Viết ngắn hơn, thêm emoji..."
+                @keydown.enter.prevent="!$event.shiftKey && submitRevision()"
+                :disabled="revModal.loading"
+                class="flex-1 border border-gray-200 rounded-xl px-3 py-2 text-sm focus:ring-2 focus:ring-purple-500 focus:border-purple-500 outline-none resize-none"></textarea>
+              <button @click="submitRevision()" :disabled="revModal.loading || !revModal.feedback.trim()"
+                class="px-4 py-2 bg-purple-500 text-white rounded-xl font-medium hover:bg-purple-600 transition text-sm disabled:opacity-50 flex items-center gap-1">
+                <i class="ri-loader-4-line animate-spin" x-show="revModal.loading"></i>
+                <i class="ri-send-plane-line" x-show="!revModal.loading"></i>
+              </button>
+            </div>
+            <!-- Confirm button -->
+            <div x-show="revModal.chatHistory.length > 0 && !revModal.loading" class="flex justify-end">
+              <button @click="confirmRevisionVersion()"
+                class="px-4 py-1.5 bg-green-500 text-white rounded-lg text-xs font-medium hover:bg-green-600 flex items-center gap-1">
+                <i class="ri-check-line"></i> Xác nhận bản <span x-text="revModal.selectedVersion === 0 ? 'gốc' : revModal.selectedVersion"></span>
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Text Popup Modal -->
+      <div x-show="textPopup.show" class="fixed inset-0 bg-black/30 z-50 flex items-center justify-center p-4" @click.self="textPopup.show=false">
+        <div class="bg-white rounded-xl shadow-xl w-full max-w-lg p-5 fade-in max-h-[70vh] overflow-y-auto">
+          <div class="flex items-center justify-between mb-3">
+            <h3 class="text-sm font-bold text-gray-700" x-text="textPopup.title"></h3>
+            <button @click="textPopup.show=false" class="text-gray-400 hover:text-gray-600"><i class="ri-close-line text-lg"></i></button>
+          </div>
+          <div class="text-sm text-gray-700 whitespace-pre-wrap leading-relaxed" x-text="textPopup.content"></div>
+        </div>
+      </div>

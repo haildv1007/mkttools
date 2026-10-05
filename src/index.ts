@@ -4,6 +4,7 @@ import cors from 'cors';
 import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
 import path from 'path';
+import { readFileSync } from 'fs';
 import { config } from './config';
 import { logger } from './utils/logger';
 import { prisma } from './utils/db';
@@ -18,10 +19,13 @@ import { adminRouter } from './modules/admin';
 import { aiCredentialRouter } from './modules/ai-credentials';
 import { organizationInvitationRouter, publicInvitationRouter } from './modules/invitations';
 import { billingPublicRouter, billingCustomerRouter, billingAdminRouter, billingWebhookRouter } from './modules/billing';
+import { facebookRouter } from './modules/facebook';
 import { refreshPlatformSettingsCache } from './modules/platform-settings';
 import { getBot } from './modules/telegram-bot';
 import { startWorkers, startScheduler } from './queues';
 import { initSocketIO } from './realtime';
+import { getPublishedContentMetadata, listPublishedContentEntries, publicContentRouter } from './modules/public-content';
+import { buildRobotsTxt, buildSitemapXml, getPageSeo, getPublicSeoConfig, renderPublicDocument } from './modules/seo';
 
 const app = express();
 app.set('trust proxy', 1);
@@ -61,6 +65,7 @@ app.get('/api/health', async (_req, res) => {
 });
 
 app.use('/api/auth', authRouter);
+app.use('/api/public-content', publicContentRouter);
 
 app.use('/api/billing', billingPublicRouter);
 app.use('/api/payments', billingWebhookRouter);
@@ -72,18 +77,77 @@ app.use('/api/organizations-invitations', authMiddleware, attachOrganization, re
 app.use('/api/billing', authMiddleware, attachOrganization, requireOrganization, billingCustomerRouter);
 app.use('/api/campaigns', authMiddleware, attachOrganization, requireOrganization, campaignRouter);
 app.use('/api/dashboard', authMiddleware, attachOrganization, requireOrganization, dashboardRouter);
+app.use('/api/facebook', authMiddleware, attachOrganization, requireOrganization, facebookRouter);
 app.use('/api/workspaces', authMiddleware, attachOrganization, requireOrganization, workspaceRouter);
 
-app.use(express.static(path.join(__dirname, '../public')));
+app.get('/robots.txt', (_req, res) => {
+  const seo = getPublicSeoConfig();
+  res.type('text/plain').send(buildRobotsTxt(seo));
+});
+app.get('/sitemap.xml', async (_req, res) => {
+  const [posts, guides] = await Promise.all([
+    listPublishedContentEntries('blog'),
+    listPublishedContentEntries('guides'),
+  ]);
+  const paths = [
+    '/', '/products', '/products/mkt-tools', ...(posts.length ? ['/blog'] : []), '/guides', '/support',
+    '/legal/terms', '/legal/privacy', '/legal/data-deletion', '/legal/data-deletion/mkt-tools',
+    ...posts.map((entry: any) => `/blog/${entry.slug}`),
+    ...guides.map((entry: any) => `/guides/${entry.slug}`),
+  ];
+  const origin = getPublicSeoConfig().canonicalBaseUrl;
+  res.type('application/xml').send(buildSitemapXml(paths, origin));
+});
+
+const noindex = (_req: express.Request, res: express.Response, next: express.NextFunction) => {
+  res.setHeader('X-Robots-Tag', 'noindex, nofollow');
+  next();
+};
+app.use([
+  '/login', '/register', '/forgot-password', '/reset-password', '/verify-email', '/auth/callback', '/onboarding', '/join',
+  '/admin', '/dashboard', '/organization', '/settings', '/content', '/campaigns', '/import', '/pages', '/billing', '/account',
+], noindex);
+// Do not redirect the /pages application route to the public/pages asset directory.
+app.use(express.static(path.join(__dirname, '../public'), { redirect: false, index: false }));
 const authPage = (_req: express.Request, res: express.Response) => res.sendFile(path.join(__dirname, '../public/auth.html'));
 app.get(['/login', '/register', '/forgot-password', '/reset-password/:token', '/verify-email/:token', '/auth/callback', '/onboarding', '/join/:token'], authPage);
 app.get(['/admin', '/admin/*'], (_req, res) => {
   res.sendFile(path.join(__dirname, '../public/admin.html'));
 });
 app.get('/billing', (_req, res) => {
-  res.sendFile(path.join(__dirname, '../public/billing.html'));
+  res.redirect('/organization?tab=billing');
 });
+const publicTemplate = readFileSync(path.join(process.cwd(), 'public/mktkit/index.html'), 'utf8');
+const publicWebsitePage = (req: express.Request, res: express.Response) => {
+  const seo = getPublicSeoConfig();
+  res.send(renderPublicDocument(publicTemplate, getPageSeo(req.path), seo));
+};
+const publicContentPage = async (req: express.Request, res: express.Response) => {
+  const kind = req.path.startsWith('/blog/') ? 'blog' : 'guides';
+  const slug = String(req.params.slug || '');
+  const entry = await getPublishedContentMetadata(kind, slug);
+  const page = entry
+    ? { path: req.path, title: `${entry.title} — MKTKit`, description: entry.description, type: 'article' as const }
+    : { path: req.path, title: 'Nội dung không tồn tại — MKTKit', description: 'Nội dung không tồn tại hoặc chưa được xuất bản.', noindex: true };
+  if (!entry) res.status(404);
+  res.send(renderPublicDocument(publicTemplate, page));
+};
+app.get([
+  '/',
+  '/products',
+  '/products/mkt-tools',
+  '/blog',
+  '/guides',
+  '/support',
+  '/legal/terms',
+  '/legal/privacy',
+  '/legal/data-deletion',
+  '/legal/data-deletion/mkt-tools',
+], publicWebsitePage);
+app.get(['/blog/:slug', '/guides/:slug'], publicContentPage);
+app.get('/mktkit*', (_req, res) => res.redirect(301, '/'));
 app.get('*', (_req, res) => {
+  res.setHeader('X-Robots-Tag', 'noindex, nofollow');
   res.sendFile(path.join(__dirname, '../public/index.html'));
 });
 

@@ -11,6 +11,7 @@ import { logActivity, updateActivity, sanitizeError } from '../utils/activity';
 import { emitContentUpdate, emitActivity } from '../realtime';
 import { assertQueueOrganization } from './security';
 export { assertQueueOrganization } from './security';
+import { generateThumbnailSafe } from '../utils/thumbnail';
 
 const connection = new IORedis(config.redis.url, { maxRetriesPerRequest: null });
 
@@ -170,6 +171,11 @@ export function startWorkers() {
           console.error(`Image generation failed for ${contentItemId}:`, err);
         }
       }
+    }
+
+    if (imageUrl) generateThumbnailSafe(imageUrl);
+    if (generatedImages) {
+      for (const img of generatedImages) generateThumbnailSafe(img.url);
     }
 
     const shouldAutoApprove = item.campaign?.autoApprove === true;

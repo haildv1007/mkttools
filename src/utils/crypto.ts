@@ -55,6 +55,14 @@ const platformBox = makeSecretBox(
 export const encryptPlatformSecret = platformBox.encrypt;
 export const decryptPlatformSecret = platformBox.decrypt;
 
+// ---- Page access tokens (Page.accessToken) ----
+const pageTokenBox = makeSecretBox(
+  process.env.PAGE_TOKEN_KEY || process.env.JWT_SECRET || 'mkttools-dev-page-token-secret-change-in-production',
+  'ptgcm1:',
+);
+export const encryptPageToken = pageTokenBox.encrypt;
+export const decryptPageToken = pageTokenBox.decrypt;
+
 /** Show only last 4 chars: "AIza••••••••7Kd" */
 export function maskSecret(plain: string, showLast = 4): string {
   if (!plain) return '';

@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="vi">
 <head>
-<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="robots" content="noindex, nofollow">
 <title>MKT Tools — Admin</title>
 <script src="https://cdn.tailwindcss.com"></script>
 <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
@@ -14,7 +14,7 @@
 
 <div x-show="denied" class="p-10 text-center">
   <p class="font-semibold text-red-600">Bạn không có quyền truy cập khu vực Platform Admin.</p>
-  <a href="/" class="text-brand-600 hover:underline">← Về MKT Tools</a>
+  <a href="/dashboard" class="text-brand-600 hover:underline">← Về MKT Tools</a>
 </div>
 
 <div x-show="!denied && ready" class="flex min-h-screen">
@@ -25,7 +25,7 @@
         <i :class="n.icon" class="mr-2"></i><span x-text="n.label"></span>
       </button>
     </template>
-    <a href="/" class="mt-auto px-3 py-2 text-gray-500 hover:text-brand-600"><i class="ri-arrow-left-line mr-2"></i>Về ứng dụng</a>
+    <a href="/dashboard" class="mt-auto px-3 py-2 text-gray-500 hover:text-brand-600"><i class="ri-arrow-left-line mr-2"></i>Về ứng dụng</a>
   </aside>
 
   <main class="flex-1 p-5 min-w-0">
@@ -248,7 +248,7 @@
     <section x-show="view==='settings'">
       <h1 class="text-lg font-bold mb-3">Cấu hình nền tảng</h1>
       <div class="flex gap-1 border-b mb-4">
-        <template x-for="t in [['general','Chung'],['auth','Đăng nhập'],['email','Email'],['payment','Thanh toán'],['integrations','Tích hợp']]" :key="t[0]">
+        <template x-for="t in [['general','Chung'],['auth','Đăng nhập'],['email','Email'],['payment','Thanh toán'],['integrations','Tích hợp'],['seo','SEO & Website']]" :key="t[0]">
           <button @click="psTab=t[0]" class="px-3 py-1.5 -mb-px border-b-2" :class="psTab===t[0]?'border-brand-600 text-brand-600 font-medium':'border-transparent text-gray-500'" x-text="t[1]"></button>
         </template>
       </div>
@@ -359,6 +359,39 @@
             <span><i class="ri-facebook-fill mr-1 text-blue-600"></i>Meta / Facebook App</span>
             <span class="px-2 py-0.5 rounded-full text-[10px] font-semibold" :class="integrations.facebook?.configured?'bg-green-100 text-green-700':'bg-gray-100 text-gray-600'" x-text="integrations.facebook?.configured?'Đã cấu hình':'Chưa cấu hình'"></span>
           </div>
+        </div>
+
+        <!-- SEO & WEBSITE -->
+        <div x-show="psTab==='seo'" class="max-w-3xl space-y-4">
+          <section class="bg-white border border-gray-200 rounded-lg p-4 space-y-3">
+            <div><h2 class="font-semibold">SEO cơ bản</h2><p class="text-xs text-gray-500">Metadata mặc định cho website công khai. Metadata riêng của từng trang sẽ được ưu tiên.</p></div>
+            <label class="block text-xs">Tên website<input x-model="ps.seo.siteName" placeholder="MKTKit" class="border rounded-lg px-2 py-1.5 w-full mt-1"></label>
+            <label class="block text-xs">SEO Title mặc định<input x-model="ps.seo.defaultTitle" placeholder="MKTKit — Công cụ quản lý nội dung & Facebook Pages" class="border rounded-lg px-2 py-1.5 w-full mt-1"></label>
+            <label class="block text-xs">Meta Description mặc định<textarea x-model="ps.seo.defaultDescription" rows="3" class="border rounded-lg px-2 py-1.5 w-full mt-1"></textarea><span class="text-gray-400">Khoảng 140–160 ký tự. Hiện tại: <span x-text="ps.seo.defaultDescription?.length||0"></span>.</span></label>
+            <label class="block text-xs">Public Base URL / Canonical Base URL<input x-model="ps.seo.canonicalBaseUrl" type="url" placeholder="https://mktkit.com" class="border rounded-lg px-2 py-1.5 w-full mt-1"></label>
+          </section>
+
+          <section class="bg-white border border-gray-200 rounded-lg p-4 space-y-3">
+            <div><h2 class="font-semibold">Logo & Chia sẻ</h2><p class="text-xs text-gray-500">Tải ảnh trực tiếp. Logo giữ nguyên tỷ lệ, favicon được chuẩn hóa 512×512, ảnh Open Graph được cắt về 1200×630.</p></div>
+            <template x-for="item in [{kind:'logo',key:'logoUrl',label:'Logo',hint:'PNG, JPG, WebP · tối đa 8 MB'},{kind:'favicon',key:'faviconUrl',label:'Favicon',hint:'Nên dùng ảnh vuông · tối đa 8 MB'},{kind:'og',key:'ogImageUrl',label:'Open Graph Image',hint:'Tỷ lệ đề xuất 1200×630 · tối đa 8 MB'}]" :key="item.key">
+              <div class="border rounded-lg p-3">
+                <div class="flex items-center gap-3">
+                  <div class="w-24 h-16 border rounded bg-gray-50 grid place-items-center overflow-hidden shrink-0"><img x-show="ps.seo[item.key]" :src="ps.seo[item.key]" :alt="item.label+' preview'" class="max-w-full max-h-full object-contain" @error="$el.style.display='none'" @load="$el.style.display='block'"><i x-show="!ps.seo[item.key]" class="ri-image-line text-xl text-gray-300"></i></div>
+                  <div class="flex-1 min-w-0"><p class="text-xs font-medium" x-text="item.label"></p><p class="text-[11px] text-gray-400 mt-0.5" x-text="item.hint"></p><div class="flex gap-2 mt-2"><label class="px-3 py-1.5 bg-brand-600 text-white rounded-lg text-xs cursor-pointer" :class="seoUploading===item.kind&&'opacity-60 pointer-events-none'"><i :class="seoUploading===item.kind?'ri-loader-4-line animate-spin':'ri-upload-2-line'" class="mr-1"></i><span x-text="seoUploading===item.kind?'Đang tải...':'Chọn ảnh'"></span><input type="file" accept="image/png,image/jpeg,image/webp,image/gif,image/avif,image/svg+xml,image/x-icon" class="hidden" @change="uploadSeoImage(item.kind,$event)"></label><button x-show="ps.seo[item.key]" @click="ps.seo[item.key]=''" type="button" class="px-3 py-1.5 border border-red-200 text-red-600 rounded-lg text-xs">Xóa</button></div></div>
+                </div>
+              </div>
+            </template>
+            <label class="block text-xs">Open Graph Title<input x-model="ps.seo.ogTitle" class="border rounded-lg px-2 py-1.5 w-full mt-1"></label>
+            <label class="block text-xs">Open Graph Description<textarea x-model="ps.seo.ogDescription" rows="2" class="border rounded-lg px-2 py-1.5 w-full mt-1"></textarea></label>
+          </section>
+
+          <section class="bg-white border border-gray-200 rounded-lg p-4 space-y-3">
+            <div><h2 class="font-semibold">Indexing & Search Engine</h2><p class="text-xs text-gray-500">Localhost và URL staging/dev/test vẫn bị noindex để tránh lập chỉ mục nhầm.</p></div>
+            <label class="flex items-center gap-2"><input type="checkbox" x-model="ps.seo.allowIndexing">Cho phép công cụ tìm kiếm lập chỉ mục</label>
+            <label class="block text-xs">Google Site Verification<input x-model="ps.seo.googleSiteVerification" placeholder="Chỉ nhập token/content value" class="border rounded-lg px-2 py-1.5 w-full mt-1"></label>
+            <label class="block text-xs">Locale mặc định<input x-model="ps.seo.locale" placeholder="vi_VN" class="border rounded-lg px-2 py-1.5 w-full mt-1"></label>
+          </section>
+          <button @click="savePS('seo')" class="px-4 py-1.5 bg-brand-600 text-white rounded-lg"><i class="ri-save-3-line mr-1"></i>Lưu SEO & Website</button>
         </div>
       </div>
       </template>
@@ -497,7 +530,7 @@ function adminApp(){ return {
   plans:[], planPrices:{}, trial:{trialEnabled:true,trialDays:7,trialMaxPages:2,trialMaxMembers:2},
   of:{q:'',orgStatus:'',subStatus:'',plan:'',trial:'',overPages:'',overMembers:'',sort:'created',dir:'desc',pageSize:25}, uf:{q:''}, sf:{status:'',plan:'',trial:'',expired:'',expiresWithin:''}, pf:{q:'',status:''}, pmf:{q:'',status:'',planCode:''},
   org:null, userDetail:null, modal:'', form:{}, toast:'', toastErr:false,
-  ps:null, psTab:'general', psSecret:{googleClientSecret:'',smtpPassword:'',sepayApiKey:''}, integrations:{}, testEmailTo:'',
+  ps:null, psTab:'general', psSecret:{googleClientSecret:'',smtpPassword:'',sepayApiKey:''}, integrations:{}, testEmailTo:'', seoUploading:'',
 
   async api(path, opts={}){
     const r = await fetch('/api/admin'+path,{method:opts.method||'GET',headers:{'Content-Type':'application/json',Authorization:'Bearer '+this.token},body:opts.body?JSON.stringify(opts.body):undefined});
@@ -579,6 +612,19 @@ function adminApp(){ return {
       this.psSecret={googleClientSecret:'',smtpPassword:'',sepaySecretKey:''};
       this.flash('Đã lưu');
     }catch(e){ this.flash(e.message,true); }
+  },
+  async uploadSeoImage(kind,event){
+    const input=event.target, file=input.files?.[0]; if(!file) return;
+    if(file.size>8*1024*1024){ this.flash('Ảnh phải nhỏ hơn hoặc bằng 8 MB',true); input.value=''; return; }
+    this.seoUploading=kind;
+    try{
+      const form=new FormData(); form.append('image',file);
+      const response=await fetch('/api/admin/settings/seo/upload/'+kind,{method:'POST',headers:{Authorization:'Bearer '+this.token},body:form});
+      const result=await response.json().catch(()=>({}));
+      if(!response.ok) throw new Error(result.message||result.error||'Không thể tải ảnh');
+      this.ps.seo=result.seo; this.flash('Đã tải và lưu ảnh');
+    }catch(e){ this.flash(e.message,true); }
+    finally{ this.seoUploading=''; input.value=''; }
   },
   async deletePS(path){ if(!confirm('Xóa secret đã lưu?')) return; try{ const r=await this.api('/settings'+path,{method:'DELETE'}); Object.assign(this.ps,r); this.flash('Đã xóa'); }catch(e){ this.flash(e.message,true); } },
   async sendTestEmail(){ if(!this.testEmailTo){ this.flash('Nhập email nhận thử',true); return; } try{ const r=await this.api('/settings/email/test',{method:'POST',body:{to:this.testEmailTo}}); this.flash(r.message||'Đã gửi'); }catch(e){ this.flash(e.message,true); } },

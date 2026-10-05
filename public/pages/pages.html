@@ -1,0 +1,101 @@
+<!-- Pages Management -->
+<div x-show="page==='pages'" class="pages-page fade-in">
+  <header class="pages-header">
+    <div>
+      <h2>Quản lý Pages</h2>
+      <p>Quản lý các Facebook Page đang kết nối với tổ chức</p>
+    </div>
+    <div class="pages-header-actions">
+      <button @click="openManualPageForm()" class="pages-secondary-button"><i class="ri-add-line"></i><span>Thêm Page thủ công</span></button>
+      <button @click="startFacebookConnect()" :disabled="facebookStarting" class="pages-primary-button">
+        <i class="ri-loader-4-line animate-spin" x-show="facebookStarting"></i><i class="ri-facebook-fill" x-show="!facebookStarting"></i>
+        <span x-text="facebookStarting ? 'Đang chuyển hướng...' : 'Kết nối Facebook'"></span>
+      </button>
+    </div>
+  </header>
+
+  <div class="pages-toolbar" x-show="pages.length > 0">
+    <label class="pages-search"><i class="ri-search-line"></i><input x-model="pageSearch" type="search" placeholder="Tìm kiếm Page..." aria-label="Tìm kiếm Page"><button x-show="pageSearch" @click="pageSearch=''" type="button" aria-label="Xóa tìm kiếm"><i class="ri-close-line"></i></button></label>
+  </div>
+
+  <div x-show="pageListLoading" class="pages-table-card pages-loading" aria-live="polite"><i class="ri-loader-4-line animate-spin"></i><span>Đang tải danh sách Pages...</span></div>
+
+  <div x-show="!pageListLoading && pageLoadError" class="pages-table-card pages-loading" role="alert">
+    <i class="ri-error-warning-line text-red-500"></i>
+    <span x-text="pageLoadError"></span>
+    <button type="button" @click="loadPages()" class="pages-secondary-button">Thử lại</button>
+  </div>
+
+  <div x-show="!pageListLoading && !pageLoadError && pages.length > 0" class="pages-table-card">
+    <div class="pages-table-scroll overflow-x-auto" :class="pageActionMenuId && 'has-open-menu'">
+      <table class="pages-table">
+        <thead><tr><th>Page</th><th>Platform</th><th>Page ID</th><th>Content</th><th>Trạng thái</th><th class="text-right">Thao tác</th></tr></thead>
+        <tbody>
+          <template x-for="p in filteredManagedPages" :key="p.id">
+            <tr>
+              <td><div class="pages-page-cell"><div class="pages-avatar"><img x-show="p.platform==='FACEBOOK'" :src="facebookPagePicture(p)" :alt="p.name" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex'"><span :style="p.platform==='FACEBOOK' ? 'display:none' : 'display:flex'"><i :class="p.platform==='FACEBOOK' ? 'ri-facebook-fill' : 'ri-pages-line'"></i></span></div><div class="min-w-0"><div class="pages-page-name" x-text="p.name"></div><div class="pages-page-handle" x-text="p.platform === 'FACEBOOK' ? 'ID: ' + p.externalId : p.externalId"></div></div></div></td>
+              <td><span class="pages-platform"><i :class="p.platform==='FACEBOOK' ? 'ri-facebook-circle-fill' : 'ri-pages-line'"></i><span x-text="p.platform==='FACEBOOK' ? 'Facebook' : p.platform"></span></span></td>
+              <td class="pages-id" x-text="p.externalId"></td><td x-text="p._count?.contentItems || 0"></td>
+              <td><span class="pages-status" :class="isPageConnected(p) ? 'is-connected' : 'is-disconnected'"><span class="pages-status-dot"></span><span x-text="isPageConnected(p) ? 'Đã kết nối' : 'Chưa kết nối'"></span></span></td>
+              <td class="text-right"><div class="pages-action-wrap" @click.outside="pageActionMenuId=null"><button @click="pageActionMenuId=pageActionMenuId===p.id ? null : p.id" class="pages-icon-button" :aria-expanded="pageActionMenuId===p.id" aria-label="Mở menu thao tác"><i class="ri-more-2-fill"></i></button><div x-show="pageActionMenuId===p.id" x-transition class="pages-action-menu"><button @click="pageActionMenuId=null; editPage(p)"><i class="ri-pencil-line"></i> Chỉnh sửa</button><button @click="pageActionMenuId=null; requestDeletePage(p)" class="danger"><i class="ri-delete-bin-line"></i> Xóa Page</button></div></div></td>
+            </tr>
+          </template>
+        </tbody>
+      </table>
+    </div>
+    <div x-show="filteredManagedPages.length === 0" class="pages-no-results"><i class="ri-search-line"></i><p>Không tìm thấy Page phù hợp.</p></div>
+  </div>
+
+  <section x-show="!pageListLoading && !pageLoadError && pages.length === 0" class="pages-empty-state">
+    <div class="pages-empty-illustration" aria-hidden="true"><span class="pages-empty-sheet sheet-left"></span><span class="pages-empty-sheet sheet-right"></span><span class="pages-empty-facebook"><i class="ri-facebook-fill"></i></span></div>
+    <h3>Chưa có Page nào được kết nối</h3><p>Kết nối Facebook để thêm các Page bạn đang quản lý vào MKT Tools.</p>
+    <button @click="startFacebookConnect()" :disabled="facebookStarting" class="pages-primary-button"><i class="ri-facebook-fill"></i><span>Kết nối Facebook</span></button>
+  </section>
+
+  <!-- Manual Page form (legacy/development only; OAuth remains the primary flow) -->
+  <div x-show="showPageModal" x-cloak class="pages-modal-backdrop" @click.self="showPageModal=false">
+    <div class="pages-modal pages-modal--small" role="dialog" aria-modal="true" aria-labelledby="manual-page-title">
+      <button @click="showPageModal=false" class="pages-modal-close" aria-label="Đóng"><i class="ri-close-line"></i></button>
+      <h3 id="manual-page-title" x-text="editingPage ? 'Chỉnh sửa Page' : 'Thêm Page thủ công'"></h3><p class="pages-modal-subtitle">Dành cho Page legacy hoặc môi trường phát triển.</p>
+      <div class="pages-form-stack">
+        <label>Platform<select x-model="pageForm.platform" class="pages-control"><option value="FACEBOOK">Facebook</option><option value="TIKTOK">TikTok</option></select></label>
+        <label>Tên Page<input x-model.trim="pageForm.name" type="text" placeholder="VD: Green SM" class="pages-control"></label>
+        <label>Page ID<input x-model.trim="pageForm.externalId" type="text" placeholder="VD: 100234567890" class="pages-control pages-id"></label>
+        <label>Context / ADN thương hiệu<textarea x-model="pageForm.context" rows="3" placeholder="Mô tả thương hiệu để AI hiểu phong cách nội dung" class="pages-control pages-textarea"></textarea></label>
+        <label>Telegram Group ID<input x-model.trim="pageForm.telegramGroupId" type="text" placeholder="Bỏ trống để dùng nhóm mặc định" class="pages-control"></label>
+        <div x-show="pageError" class="pages-inline-error" x-text="pageError"></div>
+      </div>
+      <div class="pages-modal-footer"><button @click="showPageModal=false" class="pages-cancel-button">Hủy</button><button @click="savePage()" class="pages-primary-button"><span x-text="editingPage ? 'Cập nhật' : 'Thêm Page'"></span></button></div>
+    </div>
+  </div>
+
+  <!-- Facebook discovery / import modal -->
+  <div x-show="facebookModalOpen" x-cloak class="pages-modal-backdrop" @click.self="closeFacebookModal()">
+    <div class="pages-modal pages-connect-modal" role="dialog" aria-modal="true" aria-labelledby="facebook-connect-title">
+      <button x-show="facebookPhase!=='importing'" @click="closeFacebookModal()" class="pages-modal-close" aria-label="Đóng"><i class="ri-close-line"></i></button>
+      <template x-if="facebookPhase==='discovering'"><div class="pages-centered-state"><span class="pages-progress-icon"><i class="ri-loader-4-line animate-spin"></i></span><h3>Đang tải danh sách Pages...</h3><p>Vui lòng đợi trong giây lát.</p></div></template>
+      <template x-if="facebookPhase==='selection'">
+        <div class="pages-connect-layout">
+          <div class="pages-connect-header"><h3 id="facebook-connect-title">Kết nối Facebook Pages</h3><p class="pages-modal-subtitle">Chọn các Page bạn muốn thêm vào MKT Tools</p><label class="pages-search pages-search--modal"><i class="ri-search-line"></i><input x-model="facebookSearch" type="search" placeholder="Tìm kiếm Page..." aria-label="Tìm kiếm Facebook Page"></label></div>
+          <div class="pages-discovery-list">
+            <template x-for="fp in filteredFacebookPages" :key="fp.facebookPageId">
+              <label class="pages-discovery-row" :class="!isFacebookPageSelectable(fp) && 'is-disabled'"><input type="checkbox" :disabled="!isFacebookPageSelectable(fp)" :checked="facebookSelectedIds.includes(fp.facebookPageId)" @change="toggleFacebookPage(fp.facebookPageId)"><span class="pages-custom-checkbox"><i class="ri-check-line"></i></span><span class="pages-avatar pages-avatar--large"><img x-show="fp.pictureUrl" :src="fp.pictureUrl" :alt="fp.name" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex'"><span :style="fp.pictureUrl ? 'display:none' : 'display:flex'"><i class="ri-facebook-fill"></i></span></span><span class="pages-discovery-info"><strong x-text="fp.name"></strong><small><span x-text="fp.facebookPageId"></span><template x-if="fp.category"><span> · <span x-text="fp.category"></span></span></template></small></span><span class="pages-discovery-badge" :class="fp.ownedByOtherOrg ? 'is-other' : fp.alreadyImported ? 'is-imported' : 'is-available'" x-text="facebookPageStateLabel(fp)"></span></label>
+            </template>
+            <div x-show="filteredFacebookPages.length===0" class="pages-no-results"><i class="ri-search-line"></i><p x-text="facebookPages.length ? 'Không tìm thấy Page phù hợp.' : 'Tài khoản này không có Page nào có thể quản lý.'"></p></div>
+          </div>
+          <div x-show="facebookError" class="pages-connect-error"><div><i class="ri-error-warning-line"></i><span x-text="facebookError"></span></div><button x-show="facebookErrorCode==='FACEBOOK_APP_NOT_CONFIGURED'" @click="goToFacebookSettings()">Đi tới Cài đặt hệ thống</button></div>
+          <footer class="pages-connect-footer"><strong><span x-text="facebookSelectedIds.length"></span> Pages đã chọn</strong><div><button @click="closeFacebookModal()" class="pages-cancel-button">Hủy</button><button @click="importSelectedFacebookPages()" :disabled="facebookSelectedIds.length===0" class="pages-primary-button"><span x-text="'Kết nối ' + facebookSelectedIds.length + ' Pages'"></span></button></div></footer>
+        </div>
+      </template>
+      <template x-if="facebookPhase==='importing'">
+        <div class="pages-result-layout"><div class="pages-connect-header"><h3>Đang kết nối Pages...</h3><p class="pages-modal-subtitle">Vui lòng chờ trong giây lát, chúng tôi đang kết nối các Page vào tổ chức.</p></div><div class="pages-import-list"><template x-for="fp in selectedFacebookPages" :key="fp.facebookPageId"><div class="pages-import-row"><span class="pages-avatar"><img x-show="fp.pictureUrl" :src="fp.pictureUrl" :alt="fp.name"><span :style="fp.pictureUrl ? 'display:none' : 'display:flex'"><i class="ri-facebook-fill"></i></span></span><div><strong x-text="fp.name"></strong><small x-text="fp.facebookPageId"></small></div><span class="pages-import-state is-working"><i class="ri-loader-4-line animate-spin"></i> Đang kết nối...</span></div></template></div><div class="pages-info-box"><i class="ri-information-line"></i> Vui lòng không đóng cửa sổ này trong khi đang kết nối.</div></div>
+      </template>
+      <template x-if="facebookPhase==='result'">
+        <div class="pages-result-layout"><div class="pages-success-heading" :class="facebookSuccessCount===0 && 'is-error'"><span><i :class="facebookSuccessCount > 0 ? 'ri-check-line' : 'ri-close-line'"></i></span><h3 x-text="facebookSuccessCount > 0 ? 'Đã kết nối thành công' : 'Không thể kết nối Pages'"></h3><p x-show="facebookSuccessCount > 0" x-text="'Đã kết nối thành công ' + facebookSuccessCount + ' Pages vào MKT Tools.'"></p><p x-show="facebookSuccessCount === 0">Vui lòng kiểm tra lỗi bên dưới và thử lại.</p></div><div class="pages-import-list"><template x-for="item in facebookResultRows" :key="item.facebookPageId"><div class="pages-import-row"><span class="pages-avatar"><img x-show="item.page?.pictureUrl" :src="item.page?.pictureUrl" :alt="item.page?.name"><span :style="item.page?.pictureUrl ? 'display:none' : 'display:flex'"><i class="ri-facebook-fill"></i></span></span><div><strong x-text="item.page?.name || item.facebookPageId"></strong><small x-text="item.page?.facebookPageId || item.facebookPageId"></small></div><span class="pages-import-state" :class="item.status==='error' ? 'is-error' : 'is-success'"><i :class="item.status==='error' ? 'ri-close-circle-fill' : 'ri-checkbox-circle-fill'"></i><span x-text="facebookImportResultLabel(item)"></span></span></div></template></div><div class="pages-connect-error" x-show="facebookResultRows.some(item => item.status==='error')"><div><i class="ri-information-line"></i><span>Các Page kết nối thành công vẫn được giữ nguyên. Bạn có thể thử lại riêng những Page bị lỗi.</span></div></div><footer class="pages-result-footer"><button @click="finishFacebookConnect()" class="pages-primary-button">Hoàn tất</button></footer></div>
+      </template>
+    </div>
+  </div>
+
+  <!-- Delete confirmation -->
+  <div x-show="deletePageTarget" x-cloak class="pages-modal-backdrop" @click.self="deletePageTarget=null"><div class="pages-modal pages-modal--confirm" role="alertdialog" aria-modal="true" aria-labelledby="delete-page-title"><button @click="deletePageTarget=null" class="pages-modal-close" aria-label="Đóng"><i class="ri-close-line"></i></button><span class="pages-danger-icon"><i class="ri-delete-bin-line"></i></span><h3 id="delete-page-title">Xóa Page?</h3><p>Bạn có chắc chắn muốn xóa Page “<strong x-text="deletePageTarget?.name"></strong>”?</p><div class="pages-modal-footer"><button @click="deletePageTarget=null" class="pages-cancel-button">Hủy</button><button @click="confirmDeletePage()" :disabled="pageDeleting" class="pages-danger-button"><span x-text="pageDeleting ? 'Đang xóa...' : 'Xóa Page'"></span></button></div></div></div>
+</div>

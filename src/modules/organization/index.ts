@@ -638,6 +638,59 @@ router.get('/:id/members/:memberId/access', async (req: AuthRequest, res: Respon
   });
 });
 
+// GET member detail for permission editor (admin+): member info + grants + available resources.
+router.get('/:id/members/:memberId/detail', async (req: AuthRequest, res: Response) => {
+  if (!req.userId) return res.status(401).json({ error: 'Unauthorized' });
+  const id = String(req.params.id);
+  const memberId = String(req.params.memberId);
+  const requester = await prisma.organizationMember.findUnique({
+    where: { organizationId_userId: { organizationId: id, userId: req.userId } },
+  });
+  if (!requester || requester.status !== 'ACTIVE' || !roleAtLeast(requester.role as OrgRole, 'ADMIN')) {
+    return res.status(403).json({ error: 'FORBIDDEN' });
+  }
+  const target = await prisma.organizationMember.findUnique({
+    where: { id: memberId },
+    include: {
+      user: { select: { id: true, email: true, name: true } },
+      workspaceGrants: { select: { workspaceId: true } },
+      pageGrants: { select: { pageId: true } },
+    },
+  }) as any;
+  if (!target || target.organizationId !== id) return res.status(404).json({ error: 'NOT_FOUND' });
+
+  const [workspaces, pages] = await Promise.all([
+    prisma.workspace.findMany({
+      where: { organizationId: id },
+      select: { id: true, name: true },
+      orderBy: { name: 'asc' },
+    }),
+    prisma.page.findMany({
+      where: { organizationId: id, isActive: true },
+      select: { id: true, name: true, platform: true },
+      orderBy: { name: 'asc' },
+    }),
+  ]);
+
+  res.json({
+    member: {
+      id: target.id,
+      userId: target.userId,
+      email: target.user.email,
+      name: target.user.name,
+      role: target.role,
+      status: target.status,
+      accessMode: target.accessMode,
+      createdAt: target.createdAt,
+    },
+    accessMode: target.accessMode,
+    workspaceIds: target.workspaceGrants.map((g: any) => g.workspaceId),
+    pageIds: target.pageGrants.map((g: any) => g.pageId),
+    availableWorkspaces: workspaces,
+    availablePages: pages,
+  });
+});
+
 // PUT update a member's access (admin+). OWNER/ADMIN can never be RESTRICTED.
 router.put('/:id/members/:memberId/access', async (req: AuthRequest, res: Response) => {
   if (!req.userId) return res.status(401).json({ error: 'Unauthorized' });

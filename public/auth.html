@@ -2,6 +2,7 @@
 <html lang="vi">
 <head>
 <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="robots" content="noindex, nofollow">
 <title>MKT Tools</title>
 <script src="https://cdn.tailwindcss.com"></script>
 <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
@@ -139,7 +140,7 @@ function authApp(){ return {
     if(this.route==='onboarding'||this.route==='join'){
       if(!this.hasToken()){ if(this.route==='onboarding') location.replace('/login'); return; }
       try{ this.me=await this.api('/session',null,'GET'); this.pendingInvites=this.me.onboarding.pendingInvitations; this.needsVerify=!this.me.user.emailVerified;
-        if(this.route==='onboarding' && this.me.onboarding.state!=='NEEDS_ORGANIZATION') location.replace('/'); }
+        if(this.route==='onboarding' && this.me.onboarding.state!=='NEEDS_ORGANIZATION') location.replace('/dashboard'); }
       catch{ localStorage.removeItem('mkt_token'); location.replace('/login'+(this.route==='join'?'?next='+encodeURIComponent(location.pathname):'')); }
     }
   },
@@ -148,7 +149,7 @@ function authApp(){ return {
     localStorage.setItem('mkt_token',body.token||localStorage.getItem('mkt_token')); localStorage.setItem('mkt_user',JSON.stringify(body.user));
     const next=safeNext(this.q.get('next'))||safeNext(localStorage.getItem('mkt_next')); localStorage.removeItem('mkt_next');
     if(next) return location.replace(next);
-    location.replace(body.onboarding.state==='NEEDS_ORGANIZATION'?'/onboarding':'/');
+    location.replace(body.onboarding.state==='NEEDS_ORGANIZATION'?'/onboarding':'/dashboard');
   },
   async run(fn){ this.busy=true; this.msg=''; try{ await fn(); }catch(e){ this.say(e.message,true); } finally{ this.busy=false; } },
   login(){ return this.run(async()=>{ this.finish(await this.api('/login',{email:this.f.email,password:this.f.password})); }); },
@@ -162,11 +163,11 @@ function authApp(){ return {
     await this.api('/reset-password',{token:location.pathname.split('/')[2],password:this.f.password}); localStorage.removeItem('mkt_token'); localStorage.removeItem('mkt_user'); this.say('Đã đặt lại mật khẩu. Bạn có thể đăng nhập.'); setTimeout(()=>location.replace('/login'),1500); }); },
   async verify(){ try{ await this.api('/verify-email',{token:location.pathname.split('/')[2]}); this.done=true; this.say('Email đã được xác minh.'); }catch(e){ this.say(e.message,true); } },
   async exchange(){ try{ this.finish(await this.api('/exchange',{code:this.q.get('code')})); }catch(e){ this.say(e.message,true); } },
-  createOrg(){ return this.run(async()=>{ await this.api('/onboarding/organization',{name:this.f.orgName}); location.replace('/'); }); },
+  createOrg(){ return this.run(async()=>{ await this.api('/onboarding/organization',{name:this.f.orgName}); location.replace('/dashboard'); }); },
   accept(){ return this.run(async()=>{
     const r=await fetch('/api/invitations/'+this.joinTok+'/accept',{method:'POST',headers:{Authorization:'Bearer '+localStorage.getItem('mkt_token')}}); const j=await r.json().catch(()=>({}));
     if(!r.ok){ if(j.error==='EMAIL_NOT_VERIFIED') this.needsVerify=true; throw new Error(j.message||'Không thể chấp nhận lời mời.'); }
-    if(j.organizationId) localStorage.setItem('mkt_current_org',j.organizationId); location.replace('/'); }); },
+    if(j.organizationId) localStorage.setItem('mkt_current_org',j.organizationId); location.replace('/dashboard'); }); },
   resend(){ return this.run(async()=>{ await this.api('/resend-verification',{}); this.say('Đã gửi lại email xác minh.'); }); },
   async logout(next){ try{ await this.api('/logout',{}); }catch{} localStorage.removeItem('mkt_token'); localStorage.removeItem('mkt_user'); location.replace('/login'+(safeNext(next)?'?next='+encodeURIComponent(next):'')); },
 }}

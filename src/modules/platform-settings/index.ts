@@ -5,6 +5,10 @@ import { encryptPlatformSecret, decryptPlatformSecret, maskSecret } from '../../
 import { logActivity } from '../../utils/activity';
 import { getSetting as getLegacySetting } from '../settings';
 import nodemailer from 'nodemailer';
+import multer from 'multer';
+import sharp from 'sharp';
+import path from 'path';
+import { promises as fs } from 'fs';
 
 // ---------------------------------------------------------------------------
 // Field catalog: one place naming every platform setting, whether it's a
@@ -54,6 +58,20 @@ const FIELDS: Record<string, FieldDef[]> = {
   billing: [
     { key: 'billing.currency', type: 'string', default: 'VND' },
     { key: 'billing.allowedPeriods', type: 'string', default: '1,3,12' }, // CSV of months
+  ],
+  seo: [
+    { key: 'seo.siteName', type: 'string', default: 'MKTKit' },
+    { key: 'seo.defaultTitle', type: 'string', default: 'MKTKit — Công cụ quản lý nội dung & Facebook Pages' },
+    { key: 'seo.defaultDescription', type: 'string', default: 'MKTKit giúp đội ngũ marketing quản lý Pages, nội dung, chiến dịch và lịch xuất bản trong một nơi.' },
+    { key: 'seo.canonicalBaseUrl', type: 'string' },
+    { key: 'seo.allowIndexing', type: 'bool', default: 'true' },
+    { key: 'seo.logoUrl', type: 'string' },
+    { key: 'seo.faviconUrl', type: 'string' },
+    { key: 'seo.ogTitle', type: 'string' },
+    { key: 'seo.ogDescription', type: 'string' },
+    { key: 'seo.ogImageUrl', type: 'string' },
+    { key: 'seo.googleSiteVerification', type: 'string' },
+    { key: 'seo.locale', type: 'string', default: 'vi_VN' },
   ],
 };
 
@@ -166,6 +184,12 @@ function serializeSection(section: keyof typeof FIELDS): Record<string, unknown>
 // ---------------------------------------------------------------------------
 
 const router = Router();
+const seoImageUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 8 * 1024 * 1024, files: 1 },
+  fileFilter: (_req, file, callback) => callback(null, file.mimetype.startsWith('image/')),
+});
+const SEO_UPLOAD_DIR = path.join(process.cwd(), 'public', 'uploads', 'seo');
 
 router.get('/', async (_req: AuthRequest, res: Response) => {
   await ensureLoaded();
@@ -179,6 +203,7 @@ router.get('/', async (_req: AuthRequest, res: Response) => {
       ...serializeSection('billing'),
       allowedPeriods: getPlatformSetting('billing.allowedPeriods').split(',').map((s) => Number(s.trim())).filter(Boolean),
     },
+    seo: serializeSection('seo'),
   });
 });
 
@@ -315,6 +340,55 @@ router.put('/billing', async (req: AuthRequest, res: Response) => {
   }
   await logActivity({ organizationId: null, category: 'admin', status: 'success', action: 'admin.platform_settings', summary: 'Cập nhật cấu hình billing', detail: `by ${req.userId}` });
   res.json({ billing: { ...serializeSection('billing'), allowedPeriods: getPlatformSetting('billing.allowedPeriods').split(',').map((s) => Number(s.trim())).filter(Boolean) } });
+});
+
+router.put('/seo', async (req: AuthRequest, res: Response) => {
+  const body = req.body || {};
+  for (const key of ['canonicalBaseUrl', 'logoUrl', 'faviconUrl', 'ogImageUrl']) {
+    const value = String(body[key] ?? '').trim();
+    if (!value) continue;
+    if (key !== 'canonicalBaseUrl' && value.startsWith('/uploads/seo/')) continue;
+    try {
+      const parsed = new URL(value);
+      if (!['http:', 'https:'].includes(parsed.protocol)) throw new Error('protocol');
+    } catch {
+      return res.status(400).json({ error: 'INVALID_URL', message: `${key} phải là URL http(s) hợp lệ.` });
+    }
+  }
+  await saveFields('seo', body, req.userId);
+  await logActivity({ organizationId: null, category: 'admin', status: 'success', action: 'admin.platform_settings', summary: 'Cập nhật SEO & Website', detail: `by ${req.userId}` });
+  res.json({ seo: serializeSection('seo') });
+});
+
+router.post('/seo/upload/:kind', seoImageUpload.single('image'), async (req: AuthRequest, res: Response) => {
+  const kind = String(req.params.kind);
+  const definitions: Record<string, { key: string; filename: string }> = {
+    logo: { key: 'logoUrl', filename: 'logo.png' },
+    favicon: { key: 'faviconUrl', filename: 'favicon.png' },
+    og: { key: 'ogImageUrl', filename: 'open-graph.jpg' },
+  };
+  const definition = definitions[kind];
+  if (!definition) return res.status(404).json({ error: 'INVALID_IMAGE_KIND', message: 'Loại ảnh không hợp lệ.' });
+  if (!req.file) return res.status(400).json({ error: 'IMAGE_REQUIRED', message: 'Vui lòng chọn một file ảnh.' });
+
+  try {
+    await fs.mkdir(SEO_UPLOAD_DIR, { recursive: true });
+    const outputPath = path.join(SEO_UPLOAD_DIR, definition.filename);
+    const image = sharp(req.file.buffer, { failOn: 'error' }).rotate();
+    if (kind === 'favicon') {
+      await image.resize(512, 512, { fit: 'contain', background: { r: 0, g: 0, b: 0, alpha: 0 } }).png().toFile(outputPath);
+    } else if (kind === 'og') {
+      await image.resize(1200, 630, { fit: 'cover', position: 'centre' }).jpeg({ quality: 88 }).toFile(outputPath);
+    } else {
+      await image.resize({ width: 1200, height: 400, fit: 'inside', withoutEnlargement: true }).png().toFile(outputPath);
+    }
+    const publicUrl = `/uploads/seo/${definition.filename}?v=${Date.now()}`;
+    await saveFields('seo', { [definition.key]: publicUrl }, req.userId);
+    await logActivity({ organizationId: null, category: 'admin', status: 'success', action: 'admin.platform_settings', summary: `Tải lên ${kind} cho website`, detail: `by ${req.userId}` });
+    res.json({ url: publicUrl, seo: serializeSection('seo') });
+  } catch {
+    res.status(400).json({ error: 'INVALID_IMAGE', message: 'File không phải ảnh hợp lệ hoặc không thể xử lý.' });
+  }
 });
 
 function serializePaymentSection() {

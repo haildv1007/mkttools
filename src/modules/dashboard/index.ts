@@ -14,7 +14,9 @@ import { tryResolveCredential } from '../ai-credentials';
 import { getAccessContext, getAccessiblePageIds, getAccessibleWorkspaceIds, canAccessPage, intersectPageIds } from '../access';
 import { logActivity, updateActivity, sanitizeError } from '../../utils/activity';
 import { emitActivity, emitContentUpdate } from '../../realtime';
+import { decryptPageToken, encryptPageToken } from '../../utils/crypto';
 import { createRevisionSession, submitFeedbackAndExecute, cancelRevision, getActiveRevisionSession } from '../revision';
+import { getThumbnailUrl, generateThumbnailSafe } from '../../utils/thumbnail';
 
 const UPLOAD_DIR = path.join(process.cwd(), 'public', 'uploads');
 const VIDEO_DIR = path.join(UPLOAD_DIR, 'videos');
@@ -249,7 +251,7 @@ router.get('/stats/dashboard', async (req: AuthRequest, res: Response) => {
     if (campaignId) baseWhere.campaignId = String(campaignId);
 
     // --- Fetch content items for current & previous periods ---
-    const [currentItems, prevItems, allCurrentContent, allPrevContent] = await Promise.all([
+    const [currentItems, prevItems, curStatusGroups, prevStatusGroups, curScheduledCount, prevScheduledCount] = await Promise.all([
       prisma.contentItem.findMany({
         where: {
           ...baseWhere,
@@ -259,7 +261,7 @@ router.get('/stats/dashboard', async (req: AuthRequest, res: Response) => {
         },
         select: {
           id: true, socialPostId: true, topic: true, publishedAt: true,
-          pageId: true, campaignId: true, generatedText: true, metrics: true,
+          pageId: true, campaignId: true, metrics: true,
           page: { select: { id: true, name: true, externalId: true, accessToken: true, platform: true } },
         },
       }),
@@ -276,15 +278,21 @@ router.get('/stats/dashboard', async (req: AuthRequest, res: Response) => {
           page: { select: { id: true, name: true, externalId: true, accessToken: true, platform: true } },
         },
       }),
-      // Pipeline: content created in current period
-      prisma.contentItem.findMany({
+      prisma.contentItem.groupBy({
+        by: ['status'],
         where: { ...baseWhere, createdAt: { gte: currentFrom, lte: currentTo } },
-        select: { id: true, status: true, scheduledAt: true },
+        _count: true,
       }),
-      // Previous period content for delta comparison
-      prisma.contentItem.findMany({
+      prisma.contentItem.groupBy({
+        by: ['status'],
         where: { ...baseWhere, createdAt: { gte: prevFrom, lte: prevTo } },
-        select: { id: true, status: true, scheduledAt: true },
+        _count: true,
+      }),
+      prisma.contentItem.count({
+        where: { ...baseWhere, createdAt: { gte: currentFrom, lte: currentTo }, status: 'APPROVED', scheduledAt: { gt: now } },
+      }),
+      prisma.contentItem.count({
+        where: { ...baseWhere, createdAt: { gte: prevFrom, lte: prevTo }, status: 'APPROVED', scheduledAt: { gt: now } },
       }),
     ]);
 
@@ -303,25 +311,26 @@ router.get('/stats/dashboard', async (req: AuthRequest, res: Response) => {
       fb_last_sync = curResult.lastSync || prevResult.lastSync;
     } catch (e) { fb_errors.push(e instanceof Error ? e.message : 'DB read failed'); }
 
-    // --- Pipeline summary ---
-    const countByStatus = (items: Array<{ status: string; scheduledAt?: Date | null }>, status: string) => {
-      if (status === 'SCHEDULED') {
-        return items.filter(i => i.status === 'APPROVED' && i.scheduledAt && new Date(i.scheduledAt) > now).length;
-      }
-      return items.filter(i => i.status === status).length;
+    // --- Pipeline summary (from groupBy aggregation) ---
+    const groupToMap = (groups: Array<{ status: string; _count: number }>) => {
+      const m = new Map<string, number>();
+      for (const g of groups) m.set(g.status, g._count);
+      return m;
     };
-    const curPending = countByStatus(allCurrentContent, 'PENDING_REVIEW');
-    const prevPending = countByStatus(allPrevContent, 'PENDING_REVIEW');
-    const curGenerating = countByStatus(allCurrentContent, 'GENERATING');
-    const prevGenerating = countByStatus(allPrevContent, 'GENERATING');
-    const curApproved = countByStatus(allCurrentContent, 'APPROVED');
-    const prevApproved = countByStatus(allPrevContent, 'APPROVED');
-    const curScheduled = countByStatus(allCurrentContent, 'SCHEDULED');
-    const prevScheduled = countByStatus(allPrevContent, 'SCHEDULED');
-    const curPosted = countByStatus(allCurrentContent, 'PUBLISHED');
-    const prevPosted = countByStatus(allPrevContent, 'PUBLISHED');
-    const curFailed = countByStatus(allCurrentContent, 'FAILED');
-    const prevFailed = countByStatus(allPrevContent, 'FAILED');
+    const curMap = groupToMap(curStatusGroups);
+    const prevMap = groupToMap(prevStatusGroups);
+    const curPending = curMap.get('PENDING_REVIEW') ?? 0;
+    const prevPending = prevMap.get('PENDING_REVIEW') ?? 0;
+    const curGenerating = curMap.get('GENERATING') ?? 0;
+    const prevGenerating = prevMap.get('GENERATING') ?? 0;
+    const curApproved = curMap.get('APPROVED') ?? 0;
+    const prevApproved = prevMap.get('APPROVED') ?? 0;
+    const curScheduled = curScheduledCount;
+    const prevScheduled = prevScheduledCount;
+    const curPosted = curMap.get('PUBLISHED') ?? 0;
+    const prevPosted = prevMap.get('PUBLISHED') ?? 0;
+    const curFailed = curMap.get('FAILED') ?? 0;
+    const prevFailed = prevMap.get('FAILED') ?? 0;
     // Success rate: published / (published + failed) — only content that attempted publish
     const curAttempted = curPosted + curFailed;
     const prevAttempted = prevPosted + prevFailed;
@@ -406,7 +415,6 @@ router.get('/stats/dashboard', async (req: AuthRequest, res: Response) => {
         const eng = m.reactions + m.comments + m.shares;
         return {
           id: m.contentItemId, topic: m.topic,
-          excerpt: (currentItems.find(i => i.id === m.contentItemId)?.generatedText ?? '').slice(0, 120),
           pageName: m.pageName, pageExternalId: m.pageExternalId,
           publishedAt: m.publishedAt,
           viewers: m.viewers, mediaViews: m.mediaViews, clicks: m.clicks,
@@ -449,45 +457,43 @@ router.get('/stats/dashboard', async (req: AuthRequest, res: Response) => {
       ...c, er: c.viewers > 0 ? Math.round((c.engagement / c.viewers) * 10000) / 100 : null,
     }));
 
-    // --- Pending items ---
-    const pending_items = await prisma.contentItem.findMany({
-      where: { ...baseWhere, status: { in: ['PENDING_REVIEW', 'FAILED'] } },
-      select: {
-        id: true, topic: true, scheduledAt: true, status: true,
-        page: { select: { name: true, externalId: true } },
-      },
-      orderBy: { createdAt: 'desc' },
-      take: 10,
-    });
-
-    // --- Upcoming posts (next 7 days) ---
+    // --- Below-fold lists (parallel) ---
     const next7 = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
-    const upcoming_posts = await prisma.contentItem.findMany({
-      where: {
-        ...baseWhere,
-        scheduledAt: { gte: now, lte: next7 },
-        status: { in: ['DRAFT', 'QUEUED', 'PENDING_REVIEW', 'APPROVED', 'GENERATING'] },
-      },
-      select: {
-        id: true, topic: true, scheduledAt: true, status: true,
-        page: { select: { name: true, externalId: true } },
-      },
-      orderBy: { scheduledAt: 'asc' },
-      take: 20,
-    });
-
-    // --- Recent published ---
-    const recentPublished = await prisma.contentItem.findMany({
-      where: { ...baseWhere, status: 'PUBLISHED', publishedAt: { not: null } },
-      select: {
-        id: true, topic: true, publishedAt: true, socialPostId: true,
-        pageId: true, campaignId: true, metrics: true,
-        page: { select: { id: true, name: true, externalId: true, accessToken: true, platform: true } },
-      },
-      orderBy: { publishedAt: 'desc' },
-      take: 5,
-    });
-    // Enrich with FB metrics from DB
+    const [pending_items, upcoming_posts, recentPublished] = await Promise.all([
+      prisma.contentItem.findMany({
+        where: { ...baseWhere, status: { in: ['PENDING_REVIEW', 'FAILED'] } },
+        select: {
+          id: true, topic: true, scheduledAt: true, status: true,
+          page: { select: { name: true, externalId: true } },
+        },
+        orderBy: { createdAt: 'desc' },
+        take: 10,
+      }),
+      prisma.contentItem.findMany({
+        where: {
+          ...baseWhere,
+          scheduledAt: { gte: now, lte: next7 },
+          status: { in: ['DRAFT', 'QUEUED', 'PENDING_REVIEW', 'APPROVED', 'GENERATING'] },
+        },
+        select: {
+          id: true, topic: true, scheduledAt: true, status: true,
+          page: { select: { name: true, externalId: true } },
+        },
+        orderBy: { scheduledAt: 'asc' },
+        take: 20,
+      }),
+      prisma.contentItem.findMany({
+        where: { ...baseWhere, status: 'PUBLISHED', publishedAt: { not: null } },
+        select: {
+          id: true, topic: true, publishedAt: true, socialPostId: true,
+          pageId: true, campaignId: true, metrics: true,
+          page: { select: { id: true, name: true, externalId: true, accessToken: true, platform: true } },
+        },
+        orderBy: { publishedAt: 'desc' },
+        take: 5,
+      }),
+    ]);
+    // Enrich recent with FB metrics from DB
     let recentFb: FbPostMetrics[] = [];
     try {
       const recentResult = await readMetricsFromDb(recentPublished);
@@ -573,54 +579,31 @@ router.get('/stats/campaigns', async (req: AuthRequest, res: Response) => {
     }
     const campaigns = await prisma.campaign.findMany({
       where,
-      include: {
-        contentItems: {
-          select: { status: true, pageId: true },
-        },
-      },
+      select: { id: true, name: true, startDate: true, endDate: true },
     });
-
-    const results = await Promise.all(
-      campaigns.map(async (campaign) => {
-        const items = campaign.contentItems;
-        const totalContent = items.length;
-        const published = items.filter(i => i.status === 'PUBLISHED').length;
-        const draft = items.filter(i => i.status === 'DRAFT').length;
-        const pending = items.filter(i => i.status === 'PENDING_REVIEW').length;
-        const failed = items.filter(i => i.status === 'FAILED').length;
-        const successRate = totalContent > 0 ? Math.round((published / totalContent) * 10000) / 100 : 0;
-
-        // Find the most-used page
-        const pageCounts = new Map<string, number>();
-        for (const item of items) {
-          pageCounts.set(item.pageId, (pageCounts.get(item.pageId) ?? 0) + 1);
-        }
-        let topPageName: string | null = null;
-        if (pageCounts.size > 0) {
-          const topPageId = [...pageCounts.entries()].sort((a, b) => b[1] - a[1])[0][0];
-          const topPage = await prisma.page.findUnique({ where: { id: topPageId }, select: { name: true } });
-          topPageName = topPage?.name ?? null;
-        }
-
-        return {
-          id: campaign.id,
-          name: campaign.name,
-          startDate: campaign.startDate,
-          endDate: campaign.endDate,
-          totalContent,
-          published,
-          draft,
-          pending,
-          failed,
-          successRate,
-          topPageName,
-        };
-      })
-    );
-
-    const filtered = results.filter(c => c.totalContent > 0);
-    filtered.sort((a, b) => b.published - a.published || b.totalContent - a.totalContent);
-    res.json(filtered.slice(0, 7));
+    const campIds = campaigns.map(c => c.id);
+    const statusGroups = campIds.length
+      ? await prisma.contentItem.groupBy({ by: ['campaignId', 'status'], where: { campaignId: { in: campIds }, organizationId: req.organizationId }, _count: true })
+      : [];
+    const campStats = new Map<string, Record<string, number>>();
+    for (const g of statusGroups) {
+      if (!g.campaignId) continue;
+      const entry = campStats.get(g.campaignId) || {};
+      entry[g.status] = g._count;
+      campStats.set(g.campaignId, entry);
+    }
+    const results = campaigns.map(campaign => {
+      const s = campStats.get(campaign.id) || {};
+      const published = s.PUBLISHED ?? 0;
+      const draft = s.DRAFT ?? 0;
+      const pending = s.PENDING_REVIEW ?? 0;
+      const failed = s.FAILED ?? 0;
+      const totalContent = Object.values(s).reduce((a, b) => a + b, 0);
+      const successRate = totalContent > 0 ? Math.round((published / totalContent) * 10000) / 100 : 0;
+      return { id: campaign.id, name: campaign.name, startDate: campaign.startDate, endDate: campaign.endDate, totalContent, published, draft, pending, failed, successRate, topPageName: null as string | null };
+    }).filter(c => c.totalContent > 0);
+    results.sort((a, b) => b.published - a.published || b.totalContent - a.totalContent);
+    res.json(results.slice(0, 7));
   } catch (err) {
     res.status(500).json({ error: err instanceof Error ? err.message : 'Failed to fetch campaign stats' });
   }
@@ -635,18 +618,19 @@ router.get('/stats/pages', async (req: AuthRequest, res: Response) => {
     }
     const pages = await prisma.page.findMany({
       where,
-      include: {
-        _count: { select: { contentItems: true } },
-        contentItems: {
-          where: { status: 'PUBLISHED' },
-          select: { id: true },
-        },
-      },
+      select: { id: true, name: true, platform: true, externalId: true },
     });
+    const pageIds = pages.map(p => p.id);
+    const [totalGroups, publishedGroups] = await Promise.all([
+      prisma.contentItem.groupBy({ by: ['pageId'], where: { pageId: { in: pageIds }, organizationId: req.organizationId }, _count: true }),
+      prisma.contentItem.groupBy({ by: ['pageId'], where: { pageId: { in: pageIds }, organizationId: req.organizationId, status: 'PUBLISHED' }, _count: true }),
+    ]);
+    const totalMap = new Map(totalGroups.map(g => [g.pageId, g._count]));
+    const pubMap = new Map(publishedGroups.map(g => [g.pageId, g._count]));
 
     const results = pages.map(page => {
-      const totalContent = page._count.contentItems;
-      const published = page.contentItems.length;
+      const totalContent = totalMap.get(page.id) ?? 0;
+      const published = pubMap.get(page.id) ?? 0;
       const successRate = totalContent > 0 ? Math.round((published / totalContent) * 10000) / 100 : 0;
       return {
         id: page.id,
@@ -676,7 +660,8 @@ router.get('/stats/upcoming', async (req: AuthRequest, res: Response) => {
         scheduledAt: { gte: now, lte: nextWeek },
         status: { in: ['DRAFT', 'QUEUED', 'PENDING_REVIEW', 'APPROVED', 'GENERATING'] },
       }),
-      include: {
+      select: {
+        id: true, topic: true, status: true, scheduledAt: true,
         page: { select: { id: true, name: true, platform: true } },
         campaign: { select: { id: true, name: true } },
       },
@@ -694,7 +679,8 @@ router.get('/stats/recent-published', async (req: AuthRequest, res: Response) =>
   try {
     const items = await prisma.contentItem.findMany({
       where: await scopedContentWhere(req, { status: 'PUBLISHED' }),
-      include: {
+      select: {
+        id: true, topic: true, status: true, publishedAt: true, socialPostId: true,
         page: { select: { id: true, name: true, platform: true } },
         campaign: { select: { id: true, name: true } },
       },
@@ -806,7 +792,7 @@ router.get('/stats/fb-insights', async (req: AuthRequest, res: Response) => {
         continue;
       }
 
-      const token = page.accessToken;
+      const token = decryptPageToken(page.accessToken);
 
       // Fetch page-level metrics
       try {
@@ -967,15 +953,26 @@ router.get('/pages', async (req: AuthRequest, res: Response) => {
   }
   const pages = await prisma.page.findMany({
     where,
-    include: { _count: { select: { contentItems: true } } },
+    select: {
+      id: true,
+      platform: true,
+      name: true,
+      externalId: true,
+      context: true,
+      metadata: true,
+      telegramGroupId: true,
+      isActive: true,
+      accessToken: true,
+      createdAt: true,
+      updatedAt: true,
+      _count: { select: { contentItems: true } },
+    },
     orderBy: { createdAt: 'desc' },
   });
-  const [used, limit] = await Promise.all([
-    OrganizationQuota.getPageUsage(req.organizationId!),
-    OrganizationQuota.getPageLimit(req.organizationId!),
-  ]);
-  res.setHeader('X-Page-Usage', `${used}/${limit ?? 'unlimited'}`);
-  res.json(pages);
+  res.json(pages.map(({ accessToken, ...page }) => ({
+    ...page,
+    connected: page.platform === 'FACEBOOK' ? page.isActive && !!accessToken : page.isActive,
+  })));
 });
 
 router.post('/pages', async (req: AuthRequest, res: Response) => {
@@ -1015,7 +1012,7 @@ router.post('/pages', async (req: AuthRequest, res: Response) => {
       }
       const reactivated = await prisma.page.update({
         where: { id: dup.id },
-        data: { isActive: true, accessToken: accessToken || dup.accessToken, name, metadata, telegramGroupId },
+        data: { isActive: true, accessToken: accessToken ? encryptPageToken(accessToken) : dup.accessToken, name, metadata, telegramGroupId },
       });
       return res.json(reactivated);
     }
@@ -1023,7 +1020,7 @@ router.post('/pages', async (req: AuthRequest, res: Response) => {
       data: {
         organizationId: req.organizationId!,
         platform, name, externalId,
-        accessToken: accessToken || '',
+        accessToken: accessToken ? encryptPageToken(accessToken) : '',
         context: context || null,
         metadata: metadata ?? undefined,
         telegramGroupId: telegramGroupId || null,
@@ -1049,6 +1046,7 @@ router.put('/pages/:id', async (req: AuthRequest, res: Response) => {
   }
   // Never allow client to move page across orgs
   const { organizationId: _ignore, ...safeBody } = req.body || {};
+  if (safeBody.accessToken) safeBody.accessToken = encryptPageToken(safeBody.accessToken);
   const page = await prisma.page.update({ where: { id }, data: safeBody });
   res.json(page);
 });
@@ -1108,9 +1106,42 @@ router.post('/pages/fb-token-exchange', async (req: AuthRequest, res: Response) 
 
 // All possible content statuses, kept in sync with the ContentStatus enum in prisma/schema.prisma
 const ALL_CONTENT_STATUSES = [
-  'DRAFT', 'GENERATING', 'PENDING_REVIEW', 'REVISION_REQUESTED',
+  'DRAFT', 'QUEUED', 'GENERATING', 'PENDING_REVIEW', 'REVISION_REQUESTED',
   'APPROVED', 'PUBLISHING', 'PUBLISHED', 'FAILED', 'CANCELLED',
 ];
+
+function normalizeSource(dbSource: string): 'AI_GEN' | 'MANUAL' {
+  return dbSource === 'AI' ? 'AI_GEN' : 'MANUAL';
+}
+
+function mapSourceFilterToDbValues(values: string[]): string[] {
+  const dbValues: string[] = [];
+  for (const v of values) {
+    if (v === 'AI_GEN' || v === 'AI') dbValues.push('AI');
+    else if (v === 'MANUAL') { dbValues.push('MANUAL'); dbValues.push('IMPORT'); }
+    else if (v === 'IMPORT') { dbValues.push('MANUAL'); dbValues.push('IMPORT'); }
+    else dbValues.push(v);
+  }
+  return [...new Set(dbValues)];
+}
+
+// Lightweight select for content list DTO — only fields needed for the table
+const CONTENT_LIST_SELECT = {
+  id: true,
+  topic: true,
+  status: true,
+  source: true,
+  contentType: true,
+  scheduledAt: true,
+  createdAt: true,
+  publishedAt: true,
+  generatedImageUrl: true,
+  generatedVideoUrl: true,
+  pageId: true,
+  campaignId: true,
+  page: { select: { id: true, name: true, platform: true } },
+  campaign: { select: { id: true, name: true } },
+} as const;
 
 // Parses a comma-separated query param into a string[] (or undefined if absent/empty).
 function parseCsvParam(value: unknown): string[] | undefined {
@@ -1156,6 +1187,7 @@ router.get('/content', async (req: AuthRequest, res: Response) => {
     statuses, pageIds, sources, contentTypes, campaignIds, metricFilter,
     createdFrom, createdTo, publishedFrom, publishedTo,
     scopeType, scopeId, sortBy = 'scheduledAt', sortDir = 'desc',
+    media,
   } = req.query;
 
   // Build base where (without status, so we can count per-status) — always tenant scoped
@@ -1186,14 +1218,33 @@ router.get('/content', async (req: AuthRequest, res: Response) => {
     baseWhere.pageId = { in: accessible };
   }
 
-  const sourceFilter = buildInFilter(sources, source);
-  if (sourceFilter !== undefined) baseWhere.source = sourceFilter;
+  // Map customer-facing source values (AI_GEN, MANUAL) to DB enum values (AI, MANUAL, IMPORT)
+  const rawSourceValues = parseCsvParam(sources) ?? (source ? [String(source)] : undefined);
+  if (rawSourceValues) {
+    const dbValues = mapSourceFilterToDbValues(rawSourceValues);
+    baseWhere.source = dbValues.length === 1 ? dbValues[0] : { in: dbValues };
+  }
 
   const campaignIdFilter = buildInFilter(campaignIds, campaignId);
   if (campaignIdFilter !== undefined) baseWhere.campaignId = campaignIdFilter;
 
   const contentTypeFilter = buildInFilter(contentTypes, contentType);
   if (contentTypeFilter !== undefined) baseWhere.contentType = contentTypeFilter;
+
+  const mediaValues = parseCsvParam(media);
+  if (mediaValues && mediaValues.length) {
+    const mediaOr: Record<string, unknown>[] = [];
+    for (const mv of mediaValues) {
+      if (mv === 'IMAGE') mediaOr.push({ generatedImageUrl: { not: null } });
+      else if (mv === 'VIDEO') mediaOr.push({ generatedVideoUrl: { not: null } });
+      else if (mv === 'TEXT_ONLY') mediaOr.push({ generatedImageUrl: null, generatedVideoUrl: null });
+    }
+    if (mediaOr.length === 1) Object.assign(baseWhere, mediaOr[0]);
+    else if (mediaOr.length > 1) {
+      const existingAnd = Array.isArray(baseWhere.AND) ? baseWhere.AND : [];
+      baseWhere.AND = [...existingAnd, { OR: mediaOr }];
+    }
+  }
 
   if (search) baseWhere.topic = { contains: String(search), mode: 'insensitive' };
   if (dateFrom || dateTo) {
@@ -1247,32 +1298,23 @@ router.get('/content', async (req: AuthRequest, res: Response) => {
   const take = Math.min(Math.max(1, Number(pageSize)), 200);
   const skip = (Math.max(1, Number(pageNum)) - 1) * take;
 
-  const [items, total, statusGroups, metricsRows] = await Promise.all([
+  const queryStart = Date.now();
+
+  const [items, total, statusGroups] = await Promise.all([
     prisma.contentItem.findMany({
       where,
-      include: {
-        page: { select: { id: true, name: true, platform: true, externalId: true } },
-        campaign: { select: { id: true, name: true } },
-      },
-      orderBy: { [sortField]: sortDirection },
+      select: CONTENT_LIST_SELECT,
+      orderBy: [{ [sortField]: sortDirection }, { id: 'asc' }],
       take,
       skip,
     }),
     prisma.contentItem.count({ where }),
     prisma.contentItem.groupBy({ by: ['status'], where: baseWhere, _count: true }),
-    prisma.contentItem.findMany({ where, select: { metrics: true } }),
   ]);
 
-  const statusCounts: Record<string, number> = {};
-  let allCount = 0;
-  for (const s of ALL_CONTENT_STATUSES) statusCounts[s] = 0;
-  for (const g of statusGroups) {
-    statusCounts[g.status] = g._count;
-    allCount += g._count;
-  }
-  statusCounts.ALL = allCount;
-
-  // Aggregate metrics summary across entire filtered dataset
+  // Aggregate metrics: select only the metrics JSON field (small payload)
+  // instead of loading full ContentItem rows
+  const metricsRows = await prisma.contentItem.findMany({ where, select: { metrics: true } });
   let metricItemCount = 0;
   let viewersSum = 0, viewsSum = 0, reactionsSum = 0, commentsSum = 0, sharesSum = 0, clicksSum = 0;
   for (const row of metricsRows) {
@@ -1288,10 +1330,8 @@ router.get('/content', async (req: AuthRequest, res: Response) => {
   }
   const engagementSum = reactionsSum + commentsSum + sharesSum;
   const engViewer = viewersSum > 0 ? Math.round((engagementSum / viewersSum) * 10000) / 100 : null;
-
   const summary = {
-    resultCount: total,
-    metricItemCount,
+    resultCount: total, metricItemCount,
     viewersSum: metricItemCount ? viewersSum : null,
     viewsSum: metricItemCount ? viewsSum : null,
     engagementSum: metricItemCount ? engagementSum : null,
@@ -1302,7 +1342,37 @@ router.get('/content', async (req: AuthRequest, res: Response) => {
     engViewer,
   };
 
-  res.json({ items, total, statusCounts, summary, page: Math.floor(skip / take) + 1, pageSize: take });
+  const statusCounts: Record<string, number> = {};
+  let allCount = 0;
+  for (const s of ALL_CONTENT_STATUSES) statusCounts[s] = 0;
+  for (const g of statusGroups) {
+    statusCounts[g.status] = g._count;
+    allCount += g._count;
+  }
+  statusCounts.ALL = allCount;
+
+  // Normalize source values for frontend: AI → AI_GEN, MANUAL/IMPORT → MANUAL
+  const normalizedItems = items.map((item) => ({
+    ...item,
+    source: normalizeSource(item.source),
+    thumbnailUrl: getThumbnailUrl(item.generatedImageUrl) || null,
+  }));
+
+  const queryMs = Date.now() - queryStart;
+  if (process.env.NODE_ENV !== 'production') {
+    res.setHeader('X-Query-Time-Ms', String(queryMs));
+  }
+
+  const currentPage = Math.floor(skip / take) + 1;
+  res.json({
+    items: normalizedItems,
+    total,
+    page: currentPage,
+    pageSize: take,
+    pagination: { page: currentPage, pageSize: take, total, totalPages: Math.ceil(total / take) },
+    statusCounts,
+    summary,
+  });
 });
 
 // Campaigns filtered by a set of page IDs — used for the cascading Page → Campaign filter
@@ -1427,7 +1497,7 @@ router.post('/content/:id/sync-metrics', async (req: AuthRequest, res: Response)
     if (!item.socialPostId) return res.status(400).json({ error: 'No social post ID' });
     if (item.page.platform !== 'FACEBOOK') return res.status(400).json({ error: 'Only Facebook supported' });
 
-    const token = item.page.accessToken;
+    const token = decryptPageToken(item.page.accessToken);
     const url = `https://graph.facebook.com/v21.0/${item.socialPostId}?fields=reactions.summary(true),comments.summary(true),shares&access_token=${encodeURIComponent(token)}`;
     const r = await fetch(url);
     const json = await r.json() as { reactions?: { summary?: { total_count?: number } }; comments?: { summary?: { total_count?: number } }; shares?: { count?: number }; error?: { message?: string } };
@@ -1743,6 +1813,7 @@ router.post('/content/:id/upload-image', imageUpload.single('image'), async (req
     if (!req.file) return res.status(400).json({ error: 'Không có file ảnh' });
 
     const imageUrl = `/uploads/images/${req.file.filename}`;
+    generateThumbnailSafe(imageUrl);
 
     await prisma.contentItem.update({
       where: { id },
@@ -1767,6 +1838,7 @@ router.post('/content/:id/upload-images', imageUpload.array('images', 10), async
       url: `/uploads/images/${f.filename}`,
       localPath: f.path,
     }));
+    for (const img of images) generateThumbnailSafe(img.url);
 
     await prisma.contentItem.update({
       where: { id },
@@ -2196,7 +2268,7 @@ router.post('/stats/fb-sync', async (req: AuthRequest, res: Response) => {
     }
 
     for (const [, { page, items: pageItems }] of byPage) {
-      const token = page.accessToken;
+      const token = decryptPageToken(page.accessToken);
 
       for (const item of pageItems) {
         try {
