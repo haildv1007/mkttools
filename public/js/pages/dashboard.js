@@ -1,6 +1,7 @@
 window.MKTPageModules = window.MKTPageModules || {};
 window.MKTPageModules.dashboard = () => ({
     _dashboardAbort: null,
+    _dashboardCache: new Map(),
     onTimePresetChange() {
         if (this.dbFilter.preset !== 'custom')
             this.loadDashboard();
@@ -74,12 +75,19 @@ window.MKTPageModules.dashboard = () => ({
                 params.set('scopeType', this.currentScope.type);
                 params.set('scopeId', this.currentScope.id);
             }
+            const cacheKey = params.toString();
+            const cached = this._dashboardCache.get(cacheKey);
+            if (cached && Date.now() - cached.savedAt < 30000) {
+                this.db = cached.data;
+                this.dashboardLoading = false;
+                requestAnimationFrame(() => this.renderPerfChart());
+            }
             const signal = controller.signal;
             const db = await this.api('/dashboard/stats/dashboard?' + params.toString(), { signal });
             if (signal.aborted) return;
             this.db = db;
-            clearTimeout(this._chartTimer);
-            this._chartTimer = setTimeout(() => { this.renderPerfChart(); }, 100);
+            this._dashboardCache.set(cacheKey, { data: db, savedAt: Date.now() });
+            requestAnimationFrame(() => this.renderPerfChart());
             if (!this._statsLoaded) {
                 this.api('/dashboard/stats', { signal }).then(stats => {
                     if (signal.aborted) return;
@@ -162,10 +170,10 @@ window.MKTPageModules.dashboard = () => ({
             data: {
                 labels,
                 datasets: [
-                    { type: 'line', label: 'Người xem', data: data.map(d => d.viewers), borderColor: '#3b82f6', backgroundColor: 'rgba(59,130,246,0.08)', fill: true, tension: 0.3, pointRadius: 2, yAxisID: 'y', order: 1 },
-                    { type: 'line', label: 'Lượt xem', data: data.map(d => d.media_views), borderColor: '#06b6d4', backgroundColor: 'rgba(6,182,212,0.08)', fill: false, tension: 0.3, pointRadius: 2, yAxisID: 'y', order: 2, borderDash: [4, 2] },
-                    { type: 'line', label: 'Engagement', data: data.map(d => d.engagement), borderColor: '#8b5cf6', backgroundColor: 'rgba(139,92,246,0.08)', fill: true, tension: 0.3, pointRadius: 2, yAxisID: 'y', order: 2 },
-                    { type: 'bar', label: 'Bài đăng', data: data.map(d => d.posts_count), backgroundColor: 'rgba(99,102,241,0.3)', borderRadius: 4, yAxisID: 'y1', order: 3 },
+                    { type: 'line', label: 'Người xem', data: data.map(d => d.viewers), borderColor: '#3b82f6', borderWidth: 2, fill: false, tension: 0, pointRadius: 0, yAxisID: 'y', order: 1 },
+                    { type: 'line', label: 'Lượt xem', data: data.map(d => d.media_views), borderColor: '#06b6d4', borderWidth: 2, fill: false, tension: 0, pointRadius: 0, yAxisID: 'y', order: 2 },
+                    { type: 'line', label: 'Engagement', data: data.map(d => d.engagement), borderColor: '#8b5cf6', borderWidth: 2, fill: false, tension: 0, pointRadius: 0, yAxisID: 'y', order: 2 },
+                    { type: 'bar', label: 'Bài đăng', data: data.map(d => d.posts_count), backgroundColor: 'rgba(99,102,241,0.25)', borderRadius: 2, yAxisID: 'y1', order: 3 },
                 ]
             },
             options: {
@@ -257,4 +265,3 @@ window.MKTPageModules.dashboard = () => ({
         });
     }
 });
-

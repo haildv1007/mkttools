@@ -116,7 +116,7 @@ async function readMetricsFromDb(
     pageId: string;
     campaignId: string;
     metrics?: unknown;
-    page: { id: string; name: string; externalId: string; accessToken: string; platform: string };
+    page: { id: string; name: string; externalId: string; platform: string };
   }>
 ): Promise<{ metrics: FbPostMetrics[]; errors: string[]; lastSync: string | null }> {
   const allMetrics: FbPostMetrics[] = [];
@@ -201,6 +201,7 @@ router.get('/stats', async (req: AuthRequest, res: Response) => {
 
 router.get('/stats/dashboard', async (req: AuthRequest, res: Response) => {
   try {
+    res.setHeader('Cache-Control', 'private, max-age=15, stale-while-revalidate=30');
     const { pageId, campaignId, dateFrom, dateTo, days: daysParam, scopeType, scopeId } = req.query;
     const days = parseInt(daysParam as string, 10) || 30;
 
@@ -262,7 +263,7 @@ router.get('/stats/dashboard', async (req: AuthRequest, res: Response) => {
         select: {
           id: true, socialPostId: true, topic: true, publishedAt: true,
           pageId: true, campaignId: true, metrics: true,
-          page: { select: { id: true, name: true, externalId: true, accessToken: true, platform: true } },
+          page: { select: { id: true, name: true, externalId: true, platform: true } },
         },
       }),
       prisma.contentItem.findMany({
@@ -275,7 +276,7 @@ router.get('/stats/dashboard', async (req: AuthRequest, res: Response) => {
         select: {
           id: true, socialPostId: true, topic: true, publishedAt: true,
           pageId: true, campaignId: true, metrics: true,
-          page: { select: { id: true, name: true, externalId: true, accessToken: true, platform: true } },
+          page: { select: { id: true, name: true, externalId: true, platform: true } },
         },
       }),
       prisma.contentItem.groupBy({

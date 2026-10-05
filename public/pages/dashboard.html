@@ -40,6 +40,7 @@
                 <i class="ri-arrow-down-s-line text-gray-400 ml-auto shrink-0"></i>
               </button>
               <div x-show="dbCampDrop" x-cloak class="absolute top-full mt-1 left-0 bg-white border border-gray-200 rounded-lg shadow-lg z-50 min-w-[200px] max-h-[250px] overflow-y-auto">
+                <div x-show="campaignsLoading && !campaigns.length" class="px-3 py-2 text-xs text-gray-400"><i class="ri-loader-4-line animate-spin mr-1"></i>Đang tải Campaign...</div>
                 <button @click="dbFilter.campaignId=''; dbCampDrop=false; loadDashboard()" class="w-full flex items-center gap-2 px-3 py-2 text-xs hover:bg-gray-50 text-left" :class="!dbFilter.campaignId && 'bg-brand-50 text-brand-700'">
                   <i class="ri-flag-line text-sm text-gray-400"></i>
                   <span>Tất cả Campaign</span>

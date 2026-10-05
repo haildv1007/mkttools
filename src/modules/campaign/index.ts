@@ -133,6 +133,7 @@ router.post('/import', upload.single('file'), async (req: AuthRequest, res: Resp
 });
 
 router.get('/', async (req: AuthRequest, res: Response) => {
+  res.setHeader('Cache-Control', 'private, max-age=15, stale-while-revalidate=30');
   const { scopeType, scopeId, pageId } = req.query;
 
   const where: Record<string, unknown> = { organizationId: req.organizationId };

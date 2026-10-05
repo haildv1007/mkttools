@@ -1,15 +1,34 @@
 window.MKTPageModules = window.MKTPageModules || {};
 window.MKTPageModules.campaigns = () => ({
-    async loadCampaigns() {
+    _campaignRequest: null,
+    _campaignCacheKey: '',
+    _campaignCacheAt: 0,
+    async loadCampaigns(options = {}) {
         try {
             const params = new URLSearchParams();
             if (this.currentScope.type !== 'all') {
                 params.set('scopeType', this.currentScope.type);
                 params.set('scopeId', this.currentScope.id);
             }
-            this.campaigns = await this.api('/campaigns?' + params.toString());
+            const cacheKey = `${this.currentOrganization?.id || ''}:${params.toString()}`;
+            if (options.preferCache && this._campaignCacheKey === cacheKey && Date.now() - this._campaignCacheAt < 30000 && this.campaigns.length)
+                return this.campaigns;
+            if (this._campaignRequest && this._campaignCacheKey === cacheKey)
+                return this._campaignRequest;
+            this.campaignsLoading = true;
+            this._campaignCacheKey = cacheKey;
+            this._campaignRequest = this.api('/campaigns?' + params.toString()).then((campaigns) => {
+                this.campaigns = campaigns;
+                this._campaignCacheAt = Date.now();
+                return campaigns;
+            });
+            return await this._campaignRequest;
         }
         catch { }
+        finally {
+            this._campaignRequest = null;
+            this.campaignsLoading = false;
+        }
     },
     openCampaignModal(c) {
         this.campaignError = '';
@@ -83,4 +102,3 @@ window.MKTPageModules.campaigns = () => ({
         }
     }
 });
-

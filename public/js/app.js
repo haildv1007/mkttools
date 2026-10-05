@@ -87,6 +87,7 @@ function app() {
             _charts: {},
             pages: [],
             campaigns: [],
+            campaignsLoading: false,
             contentItems: [],
             contentTotal: 0,
             contentFilter: { status: '', pageId: '', search: '', dateFrom: '', dateTo: '', source: '', campaignId: '', media: [], _datePreset: '', _dateLabel: '' },
@@ -268,6 +269,7 @@ function app() {
                         this.importForm.pageId = this.currentScope.id;
                     if (this.page === 'dashboard') {
                         this.loadDashboard();
+                        this.loadCampaigns({ preferCache: true });
                     } else {
                         this.navigate(this.page, { replace: true, skipDataLoad: true });
                     }

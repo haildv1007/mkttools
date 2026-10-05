@@ -8,8 +8,9 @@
         </div>
 
         <div class="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
+          <div x-show="campaignsLoading && !campaigns.length" class="py-12 text-center text-sm text-gray-400"><i class="ri-loader-4-line animate-spin mr-1"></i>Đang tải Campaign...</div>
           <div class="overflow-x-auto">
-            <table class="w-full text-sm">
+            <table x-show="!campaignsLoading || campaigns.length" class="w-full text-sm">
               <thead>
                 <tr class="bg-gray-50 border-b border-gray-100">
                   <th class="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase">Campaign</th>
@@ -70,7 +71,7 @@
               </tbody>
             </table>
           </div>
-          <div x-show="campaigns.length === 0" class="text-center py-12 text-gray-400">
+          <div x-show="!campaignsLoading && campaigns.length === 0" class="text-center py-12 text-gray-400">
             <i class="ri-calendar-schedule-line text-4xl mb-2"></i>
             <p>Chưa có campaign nào.</p>
           </div>
