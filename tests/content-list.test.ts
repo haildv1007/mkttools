@@ -201,6 +201,29 @@ describe('Content list optimization', () => {
   });
 
   describe('Frontend performance', () => {
+    it('hydrates a lightweight row before opening the edit form', () => {
+      const js = fs.readFileSync('public/js/pages/content.js', 'utf8');
+      const editBlock = js.substring(js.indexOf('async editContent('), js.indexOf('async saveContent()'));
+      expect(editBlock).toContain("hasOwnProperty.call(item, 'generatedText')");
+      expect(editBlock).toContain('`/dashboard/content/${item.id}`');
+      expect(editBlock).toContain("!['AI', 'AI_GEN'].includes(item.source)");
+    });
+
+    it('bulk publish does not inspect generatedText omitted by the list DTO', () => {
+      const js = fs.readFileSync('public/js/pages/content.js', 'utf8');
+      const publishBlock = js.substring(js.indexOf('async bulkPublish()'), js.indexOf('async bulkDelete()'));
+      expect(publishBlock).not.toContain('i.generatedText');
+      expect(publishBlock).toContain("['APPROVED', 'FAILED'].includes(i.status)");
+    });
+
+    it('bulk regenerate supports manual and AI items in eligible statuses', () => {
+      const js = fs.readFileSync('public/js/pages/content.js', 'utf8');
+      const regenerateBlock = js.substring(js.indexOf('async bulkRegenerate()'), js.indexOf('async bulkGenerate()'));
+      expect(regenerateBlock).not.toContain("i.source === 'AI_GEN'");
+      expect(regenerateBlock).toContain("'APPROVED'");
+      expect(regenerateBlock).toContain("'FAILED'");
+    });
+
     it('uses IntersectionObserver for lazy thumbnail loading', () => {
       const js = fs.readFileSync('public/js/pages/content.js', 'utf8');
       expect(js).toContain('IntersectionObserver');

@@ -559,7 +559,7 @@ window.MKTPageModules.content = () => ({
     },
     async bulkRegenerate() {
         const ids = [...this.dgBulkSelected];
-        const eligible = this.contentItems.filter(i => ids.includes(i.id) && ['PENDING_REVIEW', 'REVISION_REQUESTED', 'APPROVED'].includes(i.status) && i.source === 'AI_GEN');
+        const eligible = this.contentItems.filter(i => ids.includes(i.id) && ['PENDING_REVIEW', 'REVISION_REQUESTED', 'APPROVED', 'FAILED'].includes(i.status));
         const skip = ids.length - eligible.length;
         let msg = `Gen lại ${eligible.length} nội dung?`;
         if (skip)
@@ -631,7 +631,9 @@ window.MKTPageModules.content = () => ({
     },
     async bulkPublish() {
         const ids = [...this.dgBulkSelected];
-        const eligible = this.contentItems.filter(i => ids.includes(i.id) && ['APPROVED', 'FAILED'].includes(i.status) && i.generatedText);
+        // The lightweight list DTO intentionally omits generatedText. The server
+        // is authoritative for whether a selected item has publishable content.
+        const eligible = this.contentItems.filter(i => ids.includes(i.id) && ['APPROVED', 'FAILED'].includes(i.status));
         const skip = ids.length - eligible.length;
         let msg = `Đăng ${eligible.length} nội dung lên Facebook?`;
         if (skip)
@@ -695,10 +697,21 @@ window.MKTPageModules.content = () => ({
         this.contentFormError = '';
         this.showContentForm = true;
     },
-    editContent(item, forceMode) {
+    async editContent(item, forceMode) {
+        // Rows use a lightweight DTO without caption/notes/multi-image data.
+        // Hydrate the full item before opening the edit form from a row action.
+        if (!Object.prototype.hasOwnProperty.call(item, 'generatedText')) {
+            try {
+                item = await this.api(`/dashboard/content/${item.id}`);
+            }
+            catch (e) {
+                this.showToast(e.message || 'Không thể tải chi tiết nội dung', 'error');
+                return;
+            }
+        }
         this.editingContent = item;
         const d = new Date(item.scheduledAt);
-        const isManual = item.source !== 'AI_GEN';
+        const isManual = !['AI', 'AI_GEN'].includes(item.source);
         const existingImages = [];
         if (item.generatedImages?.length) {
             item.generatedImages.forEach(img => existingImages.push({ url: img.url || img.localPath, file: null }));
