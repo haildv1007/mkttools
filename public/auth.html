@@ -9,7 +9,7 @@
 <script src="/js/branding.js" defer></script>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link href="https://cdn.jsdelivr.net/npm/remixicon@4.1.0/fonts/remixicon.css" rel="stylesheet">
-<link rel="stylesheet" href="/css/support-widget.css">
+<link rel="stylesheet" href="/css/support-widget.css?v=2">
 <script>tailwind.config={theme:{extend:{fontFamily:{sans:['Inter','sans-serif']},colors:{brand:{50:'#eff6ff',100:'#dbeafe',500:'#3b82f6',600:'#2563eb',700:'#1d4ed8'}}}}}</script>
 <style>[x-cloak]{display:none!important}</style>
 </head>
@@ -174,5 +174,5 @@ function authApp(){ return {
   async logout(next){ try{ await this.api('/logout',{}); }catch{} localStorage.removeItem('mkt_token'); localStorage.removeItem('mkt_user'); location.replace('/login'+(safeNext(next)?'?next='+encodeURIComponent(next):'')); },
 }}
 </script>
-<script src="/js/support-widget.js" defer></script>
+<script src="/js/support-widget.js?v=2" defer></script>
 </body></html>
