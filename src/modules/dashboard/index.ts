@@ -1391,28 +1391,6 @@ router.get('/content/campaigns-for-pages', async (req: AuthRequest, res: Respons
   res.json(campaigns);
 });
 
-router.post('/content/generate-all-drafts', async (req: AuthRequest, res: Response) => {
-  const subCtx = await resolveSubscriptionContext(req.organizationId!);
-  if (subCtx.status === 'EXPIRED' || subCtx.status === 'NONE') {
-    return res.status(402).json({ error: 'SUBSCRIPTION_EXPIRED', message: 'Thời gian dùng thử đã kết thúc. Vui lòng nâng cấp gói để tiếp tục sử dụng.' });
-  }
-  const drafts = await prisma.contentItem.findMany({
-    where: await scopedContentWhere(req, { status: 'DRAFT' }),
-    take: 50,
-  });
-
-  for (const item of drafts) {
-    await prisma.contentItem.update({ where: { id: item.id }, data: { status: 'QUEUED' } });
-    await contentQueue.add('generate', { contentItemId: item.id, organizationId: req.organizationId, actorUserId: req.userId }, {
-      jobId: `gen-${item.id}-${Date.now()}`,
-      attempts: 3,
-      backoff: { type: 'exponential', delay: 5000 },
-    });
-  }
-
-  res.json({ success: true, queued: drafts.length, message: `Queued ${drafts.length} drafts for generation` });
-});
-
 router.post('/content/:id/regenerate', async (req: AuthRequest, res: Response) => {
   const subCtx = await resolveSubscriptionContext(req.organizationId!);
   if (subCtx.status === 'EXPIRED' || subCtx.status === 'NONE') {

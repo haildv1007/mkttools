@@ -869,21 +869,6 @@ window.MKTPageModules.content = () => ({
             this.showToast('Không thể copy', 'error');
         }
     },
-    async genAllDrafts() {
-        const drafts = this.contentItems.filter(i => i.status === 'DRAFT');
-        if (!drafts.length)
-            return;
-        if (!confirm(`Gen content cho ${drafts.length} bài Draft?`))
-            return;
-        try {
-            await this.api('/dashboard/content/generate-all-drafts', { method: 'POST' });
-            this.showToast(`Đã đưa ${drafts.length} bài vào hàng đợi gen`);
-            setTimeout(() => this.loadContent(), 2000);
-        }
-        catch (e) {
-            this.showToast(e.message, 'error');
-        }
-    },
     async approveContent(id) {
         if (!confirm('Duyệt content này?'))
             return;
@@ -1252,4 +1237,3 @@ window.MKTPageModules.content = () => ({
         this.loadContent();
     }
 });
-
