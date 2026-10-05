@@ -30,9 +30,9 @@ function appPreview(extraClass = '') {
       <div class="app-main">
         <div class="app-toolbar"><div><h3>Tổng quan</h3><p>Theo dõi hoạt động nội dung của các Pages</p></div><span class="app-filter">Tất cả Pages</span></div>
         <div class="app-metrics">
-          <div class="app-metric"><small>Nội dung</small><strong>—</strong></div>
-          <div class="app-metric"><small>Chờ duyệt</small><strong>—</strong></div>
-          <div class="app-metric"><small>Đã lên lịch</small><strong>—</strong></div>
+          <div class="app-metric"><small>Nội dung</small><strong>-</strong></div>
+          <div class="app-metric"><small>Chờ duyệt</small><strong>-</strong></div>
+          <div class="app-metric"><small>Đã lên lịch</small><strong>-</strong></div>
         </div>
         <div class="app-board">
           <div class="app-panel"><div class="app-panel-title">Nội dung gần đây</div>
@@ -63,7 +63,7 @@ function capabilityStrip() {
 }
 
 function finalCta() {
-  return `<section class="section-blue"><div class="container final-cta"><div><h2>Bắt đầu vận hành marketing gọn hơn</h2><p>Đưa Pages và nội dung về một quy trình rõ ràng.</p></div><a class="button button-primary" href="/register">Dùng thử miễn phí</a></div></section>`;
+  return `<section class="section-blue"><div class="container final-cta"><div><h2>Bắt đầu vận hành marketing gọn hơn</h2><p>Đưa Pages và nội dung về một quy trình rõ ràng.</p></div><a class="button button-primary" href="https://autopost.mktkit.com/register">Dùng thử miễn phí</a></div></section>`;
 }
 
 function workflow() {
@@ -81,10 +81,10 @@ function workflow() {
 function homePage() {
   return `<section class="hero"><div class="container hero-grid">
     <div class="hero-copy"><p class="eyebrow">MKT Tools</p><h1>Quản lý Pages, Content và Campaigns trong một nơi</h1><p class="hero-description">Một workspace để tạo, duyệt, lên lịch và xuất bản nội dung cho nhiều Facebook Pages, với AI hỗ trợ khi cần.</p>
-      <div class="hero-actions"><a class="button button-primary" href="/register">Dùng thử miễn phí</a><a class="button" href="#workflow">Xem cách hoạt động</a></div>
+      <div class="hero-actions"><a class="button button-primary" href="https://autopost.mktkit.com/register">Dùng thử miễn phí</a><a class="button" href="#workflow">Xem cách hoạt động</a></div>
     </div>${appPreview('hero-frame')}
   </div></section>
-  <section class="trial-band"><div class="container trial-inner"><div><p class="eyebrow">Dùng thử MKT Tools</p><h2>Bắt đầu với quy trình thật của đội ngũ</h2><p>Tạo tài khoản và dùng thử theo chính sách đang áp dụng.</p></div><div class="trial-facts" id="trial-facts" hidden aria-live="polite"></div><a class="button button-primary" href="/register">Dùng thử miễn phí</a></div></section>
+  <section class="trial-band"><div class="container trial-inner"><div><p class="eyebrow">Dùng thử MKT Tools</p><h2>Bắt đầu với quy trình thật của đội ngũ</h2><p>Tạo tài khoản và dùng thử theo chính sách đang áp dụng.</p></div><div class="trial-facts" id="trial-facts" hidden aria-live="polite"></div><a class="button button-primary" href="https://autopost.mktkit.com/register">Dùng thử miễn phí</a></div></section>
   <section class="section section-compact"><div class="container"><div class="section-heading"><h2>Một nơi cho toàn bộ quy trình nội dung</h2></div><div class="usp-grid"><article><strong>Tập trung công việc</strong><p>Pages, Content, Campaigns và AI trong cùng hệ thống.</p></article><article><strong>Nhiều Facebook Pages</strong><p>Chuyển phạm vi làm việc mà không mất ngữ cảnh.</p></article><article><strong>Trạng thái rõ ràng</strong><p>Tạo → duyệt → lên lịch → xuất bản.</p></article><article><strong>Quyền truy cập</strong><p>Phân phạm vi theo thành viên và tổ chức.</p></article></div></div></section>
   <section class="section showcase"><div class="container"><div class="section-heading"><h2>MKT Tools trong công việc hằng ngày</h2><p>Bốn màn hình chính nối liền toàn bộ quy trình.</p></div></div></section>
   ${featureSection('', 'Quản lý nhiều Facebook Pages', 'Kết nối Pages và gom theo workspace để luôn làm việc trong đúng phạm vi.', ['Chuyển Page nhanh', 'Ngữ cảnh riêng cho từng Page'], tableMock('pages'))}
@@ -103,7 +103,7 @@ function pageHead(eyebrow, title, description, extra = '') {
 }
 
 function productsPage() {
-  return `${pageHead('Sản phẩm', 'Công cụ cho cách marketing vận hành mỗi ngày', 'MKTKit phát triển những sản phẩm tập trung, dễ dùng và phù hợp với quy trình thực tế.')}
+  return `${pageHead('Sản phẩm', 'Công cụ cho cách marketing vận hành mỗi ngày', `${publicSiteName} phát triển những sản phẩm tập trung, dễ dùng và phù hợp với quy trình thực tế.`)}
   <section class="section"><div class="container catalog-product"><div><span class="catalog-badge">SẢN PHẨM ĐANG HOẠT ĐỘNG</span><h2>MKT Tools</h2><p>Một workspace để quản lý Pages, nội dung, chiến dịch, AI và lịch xuất bản.</p><a class="button button-primary" href="/products/mkt-tools">Khám phá MKT Tools</a></div>${appPreview()}</div></section>${finalCta()}`;
 }
 
@@ -131,7 +131,7 @@ function featureSection(eyebrow, title, copy, bullets, mock, reverse = false) {
 }
 
 function productPage() {
-  return `<section class="product-hero"><div class="container"><p class="eyebrow">MKT Tools</p><h1>Vận hành nội dung và Pages trong một workspace</h1><p>Quản lý kế hoạch, sản xuất, phê duyệt và xuất bản mà không phải ghép nối nhiều công cụ rời rạc.</p><div class="hero-actions"><a class="button button-primary" href="/register">Bắt đầu miễn phí</a><a class="button" href="/guides">Xem hướng dẫn</a></div></div></section>
+  return `<section class="product-hero"><div class="container"><p class="eyebrow">MKT Tools</p><h1>Vận hành nội dung và Pages trong một workspace</h1><p>Quản lý kế hoạch, sản xuất, phê duyệt và xuất bản mà không phải ghép nối nhiều công cụ rời rạc.</p><div class="hero-actions"><a class="button button-primary" href="https://autopost.mktkit.com/register">Bắt đầu miễn phí</a><a class="button" href="/guides">Xem hướng dẫn</a></div></div></section>
   <section class="product-screenshot"><div class="container">${appPreview()}</div></section>
   <section class="section section-soft"><div class="container"><div class="section-heading"><p class="eyebrow">Khả năng cốt lõi</p><h2>Một luồng làm việc từ Page đến bài đăng</h2></div>${capabilitiesGrid()}</div></section>
   ${featureSection('Quản lý Pages', 'Giữ đúng ngữ cảnh cho từng Page', 'Kết nối Pages, gom theo workspace và làm việc trong đúng phạm vi thương hiệu.', ['Quản lý nhiều Pages', 'Workspace theo khách hàng hoặc nhãn hàng', 'Ngữ cảnh riêng cho từng Page'], tableMock('pages'))}
@@ -164,8 +164,8 @@ function formatDate(value) {
 
 async function blogPage() {
   const { entries } = await fetchJSON('/api/public-content/blog');
-  const content = entries.length ? `<div class="post-grid">${entries.map((entry, index) => `<a class="post-card ${index === 0 ? 'featured-post' : ''}" href="/blog/${entry.slug}"><div><span class="post-category">${entry.category || 'MKTKit'}</span><h2>${entry.title}</h2><p>${entry.description || ''}</p><span class="inline-link">Đọc bài</span><div class="post-meta">${formatDate(entry.date)} · ${entry.readTime} phút đọc</div></div>${index === 0 ? '<div class="featured-visual">M</div>' : ''}</a>`).join('')}</div>` : `<div class="empty-state"><h2>Chưa có bài viết được xuất bản</h2><p>Các bài viết Markdown sẽ xuất hiện tại đây khi được đánh dấu published.</p></div>`;
-  return `${pageHead('Tài nguyên', 'Blog MKTKit', 'Kiến thức thực tế để vận hành marketing tốt hơn.')}<section class="content-shell"><div class="container">${content}</div></section>`;
+  const content = entries.length ? `<div class="post-grid">${entries.map((entry, index) => `<a class="post-card ${index === 0 ? 'featured-post' : ''}" href="/blog/${entry.slug}"><div><span class="post-category">${entry.category || publicSiteName}</span><h2>${entry.title}</h2><p>${entry.description || ''}</p><span class="inline-link">Đọc bài</span><div class="post-meta">${formatDate(entry.date)} · ${entry.readTime} phút đọc</div></div>${index === 0 ? '<div class="featured-visual">M</div>' : ''}</a>`).join('')}</div>` : `<div class="empty-state"><h2>Chưa có bài viết được xuất bản</h2><p>Các bài viết Markdown sẽ xuất hiện tại đây khi được đánh dấu published.</p></div>`;
+  return `${pageHead('Tài nguyên', `Blog ${publicSiteName}`, 'Kiến thức thực tế để vận hành marketing tốt hơn.')}<section class="content-shell"><div class="container">${content}</div></section>`;
 }
 
 async function guidesPage() {
@@ -183,20 +183,20 @@ async function contentDetail(kind, slug) {
   const isGuide = kind === 'guides';
   const root = isGuide ? '/guides' : '/blog';
   const rootLabel = isGuide ? 'Hướng dẫn' : 'Blog';
-  setMetadata(`${entry.title} — MKTKit`, entry.description || `${rootLabel} MKTKit.`, { type: 'article' });
+  setMetadata(`${entry.title} - ${publicSiteName}`, entry.description || `${rootLabel} ${publicSiteName}.`, { type: 'article' });
   const meta = isGuide ? `Cập nhật lần cuối: ${formatDate(entry.updatedAt || entry.updated)}` : `${formatDate(entry.date)}${entry.category ? ` · ${entry.category}` : ''} · ${entry.readTime} phút đọc`;
-  const header = `<div class="article-header"><nav class="breadcrumb" aria-label="Breadcrumb"><a href="/">MKTKit</a><span><a href="${root}">${rootLabel}</a></span></nav><h1>${entry.title}</h1>${entry.description ? `<p class="article-intro">${entry.description}</p>` : ''}<div class="article-meta">${meta}</div></div>`;
+  const header = `<div class="article-header"><nav class="breadcrumb" aria-label="Breadcrumb"><a href="/">${publicSiteName}</a><span><a href="${root}">${rootLabel}</a></span></nav><h1>${entry.title}</h1>${entry.description ? `<p class="article-intro">${entry.description}</p>` : ''}<div class="article-meta">${meta}</div></div>`;
   if (isGuide) return `<div class="article-wrap guide"><aside class="article-toc"><strong>Trong hướng dẫn này</strong>${tocLinks(entry.toc)}</aside><article>${header}<div class="article-body">${entry.html}</div></article></div>`;
   return `<article class="article-wrap">${header}<div class="article-body">${entry.html}</div><div class="article-cta"><h2>Tiếp tục với MKT Tools</h2><p>Xem hướng dẫn thiết lập và đưa quy trình nội dung vào hoạt động.</p><a class="button button-primary" href="/guides">Xem hướng dẫn</a></div></article>`;
 }
 
 function supportPage() {
-  return `${pageHead('MKTKit', 'Hỗ trợ MKTKit', 'Tìm hướng dẫn hoặc liên hệ trực tiếp với đội ngũ hỗ trợ.')}
+  return `${pageHead(publicSiteName, `Hỗ trợ ${publicSiteName}`, 'Tìm hướng dẫn hoặc liên hệ trực tiếp với đội ngũ hỗ trợ.')}
   <section class="section-compact"><div class="container support-simple">
     <a class="support-row" href="/guides"><div><h2>Hướng dẫn sử dụng</h2><p>Thiết lập và sử dụng MKT Tools từng bước.</p></div><span class="inline-link">Xem hướng dẫn</span></a>
     <a class="support-row" href="mailto:support@mktkit.vn"><div><h2>Liên hệ hỗ trợ</h2><p>support@mktkit.vn</p></div><span class="inline-link">Gửi email</span></a>
     <a class="support-row" href="/legal/data-deletion"><div><h2>Xóa dữ liệu</h2><p>Quy trình yêu cầu xóa tài khoản và dữ liệu.</p></div><span class="inline-link">Xem hướng dẫn</span></a>
-    <div class="support-row"><div><h2>Chính sách & điều khoản</h2><p>Thông tin pháp lý khi sử dụng MKTKit.</p></div><div class="support-legal"><a href="/legal/privacy">Bảo mật</a><a href="/legal/terms">Điều khoản</a></div></div>
+    <div class="support-row"><div><h2>Chính sách & điều khoản</h2><p>Thông tin pháp lý khi sử dụng ${publicSiteName}.</p></div><div class="support-legal"><a href="/legal/privacy">Bảo mật</a><a href="/legal/terms">Điều khoản</a></div></div>
   </div></section>`;
 }
 
@@ -213,6 +213,8 @@ const publicSeo = (() => {
   try { return JSON.parse(document.querySelector('#public-seo-config')?.textContent || '{}'); }
   catch { return {}; }
 })();
+const publicSiteName = publicSeo.siteName || 'MKTKit';
+document.querySelectorAll('[data-public-site-name]').forEach(element => { element.textContent = publicSiteName; });
 
 function setMetadata(title, description, options = {}) {
   document.title = title;
@@ -231,26 +233,26 @@ async function render() {
   const parts = path.split('/').filter(Boolean);
   let html;
   try {
-    if (path === '/') { setMetadata('MKTKit — Công cụ giúp marketing vận hành gọn hơn', 'MKTKit giúp đội ngũ quản lý Pages, nội dung, chiến dịch và lịch xuất bản trong một nơi.'); html = homePage(); }
-    else if (path === '/products') { setMetadata('Sản phẩm — MKTKit', 'Khám phá MKT Tools, sản phẩm vận hành nội dung và Pages của MKTKit.'); html = productsPage(); }
-    else if (path === '/products/mkt-tools') { setMetadata('MKT Tools — Quản lý Pages, Content, Campaigns & AI', 'Một workspace để quản lý Pages, Content, Campaigns, AI và lịch xuất bản.'); html = productPage(); }
-    else if (path === '/blog') { setMetadata('Blog MKTKit', 'Kiến thức thực tế để vận hành marketing tốt hơn.'); html = await blogPage(); }
+    if (path === '/') { setMetadata(`${publicSiteName} - Công cụ giúp marketing vận hành gọn hơn`, `${publicSiteName} giúp đội ngũ quản lý Pages, nội dung, chiến dịch và lịch xuất bản trong một nơi.`); html = homePage(); }
+    else if (path === '/products') { setMetadata(`Sản phẩm - ${publicSiteName}`, 'Khám phá MKT Tools, sản phẩm vận hành nội dung và Pages của website.'); html = productsPage(); }
+    else if (path === '/products/mkt-tools') { setMetadata('MKT Tools - Quản lý Pages, Content, Campaigns & AI', 'Một workspace để quản lý Pages, Content, Campaigns, AI và lịch xuất bản.'); html = productPage(); }
+    else if (path === '/blog') { setMetadata(`Blog ${publicSiteName}`, 'Kiến thức thực tế để vận hành marketing tốt hơn.'); html = await blogPage(); }
     else if (parts[0] === 'blog' && parts[1]) { html = await contentDetail('blog', parts[1]); }
-    else if (path === '/guides') { setMetadata('Hướng dẫn sử dụng MKT Tools — MKTKit', 'Thiết lập và sử dụng MKT Tools từng bước.'); html = await guidesPage(); }
+    else if (path === '/guides') { setMetadata(`Hướng dẫn sử dụng MKT Tools - ${publicSiteName}`, 'Thiết lập và sử dụng MKT Tools từng bước.'); html = await guidesPage(); }
     else if (parts[0] === 'guides' && parts[1]) { html = await contentDetail('guides', parts[1]); }
-    else if (path === '/support') { setMetadata('Hỗ trợ MKTKit', 'Tìm hướng dẫn và liên hệ hỗ trợ MKTKit.'); html = supportPage(); }
-    else if (path === '/legal/terms') { setMetadata('Điều khoản sử dụng — MKTKit', 'Điều khoản áp dụng khi sử dụng MKTKit.'); html = await legalPage('terms'); }
-    else if (path === '/legal/privacy') { setMetadata('Chính sách bảo mật — MKTKit', 'Cách MKTKit xử lý và bảo vệ thông tin.'); html = await legalPage('privacy'); }
-    else if (path === '/legal/data-deletion') { setMetadata('Xóa dữ liệu — MKTKit', 'Hướng dẫn yêu cầu xóa tài khoản và dữ liệu.'); html = await legalPage('data-deletion'); }
-    else if (path === '/legal/data-deletion/mkt-tools') { setMetadata('Xóa dữ liệu MKT Tools — MKTKit', 'Quy trình yêu cầu xóa dữ liệu MKT Tools.'); html = await legalPage('mkt-tools-data-deletion'); }
-    else { setMetadata('Trang không tồn tại — MKTKit', 'Trang bạn tìm kiếm không tồn tại.', { noindex: true }); html = notFound(); }
+    else if (path === '/support') { setMetadata(`Hỗ trợ ${publicSiteName}`, 'Tìm hướng dẫn và liên hệ hỗ trợ.'); html = supportPage(); }
+    else if (path === '/legal/terms') { setMetadata(`Điều khoản sử dụng - ${publicSiteName}`, 'Điều khoản áp dụng khi sử dụng website.'); html = await legalPage('terms'); }
+    else if (path === '/legal/privacy') { setMetadata(`Chính sách bảo mật - ${publicSiteName}`, 'Cách website xử lý và bảo vệ thông tin.'); html = await legalPage('privacy'); }
+    else if (path === '/legal/data-deletion') { setMetadata(`Xóa dữ liệu - ${publicSiteName}`, 'Hướng dẫn yêu cầu xóa tài khoản và dữ liệu.'); html = await legalPage('data-deletion'); }
+    else if (path === '/legal/data-deletion/mkt-tools') { setMetadata(`Xóa dữ liệu MKT Tools - ${publicSiteName}`, 'Quy trình yêu cầu xóa dữ liệu MKT Tools.'); html = await legalPage('mkt-tools-data-deletion'); }
+    else { setMetadata(`Trang không tồn tại - ${publicSiteName}`, 'Trang bạn tìm kiếm không tồn tại.', { noindex: true }); html = notFound(); }
   } catch (error) {
     if (error.message === 'not-found') {
       const type = parts[0] === 'guides' ? 'Hướng dẫn' : 'Bài viết';
-      setMetadata(`${type} không tồn tại — MKTKit`, 'Nội dung không tồn tại hoặc chưa được xuất bản.', { noindex: true });
+      setMetadata(`${type} không tồn tại - ${publicSiteName}`, 'Nội dung không tồn tại hoặc chưa được xuất bản.', { noindex: true });
       html = notFound(type);
     } else {
-      setMetadata('Không thể tải nội dung — MKTKit', 'Nội dung tạm thời không thể tải.', { noindex: true });
+      setMetadata(`Không thể tải nội dung - ${publicSiteName}`, 'Nội dung tạm thời không thể tải.', { noindex: true });
       html = `<section class="not-found"><div><h1>Không thể tải nội dung</h1><p>Vui lòng thử lại sau.</p><a class="button" href="${path}">Tải lại</a></div></section>`;
     }
   }
