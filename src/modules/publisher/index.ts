@@ -4,6 +4,18 @@ import { decryptPageToken } from '../../utils/crypto';
 import { publishToFacebook } from './providers/facebook';
 import { extractCleanText } from '../../utils/clean-text';
 import type { PublishResult } from '../../types';
+import { resolvePublicMediaUrl } from '../../utils/public-media-url';
+
+function localUploadPath(mediaUrl?: string | null): string | undefined {
+  if (!mediaUrl) return undefined;
+  try {
+    const parsed = new URL(mediaUrl, 'https://local.invalid');
+    if (!parsed.pathname.startsWith('/uploads/')) return undefined;
+    const relativePath = decodeURIComponent(parsed.pathname.slice('/uploads/'.length));
+    if (!relativePath || relativePath.split('/').includes('..')) return undefined;
+    return path.join(process.cwd(), 'public', 'uploads', relativePath);
+  } catch { return undefined; }
+}
 
 export async function publishContent(contentItemId: string, expectedOrganizationId?: string): Promise<PublishResult> {
   const item = await prisma.contentItem.findUnique({
@@ -33,15 +45,15 @@ export async function publishContent(contentItemId: string, expectedOrganization
   switch (item.page.platform) {
     case 'FACEBOOK': {
       const multiImages = item.generatedImages as Array<{url: string; localPath?: string}> | null;
-      let imageLocalPath: string | undefined;
-      const imageUrl = item.generatedImageUrl || undefined;
-      if (imageUrl && imageUrl.includes('/uploads/')) {
-        const filename = imageUrl.split('/uploads/').pop();
-        if (filename) {
-          imageLocalPath = path.join(process.cwd(), 'public', 'uploads', filename);
-        }
-      }
-      const images = multiImages && multiImages.length > 1 ? multiImages : undefined;
+      const storedImageUrl = item.generatedImageUrl || undefined;
+      const imageUrl = storedImageUrl ? resolvePublicMediaUrl(storedImageUrl) : undefined;
+      const imageLocalPath = localUploadPath(storedImageUrl);
+      const images = multiImages && multiImages.length > 1
+        ? multiImages.map((image) => ({
+            url: resolvePublicMediaUrl(image.url),
+            localPath: image.localPath || localUploadPath(image.url),
+          }))
+        : undefined;
       const pageAccessToken = decryptPageToken(item.page.accessToken);
       result = await publishToFacebook({
         pageId: item.page.externalId,

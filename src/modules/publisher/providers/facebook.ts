@@ -1,5 +1,6 @@
 import * as fs from 'fs';
 import type { PublishResult } from '../../../types';
+import { verifyPublicImageUrl } from '../../../utils/public-media-url';
 
 interface FacebookPostOptions {
   pageId: string;
@@ -26,6 +27,16 @@ async function uploadUnpublishedPhoto(pageId: string, accessToken: string, local
   return data.id;
 }
 
+async function uploadUnpublishedPhotoUrl(pageId: string, accessToken: string, imageUrl: string): Promise<string> {
+  await verifyPublicImageUrl(imageUrl);
+  const endpoint = `${GRAPH_API}/${pageId}/photos`;
+  const body = new URLSearchParams({ url: imageUrl, published: 'false', access_token: accessToken });
+  const res = await fetch(endpoint, { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body });
+  const data = await res.json() as { id?: string; error?: { message: string } };
+  if (data.error || !data.id) throw new Error(data.error?.message || 'Failed to upload photo');
+  return data.id;
+}
+
 export async function publishToFacebook(options: FacebookPostOptions): Promise<PublishResult> {
   try {
     // Multi-image album post
@@ -36,6 +47,8 @@ export async function publishToFacebook(options: FacebookPostOptions): Promise<P
         if (localPath) {
           const id = await uploadUnpublishedPhoto(options.pageId, options.accessToken, localPath);
           photoIds.push(id);
+        } else {
+          photoIds.push(await uploadUnpublishedPhotoUrl(options.pageId, options.accessToken, img.url));
         }
       }
       if (photoIds.length === 0) {
@@ -77,6 +90,7 @@ export async function publishToFacebook(options: FacebookPostOptions): Promise<P
       }
       fetchBody = form;
     } else if (options.imageUrl) {
+      await verifyPublicImageUrl(options.imageUrl);
       endpoint = `${GRAPH_API}/${options.pageId}/photos`;
       const body: Record<string, string> = {
         url: options.imageUrl,
