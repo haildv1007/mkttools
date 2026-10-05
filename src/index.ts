@@ -67,6 +67,17 @@ app.get('/api/health', async (_req, res) => {
 app.use('/api/auth', authRouter);
 app.use('/api/public-content', publicContentRouter);
 
+// Compatibility callback for the Google Console URI used by production.
+// Redirecting into /api/auth also makes the path-scoped OAuth cookie available.
+app.get('/auth/google/callback', (req, res) => {
+  const query = new URLSearchParams();
+  for (const key of ['code', 'state', 'error', 'error_description']) {
+    const value = req.query[key];
+    if (typeof value === 'string') query.set(key, value);
+  }
+  res.redirect(`/api/auth/google/callback?${query.toString()}`);
+});
+
 app.use('/api/billing', billingPublicRouter);
 app.use('/api/payments', billingWebhookRouter);
 app.use('/api/admin', authMiddleware, adminRouter);
