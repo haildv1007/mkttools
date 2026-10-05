@@ -1,0 +1,36 @@
+.mkt-support{position:fixed;right:22px;bottom:22px;z-index:2147483000;font-family:Inter,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color:#172033}
+.mkt-support *{box-sizing:border-box}
+.mkt-support__launcher{position:relative;width:58px;height:58px;border:0;border-radius:50%;display:grid;place-items:center;background:linear-gradient(145deg,#4f83ff,#2563eb);color:#fff;box-shadow:0 12px 32px rgba(37,99,235,.38);cursor:pointer;transition:transform .18s ease,box-shadow .18s ease}
+.mkt-support__launcher:hover{transform:translateY(-2px);box-shadow:0 15px 36px rgba(37,99,235,.46)}
+.mkt-support__launcher:focus-visible,.mkt-support__close:focus-visible,.mkt-support__channel:focus-visible{outline:3px solid rgba(59,130,246,.32);outline-offset:3px}
+.mkt-support__launcher svg{width:29px;height:29px}
+.mkt-support__online{position:absolute;right:3px;top:2px;width:12px;height:12px;border-radius:50%;background:#22c55e;border:2px solid #fff}
+.mkt-support__panel{position:absolute;right:0;bottom:72px;width:min(380px,calc(100vw - 28px));overflow:hidden;background:#fff;border:1px solid #e5eaf3;border-radius:20px;box-shadow:0 22px 60px rgba(15,23,42,.2);transform-origin:bottom right;opacity:0;transform:translateY(10px) scale(.97);pointer-events:none;visibility:hidden;transition:opacity .18s ease,transform .18s ease,visibility .18s}
+.mkt-support.is-open .mkt-support__panel{opacity:1;transform:none;pointer-events:auto;visibility:visible}
+.mkt-support__head{display:flex;align-items:center;gap:12px;padding:18px 18px 17px;background:linear-gradient(135deg,#3b75ee,#2864df);color:#fff}
+.mkt-support__head-icon{width:42px;height:42px;border-radius:14px;display:grid;place-items:center;background:rgba(255,255,255,.16);flex:none}
+.mkt-support__head-icon svg{width:23px;height:23px}
+.mkt-support__heading{min-width:0;flex:1}
+.mkt-support__title{margin:0;font-size:16px;line-height:1.35;font-weight:700;color:#fff}
+.mkt-support__status{display:flex;align-items:center;gap:6px;margin-top:3px;font-size:12px;color:rgba(255,255,255,.9)}
+.mkt-support__status-dot{width:7px;height:7px;border-radius:50%;background:#4ade80}
+.mkt-support__close{width:34px;height:34px;border:0;border-radius:10px;background:rgba(255,255,255,.14);color:#fff;cursor:pointer;font-size:24px;line-height:1}
+.mkt-support__body{padding:24px 20px 20px;text-align:center}
+.mkt-support__hero{width:60px;height:60px;border-radius:50%;display:grid;place-items:center;margin:0 auto 12px;background:#edf4ff;color:#2563eb}
+.mkt-support__hero svg{width:29px;height:29px}
+.mkt-support__body h3{font-size:17px;margin:0 0 5px;color:#172033}
+.mkt-support__subtitle{font-size:13px;line-height:1.5;color:#748095;margin:0 0 18px}
+.mkt-support__channels{display:grid;gap:9px;text-align:left}
+.mkt-support__channel{display:flex;align-items:center;gap:12px;padding:12px;border:1px solid #e6ebf4;border-radius:13px;background:#f8faff;color:#172033;text-decoration:none;transition:border-color .16s ease,transform .16s ease,background .16s ease}
+.mkt-support__channel:hover{transform:translateY(-1px);border-color:#bcd0fa;background:#f0f5ff}
+.mkt-support__channel-icon{width:40px;height:40px;border-radius:50%;display:grid;place-items:center;flex:none;color:#fff;font-weight:800;font-size:14px}
+.mkt-support__channel-icon svg{width:21px;height:21px;fill:currentColor}
+.mkt-support__channel--messenger .mkt-support__channel-icon{background:#1877f2}
+.mkt-support__channel--telegram .mkt-support__channel-icon{background:#28a8e9}
+.mkt-support__channel--zalo .mkt-support__channel-icon{background:#0866ff}
+.mkt-support__channel-text strong{display:block;font-size:14px;line-height:1.35}
+.mkt-support__channel-text span{display:block;margin-top:2px;font-size:12px;color:#7a8598}
+.mkt-support__arrow{margin-left:auto;color:#a2adbd;font-size:20px}
+.mkt-support__foot{margin:16px 0 0;font-size:11px;color:#a0a8b6}
+@media(max-width:540px){.mkt-support{right:14px;bottom:14px}.mkt-support__panel{position:fixed;right:14px;bottom:84px;width:calc(100vw - 28px);max-height:calc(100vh - 105px);overflow:auto}.mkt-support__launcher{width:54px;height:54px}}
+@media(prefers-reduced-motion:reduce){.mkt-support__launcher,.mkt-support__panel,.mkt-support__channel{transition:none}}

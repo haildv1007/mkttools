@@ -249,7 +249,7 @@
     <section x-show="view==='settings'">
       <h1 class="text-lg font-bold mb-3">Cấu hình nền tảng</h1>
       <div class="flex gap-1 border-b mb-4">
-        <template x-for="t in [['general','Chung'],['auth','Đăng nhập'],['email','Email'],['payment','Thanh toán'],['integrations','Tích hợp'],['seo','SEO & Website']]" :key="t[0]">
+        <template x-for="t in [['general','Chung'],['auth','Đăng nhập'],['email','Email'],['payment','Thanh toán'],['support','Popup hỗ trợ'],['integrations','Tích hợp'],['seo','SEO & Website']]" :key="t[0]">
           <button @click="psTab=t[0]" class="px-3 py-1.5 -mb-px border-b-2" :class="psTab===t[0]?'border-brand-600 text-brand-600 font-medium':'border-transparent text-gray-500'" x-text="t[1]"></button>
         </template>
       </div>
@@ -347,6 +347,26 @@
             </div>
             <button @click="saveBillingPeriods()" class="px-4 py-1.5 bg-brand-600 text-white rounded-lg">Lưu billing</button>
           </div>
+        </div>
+
+        <!-- POPUP HỖ TRỢ -->
+        <div x-show="psTab==='support'" class="bg-white border border-gray-200 rounded-lg p-4 max-w-2xl space-y-4">
+          <div><h2 class="font-semibold">Popup hỗ trợ khách hàng</h2><p class="text-xs text-gray-500 mt-1">Hiển thị nút chat nổi trên landing page, trang đăng nhập và ứng dụng. Chỉ các kênh đã bật và có link hợp lệ mới xuất hiện.</p></div>
+          <label class="flex items-center gap-2"><input type="checkbox" x-model="ps.support.enabled">Bật popup hỗ trợ</label>
+          <div class="grid sm:grid-cols-2 gap-3">
+            <label class="block text-xs">Tiêu đề<input x-model="ps.support.title" placeholder="Hỗ trợ khách hàng" class="border rounded-lg px-2 py-1.5 w-full mt-1"></label>
+            <label class="block text-xs">Dòng giới thiệu<input x-model="ps.support.subtitle" placeholder="Đội ngũ luôn sẵn sàng hỗ trợ bạn" class="border rounded-lg px-2 py-1.5 w-full mt-1"></label>
+          </div>
+          <template x-for="channel in [{id:'messenger',name:'Messenger',icon:'ri-messenger-fill',color:'text-blue-600',hint:'https://m.me/ten-trang'},{id:'telegram',name:'Telegram',icon:'ri-telegram-fill',color:'text-sky-500',hint:'https://t.me/username'},{id:'zalo',name:'Zalo',icon:'ri-chat-3-fill',color:'text-blue-600',hint:'https://zalo.me/so-dien-thoai'}]" :key="channel.id">
+            <section class="border rounded-lg p-3 space-y-2">
+              <label class="flex items-center gap-2 font-medium"><input type="checkbox" x-model="ps.support[channel.id+'Enabled']"><i :class="channel.icon+' '+channel.color"></i><span x-text="channel.name"></span></label>
+              <div class="grid sm:grid-cols-2 gap-3">
+                <label class="block text-xs">Tên hiển thị<input x-model="ps.support[channel.id+'Label']" class="border rounded-lg px-2 py-1.5 w-full mt-1"></label>
+                <label class="block text-xs">Đường dẫn liên hệ<input type="url" x-model="ps.support[channel.id+'Url']" :placeholder="channel.hint" class="border rounded-lg px-2 py-1.5 w-full mt-1"></label>
+              </div>
+            </section>
+          </template>
+          <button @click="savePS('support')" class="px-4 py-1.5 bg-brand-600 text-white rounded-lg"><i class="ri-save-3-line mr-1"></i>Lưu popup hỗ trợ</button>
         </div>
 
         <!-- TÍCH HỢP -->

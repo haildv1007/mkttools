@@ -59,6 +59,20 @@ const FIELDS: Record<string, FieldDef[]> = {
     { key: 'billing.currency', type: 'string', default: 'VND' },
     { key: 'billing.allowedPeriods', type: 'string', default: '1,3,12' }, // CSV of months
   ],
+  support: [
+    { key: 'support.enabled', type: 'bool', default: 'true' },
+    { key: 'support.title', type: 'string', default: 'Hỗ trợ khách hàng' },
+    { key: 'support.subtitle', type: 'string', default: 'Đội ngũ luôn sẵn sàng hỗ trợ bạn' },
+    { key: 'support.messengerEnabled', type: 'bool', default: 'false' },
+    { key: 'support.messengerLabel', type: 'string', default: 'Messenger' },
+    { key: 'support.messengerUrl', type: 'string' },
+    { key: 'support.telegramEnabled', type: 'bool', default: 'false' },
+    { key: 'support.telegramLabel', type: 'string', default: 'Telegram' },
+    { key: 'support.telegramUrl', type: 'string' },
+    { key: 'support.zaloEnabled', type: 'bool', default: 'false' },
+    { key: 'support.zaloLabel', type: 'string', default: 'Zalo' },
+    { key: 'support.zaloUrl', type: 'string' },
+  ],
   seo: [
     { key: 'seo.siteName', type: 'string', default: 'MKTKit' },
     { key: 'seo.defaultTitle', type: 'string', default: 'MKTKit - Công cụ quản lý nội dung & Facebook Pages' },
@@ -209,6 +223,7 @@ router.get('/', async (_req: AuthRequest, res: Response) => {
       ...serializeSection('billing'),
       allowedPeriods: getPlatformSetting('billing.allowedPeriods').split(',').map((s) => Number(s.trim())).filter(Boolean),
     },
+    support: serializeSection('support'),
     seo: serializeSection('seo'),
   });
 });
@@ -347,6 +362,23 @@ router.put('/billing', async (req: AuthRequest, res: Response) => {
   }
   await logActivity({ organizationId: null, category: 'admin', status: 'success', action: 'admin.platform_settings', summary: 'Cập nhật cấu hình billing', detail: `by ${req.userId}` });
   res.json({ billing: { ...serializeSection('billing'), allowedPeriods: getPlatformSetting('billing.allowedPeriods').split(',').map((s) => Number(s.trim())).filter(Boolean) } });
+});
+
+router.put('/support', async (req: AuthRequest, res: Response) => {
+  const body = req.body || {};
+  for (const key of ['messengerUrl', 'telegramUrl', 'zaloUrl']) {
+    const value = String(body[key] ?? '').trim();
+    if (!value) continue;
+    try {
+      const parsed = new URL(value);
+      if (!['http:', 'https:'].includes(parsed.protocol)) throw new Error('protocol');
+    } catch {
+      return res.status(400).json({ error: 'INVALID_URL', message: `${key} phải là URL http(s) hợp lệ.` });
+    }
+  }
+  await saveFields('support', body, req.userId);
+  await logActivity({ organizationId: null, category: 'admin', status: 'success', action: 'admin.platform_settings', summary: 'Cập nhật popup hỗ trợ', detail: `by ${req.userId}` });
+  res.json({ support: serializeSection('support') });
 });
 
 router.put('/seo', async (req: AuthRequest, res: Response) => {

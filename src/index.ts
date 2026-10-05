@@ -88,7 +88,27 @@ app.get('/robots.txt', (_req, res) => {
 // Public, non-secret branding used by the static authenticated/auth/admin shells.
 app.get('/api/platform-config', (_req, res) => {
   const productName = (getPlatformSetting('general.productName') || 'MKT Tools').replace(/[\u2014\u2013]/g, '-');
-  res.json({ productName });
+  const safeUrl = (key: string): string => {
+    const value = getPlatformSetting(key).trim();
+    if (!value) return '';
+    try {
+      const parsed = new URL(value);
+      return ['http:', 'https:'].includes(parsed.protocol) ? parsed.toString() : '';
+    } catch { return ''; }
+  };
+  res.json({
+    productName,
+    support: {
+      enabled: ['true', '1'].includes(getPlatformSetting('support.enabled')),
+      title: getPlatformSetting('support.title'),
+      subtitle: getPlatformSetting('support.subtitle'),
+      channels: [
+        { id: 'messenger', enabled: ['true', '1'].includes(getPlatformSetting('support.messengerEnabled')), label: getPlatformSetting('support.messengerLabel'), url: safeUrl('support.messengerUrl') },
+        { id: 'telegram', enabled: ['true', '1'].includes(getPlatformSetting('support.telegramEnabled')), label: getPlatformSetting('support.telegramLabel'), url: safeUrl('support.telegramUrl') },
+        { id: 'zalo', enabled: ['true', '1'].includes(getPlatformSetting('support.zaloEnabled')), label: getPlatformSetting('support.zaloLabel'), url: safeUrl('support.zaloUrl') },
+      ],
+    },
+  });
 });
 app.get('/sitemap.xml', async (_req, res) => {
   const [posts, guides] = await Promise.all([
