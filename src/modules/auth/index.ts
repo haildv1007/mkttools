@@ -12,7 +12,7 @@ import {
 } from './session';
 import { sendVerificationEmail, sendPasswordResetEmail } from './mail';
 import { providers } from './providers';
-import { getPlatformSettingBool } from '../platform-settings';
+import { getAppUrl, getPlatformSettingBool } from '../platform-settings';
 
 const router = Router();
 const H = 3600 * 1000;
@@ -239,7 +239,17 @@ router.post('/onboarding/complete', authMiddleware, async (req: AuthRequest, res
 // ---------- OAuth (provider-aware; Google only for now) ----------
 
 const OAUTH_COOKIE = 'mkt_oauth';
-const cookieOpts = { httpOnly: true, sameSite: 'lax' as const, secure: process.env.NODE_ENV === 'production', path: '/api/auth', maxAge: 10 * 60 * 1000 };
+function oauthCookieDomain(): string | undefined {
+  if (process.env.OAUTH_COOKIE_DOMAIN) return process.env.OAUTH_COOKIE_DOMAIN;
+  try {
+    const hostname = new URL(getAppUrl()).hostname.toLowerCase();
+    // The public website and app intentionally share OAuth on these two hosts.
+    if (hostname === 'mktkit.com' || hostname.endsWith('.mktkit.com')) return '.mktkit.com';
+  } catch { /* keep a host-only cookie for local/development installs */ }
+  return undefined;
+}
+const cookieOpts = () => ({ httpOnly: true, sameSite: 'lax' as const, secure: process.env.NODE_ENV === 'production', path: '/api/auth', maxAge: 10 * 60 * 1000, domain: oauthCookieDomain() });
+const clearCookieOpts = () => ({ httpOnly: true, sameSite: 'lax' as const, secure: process.env.NODE_ENV === 'production', path: '/api/auth', domain: oauthCookieDomain() });
 function readCookie(req: Request, name: string): string | null {
   const m = (req.headers.cookie || '').split(';').map((c) => c.trim()).find((c) => c.startsWith(name + '='));
   return m ? decodeURIComponent(m.slice(name.length + 1)) : null;
@@ -252,13 +262,13 @@ router.get('/google/start', (req: Request, res: Response) => {
   const state = randomToken(), nonce = randomToken(), verifier = randomToken();
   const challenge = b64u(crypto.createHash('sha256').update(verifier).digest());
   const signed = jwt.sign({ state, nonce, verifier, next: safeNext(req.query.next) }, JWT_SECRET, { expiresIn: '10m' });
-  res.cookie(OAUTH_COOKIE, signed, cookieOpts);
+  res.cookie(OAUTH_COOKIE, signed, cookieOpts());
   res.redirect(p.authUrl({ state, nonce, challenge }));
 });
 
 router.get('/google/callback', async (req: Request, res: Response) => {
   const p = providers.google;
-  const fail = (code: string) => { res.clearCookie(OAUTH_COOKIE, { path: '/api/auth' }); return res.redirect('/login?error=' + code); };
+  const fail = (code: string) => { res.clearCookie(OAUTH_COOKIE, clearCookieOpts()); return res.redirect(`${getAppUrl()}/login?error=${code}`); };
   try {
     const raw = readCookie(req, OAUTH_COOKIE);
     if (!p?.enabled() || !raw || req.query.error || !req.query.code) return fail('google_failed');
@@ -294,9 +304,9 @@ router.get('/google/callback', async (req: Request, res: Response) => {
     }
     if (!user.isActive) return fail('account_disabled');
     if (!user.emailVerifiedAt) await prisma.user.update({ where: { id: user.id }, data: { emailVerifiedAt: new Date() } });
-    res.clearCookie(OAUTH_COOKIE, { path: '/api/auth' });
+    res.clearCookie(OAUTH_COOKIE, clearCookieOpts());
     const code = await issueAuthToken(user.id, 'LOGIN_CODE', 60 * 1000);
-    res.redirect(`/auth/callback?code=${code}${c.next ? '&next=' + encodeURIComponent(c.next) : ''}`);
+    res.redirect(`${getAppUrl()}/auth/callback?code=${code}${c.next ? '&next=' + encodeURIComponent(c.next) : ''}`);
   } catch (e) {
     logger.warn({ err: e instanceof Error ? e.message : 'unknown' }, 'OAuth callback failed');
     return fail('google_failed');
