@@ -9,11 +9,16 @@
     .platform-admin-link i{width:18px;text-align:center;font-size:16px}
     .app-scope{padding:10px 15px 14px}
     .app-section-label{margin:0 2px 7px;color:#94a3b8;font-size:11px;font-weight:600;letter-spacing:.055em;text-transform:uppercase}
-    .scope-selector{display:flex;width:100%;min-height:53px;align-items:center;gap:10px;border:1px solid #e2e8f0;border-radius:10px;background:#fff;padding:8px 11px;text-align:left;transition:background-color .15s,border-color .15s}
+    .scope-selector{display:flex;width:100%;min-height:57px;align-items:center;gap:10px;border:1px solid #e2e8f0;border-radius:10px;background:#fff;padding:9px 12px;text-align:left;transition:background-color .15s,border-color .15s}
     .scope-selector:hover{border-color:#cbd5e1;background:#f8fafc}
     .scope-selector:focus-visible{outline:2px solid #bfdbfe;outline-offset:1px}
     .scope-meta{color:#94a3b8;font-size:11px;line-height:15px}
-    .scope-dropdown{border:1px solid #e2e8f0;border-radius:10px;background:#fff;box-shadow:0 10px 24px rgba(15,23,42,.1)}
+    .scope-dropdown{width:310px;max-width:calc(100vw - 24px);max-height:min(480px,calc(100vh - 130px));border:1px solid #e2e8f0;border-radius:12px;background:#fff;box-shadow:0 14px 32px rgba(15,23,42,.14)}
+    .scope-dropdown input{height:38px;font-size:13px}
+    .scope-dropdown button{min-height:42px}
+    .scope-dropdown button .text-xs{font-size:13px;line-height:18px}
+    .scope-dropdown button .text-\[10px\]{font-size:11px;line-height:15px}
+    @media(max-width:640px){.scope-dropdown{width:calc(100vw - 30px);max-height:440px}}
     .app-sidebar-nav{padding:9px 15px 12px}
     .app-section-label--nav{margin:0 10px 6px}
     .app-nav-group{display:flex;flex-direction:column;gap:3px}
