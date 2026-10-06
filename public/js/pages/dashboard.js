@@ -1,6 +1,7 @@
 window.MKTPageModules = window.MKTPageModules || {};
 window.MKTPageModules.dashboard = () => ({
     _dashboardAbort: null,
+    _dashboardRequestId: 0,
     _dashboardCache: new Map(),
     onTimePresetChange() {
         if (this.dbFilter.preset !== 'custom')
@@ -59,6 +60,7 @@ window.MKTPageModules.dashboard = () => ({
     },
     async loadDashboard() {
         this.cancelDashboardRequests();
+        const requestId = ++this._dashboardRequestId;
         const controller = new AbortController();
         this._dashboardAbort = controller;
         this.dashboardLoading = true;
@@ -80,14 +82,18 @@ window.MKTPageModules.dashboard = () => ({
             if (cached && Date.now() - cached.savedAt < 30000) {
                 this.db = cached.data;
                 this.dashboardLoading = false;
-                requestAnimationFrame(() => this.renderPerfChart());
+                requestAnimationFrame(() => {
+                    if (requestId === this._dashboardRequestId) this.renderPerfChart();
+                });
             }
             const signal = controller.signal;
             const db = await this.api('/dashboard/stats/dashboard?' + params.toString(), { signal });
-            if (signal.aborted) return;
+            if (signal.aborted || requestId !== this._dashboardRequestId) return;
             this.db = db;
             this._dashboardCache.set(cacheKey, { data: db, savedAt: Date.now() });
-            requestAnimationFrame(() => this.renderPerfChart());
+            requestAnimationFrame(() => {
+                if (requestId === this._dashboardRequestId) this.renderPerfChart();
+            });
             if (!this._statsLoaded) {
                 this.api('/dashboard/stats', { signal }).then(stats => {
                     if (signal.aborted) return;
@@ -122,72 +128,43 @@ window.MKTPageModules.dashboard = () => ({
         this.fbSyncing = false;
     },
     renderPerfChart() {
-        if (typeof Chart === 'undefined')
-            return;
         const wrap = document.getElementById('perfChartWrap');
         if (!wrap)
             return;
-        const data = this.db?.chart_performance;
+        const data = Array.isArray(this.db?.chart_performance) ? this.db.chart_performance : [];
         const hasData = data && data.some(d => d.viewers || d.media_views || d.engagement || d.posts_count);
-        let emptyDiv = wrap.querySelector('.chart-empty');
-        if (!emptyDiv) {
-            emptyDiv = document.createElement('div');
-            emptyDiv.className = 'chart-empty';
-            emptyDiv.style.cssText = 'position:absolute;inset:0;display:none;align-items:center;justify-content:center;';
-            emptyDiv.innerHTML = '<div style="text-align:center;color:#9ca3af;font-size:12px"><i class="ri-bar-chart-box-line" style="font-size:2rem;display:block;margin-bottom:8px"></i><p class="chart-empty-msg"></p></div>';
-            wrap.appendChild(emptyDiv);
-        }
+        if (this._charts.perf) { this._charts.perf.destroy(); this._charts.perf = null; }
         if (!hasData) {
-            if (this._charts.perf) { this._charts.perf.destroy(); this._charts.perf = null; }
-            wrap.querySelectorAll('canvas').forEach(c => c.remove());
-            emptyDiv.style.display = 'flex';
-            wrap.querySelector('.chart-empty-msg').textContent = (this.db?.top_contents || []).length
+            const message = (this.db?.top_contents || []).length
                 ? 'Không có dữ liệu FB trong khoảng thời gian này. Bấm Sync FB để cập nhật.'
                 : 'Chưa có bài đăng nào. Tạo content và đăng bài trước.';
+            wrap.innerHTML = `<div class="absolute inset-0 flex items-center justify-center text-center text-xs text-gray-400"><div><i class="ri-bar-chart-box-line block mb-2 text-3xl"></i><p>${message}</p></div></div>`;
             return;
         }
-        emptyDiv.style.display = 'none';
-        const labels = data.map(d => { const p = d.date.split('-'); return p[2] + '/' + p[1]; });
-        if (this._charts.perf) {
-            const chart = this._charts.perf;
-            chart.data.labels = labels;
-            chart.data.datasets[0].data = data.map(d => d.viewers);
-            chart.data.datasets[1].data = data.map(d => d.media_views);
-            chart.data.datasets[2].data = data.map(d => d.engagement);
-            chart.data.datasets[3].data = data.map(d => d.posts_count);
-            chart.update('none');
-            return;
-        }
-        wrap.querySelectorAll('canvas').forEach(c => c.remove());
-        const canvas = document.createElement('canvas');
-        const w = wrap.clientWidth || 600;
-        const h = (wrap.clientHeight || 340) - 4;
-        canvas.width = w;
-        canvas.height = h;
-        wrap.insertBefore(canvas, wrap.firstChild);
-        this._charts.perf = new Chart(canvas.getContext('2d'), {
-            type: 'bar',
-            data: {
-                labels,
-                datasets: [
-                    { type: 'line', label: 'Người xem', data: data.map(d => d.viewers), borderColor: '#3b82f6', borderWidth: 2, fill: false, tension: 0, pointRadius: 0, yAxisID: 'y', order: 1 },
-                    { type: 'line', label: 'Lượt xem', data: data.map(d => d.media_views), borderColor: '#06b6d4', borderWidth: 2, fill: false, tension: 0, pointRadius: 0, yAxisID: 'y', order: 2 },
-                    { type: 'line', label: 'Engagement', data: data.map(d => d.engagement), borderColor: '#8b5cf6', borderWidth: 2, fill: false, tension: 0, pointRadius: 0, yAxisID: 'y', order: 2 },
-                    { type: 'bar', label: 'Bài đăng', data: data.map(d => d.posts_count), backgroundColor: 'rgba(99,102,241,0.25)', borderRadius: 2, yAxisID: 'y1', order: 3 },
-                ]
-            },
-            options: {
-                responsive: false,
-                animation: false,
-                interaction: { mode: 'index', intersect: false },
-                plugins: { legend: { position: 'bottom', labels: { boxWidth: 10, font: { size: 10 }, padding: 12 } } },
-                scales: {
-                    y: { beginAtZero: true, position: 'left', ticks: { font: { size: 10 } }, grid: { color: 'rgba(0,0,0,0.04)' } },
-                    y1: { beginAtZero: true, position: 'right', grid: { display: false }, ticks: { font: { size: 10 }, stepSize: 1 } },
-                    x: { ticks: { font: { size: 9 }, maxRotation: 0 }, grid: { display: false } }
-                }
-            }
-        });
+        const width = 1000, height = 285, left = 48, right = 18, top = 14, bottom = 48;
+        const plotW = width - left - right, plotH = height - top - bottom;
+        const maxMetric = Math.max(1, ...data.flatMap(d => [d.viewers || 0, d.media_views || 0, d.engagement || 0]));
+        const maxPosts = Math.max(1, ...data.map(d => d.posts_count || 0));
+        const x = i => left + (data.length === 1 ? plotW / 2 : i * plotW / (data.length - 1));
+        const metricY = v => top + plotH - (v / maxMetric) * plotH;
+        const postY = v => top + plotH - (v / maxPosts) * plotH;
+        const line = (key, color) => `<polyline points="${data.map((d, i) => `${x(i).toFixed(1)},${metricY(d[key] || 0).toFixed(1)}`).join(' ')}" fill="none" stroke="${color}" stroke-width="2" vector-effect="non-scaling-stroke"/>`;
+        const barWidth = Math.max(3, Math.min(22, plotW / Math.max(data.length, 1) * .55));
+        const bars = data.map((d, i) => {
+            const y = postY(d.posts_count || 0);
+            return `<rect x="${(x(i) - barWidth / 2).toFixed(1)}" y="${y.toFixed(1)}" width="${barWidth.toFixed(1)}" height="${Math.max(0, top + plotH - y).toFixed(1)}" rx="2" fill="#c7d2fe"/>`;
+        }).join('');
+        const tickStep = Math.max(1, Math.ceil(data.length / 8));
+        const xTicks = data.map((d, i) => {
+            if (i % tickStep !== 0 && i !== data.length - 1) return '';
+            const p = d.date.split('-');
+            return `<text x="${x(i).toFixed(1)}" y="${height - 25}" text-anchor="middle" font-size="10" fill="#94a3b8">${p[2]}/${p[1]}</text>`;
+        }).join('');
+        const grid = [0, .25, .5, .75, 1].map(r => {
+            const y = top + plotH * (1 - r);
+            return `<line x1="${left}" y1="${y}" x2="${width-right}" y2="${y}" stroke="#eef2f7"/><text x="${left-8}" y="${y+3}" text-anchor="end" font-size="10" fill="#94a3b8">${Math.round(maxMetric*r)}</text>`;
+        }).join('');
+        wrap.innerHTML = `<svg viewBox="0 0 ${width} ${height}" preserveAspectRatio="none" class="block h-full w-full" role="img" aria-label="Biểu đồ hiệu suất">${grid}${bars}${line('viewers','#3b82f6')}${line('media_views','#06b6d4')}${line('engagement','#8b5cf6')}${xTicks}</svg>`;
     },
     getCampaignEngagement(campaignId, type) {
         if (!this.fbInsights?.pages)

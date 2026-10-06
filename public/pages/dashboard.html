@@ -82,8 +82,9 @@
         <div class="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-5">
           <!-- Performance Chart -->
           <div class="lg:col-span-2 bg-white rounded-xl border border-gray-100 shadow-sm p-5">
-            <h3 class="font-semibold mb-3" style="font-size:15px">Hiệu suất theo thời gian</h3>
-            <div id="perfChartWrap" style="height:340px; position:relative"></div>
+            <div class="mb-3 flex flex-wrap items-center justify-between gap-2"><h3 class="font-semibold" style="font-size:15px">Hiệu suất theo thời gian</h3><span class="text-[10px] text-gray-400" x-text="db?.filters ? new Date(db.filters.dateFrom).toLocaleDateString('vi-VN')+' – '+new Date(db.filters.dateTo).toLocaleDateString('vi-VN') : ''"></span></div>
+            <div id="perfChartWrap" style="height:300px; position:relative"></div>
+            <div class="mt-2 flex flex-wrap justify-center gap-x-4 gap-y-1 text-[10px] text-gray-500"><span><i class="mr-1 inline-block h-0.5 w-3 bg-blue-500 align-middle"></i>Người xem</span><span><i class="mr-1 inline-block h-0.5 w-3 bg-cyan-500 align-middle"></i>Lượt xem</span><span><i class="mr-1 inline-block h-0.5 w-3 bg-violet-500 align-middle"></i>Engagement</span><span><i class="mr-1 inline-block h-2.5 w-3 rounded-sm bg-indigo-200 align-middle"></i>Bài đăng</span></div>
           </div>
           <!-- Pipeline -->
           <div class="bg-white rounded-xl border border-gray-100 shadow-sm p-5">
