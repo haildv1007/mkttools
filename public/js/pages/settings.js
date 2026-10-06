@@ -11,6 +11,7 @@ window.MKTPageModules.settings = () => ({
             this.secretConfigured = {
                 telegram: !!loaded.TELEGRAM_BOT_TOKEN,
                 facebook: !!loaded.FACEBOOK_APP_SECRET,
+                facebookToken: !!loaded.FACEBOOK_USER_ACCESS_TOKEN,
             };
             // Never keep a stored secret (even a masked one) in editable state.
             // A blank secret input means "leave unchanged".
@@ -19,8 +20,9 @@ window.MKTPageModules.settings = () => ({
                 DEFAULT_TIMEZONE: loaded.DEFAULT_TIMEZONE || 'Asia/Ho_Chi_Minh',
                 TELEGRAM_BOT_TOKEN: '',
                 FACEBOOK_APP_SECRET: '',
+                FACEBOOK_USER_ACCESS_TOKEN: '',
             };
-            this.showKeys = { anthropic: false, openai: false, gemini: false, telegram: false, fbSecret: false };
+            this.showKeys = { anthropic: false, openai: false, gemini: false, telegram: false, fbSecret: false, fbToken: false };
         }
         catch { }
         // "Cấu hình AI" reads/writes the CURRENT organization's settings -
@@ -38,6 +40,8 @@ window.MKTPageModules.settings = () => ({
         this.settingsSaving = true;
         try {
             const payload = { ...this.settingsForm };
+            const facebookUserToken = String(payload.FACEBOOK_USER_ACCESS_TOKEN || '').trim();
+            delete payload.FACEBOOK_USER_ACCESS_TOKEN;
             if (!payload.TELEGRAM_BOT_TOKEN)
                 delete payload.TELEGRAM_BOT_TOKEN;
             if (!payload.FACEBOOK_APP_SECRET)
@@ -46,14 +50,23 @@ window.MKTPageModules.settings = () => ({
                 method: 'PUT',
                 body: JSON.stringify(payload),
             });
+            if (facebookUserToken) {
+                await this.api('/facebook/token/connect', {
+                    method: 'POST',
+                    body: JSON.stringify({ accessToken: facebookUserToken }),
+                });
+                this.secretConfigured.facebookToken = true;
+            }
             if (payload.TELEGRAM_BOT_TOKEN)
                 this.secretConfigured.telegram = true;
             if (payload.FACEBOOK_APP_SECRET)
                 this.secretConfigured.facebook = true;
             this.settingsForm.TELEGRAM_BOT_TOKEN = '';
             this.settingsForm.FACEBOOK_APP_SECRET = '';
+            this.settingsForm.FACEBOOK_USER_ACCESS_TOKEN = '';
             this.showKeys.telegram = false;
             this.showKeys.fbSecret = false;
+            this.showKeys.fbToken = false;
             this.showToast('Đã lưu cài đặt thành công!');
             await this.loadDashboard();
         }

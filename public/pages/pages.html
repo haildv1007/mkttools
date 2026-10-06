@@ -7,7 +7,7 @@
     </div>
     <div class="pages-header-actions">
       <button @click="openManualPageForm()" class="pages-secondary-button"><i class="ri-add-line"></i><span>Thêm Page thủ công</span></button>
-      <button @click="openFacebookTokenModal()" class="pages-secondary-button"><i class="ri-key-2-line"></i><span>Nhập Access Token</span></button>
+      <button @click="discoverSavedFacebookPages()" class="pages-secondary-button"><i class="ri-refresh-line"></i><span>Lấy Pages đã lưu</span></button>
       <button @click="startFacebookConnect()" :disabled="facebookStarting" class="pages-primary-button">
         <i class="ri-loader-4-line animate-spin" x-show="facebookStarting"></i><i class="ri-facebook-fill" x-show="!facebookStarting"></i>
         <span x-text="facebookStarting ? 'Đang chuyển hướng...' : 'Kết nối Facebook'"></span>

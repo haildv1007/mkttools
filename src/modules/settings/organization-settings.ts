@@ -6,6 +6,7 @@ export const ORGANIZATION_SETTING_KEYS = [
   'TELEGRAM_ADMIN_CHAT_IDS',
   'FACEBOOK_APP_ID',
   'FACEBOOK_APP_SECRET',
+  'FACEBOOK_USER_ACCESS_TOKEN',
   'DEFAULT_TIMEZONE',
 ] as const;
 
@@ -14,6 +15,7 @@ type OrganizationSettingKey = typeof ORGANIZATION_SETTING_KEYS[number];
 const SECRET_KEYS = new Set<OrganizationSettingKey>([
   'TELEGRAM_BOT_TOKEN',
   'FACEBOOK_APP_SECRET',
+  'FACEBOOK_USER_ACCESS_TOKEN',
 ]);
 
 function isAllowedKey(key: string): key is OrganizationSettingKey {

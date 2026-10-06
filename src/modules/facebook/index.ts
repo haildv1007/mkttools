@@ -7,6 +7,7 @@ import { resolveFacebookAppConfig, isAllowedRedirectUri } from './config';
 import { createOAuthState, validateAndConsumeOAuthState } from './oauth-state';
 import { OrganizationQuota, resolveSubscriptionContext } from '../organization';
 import * as redis from './redis';
+import { getOrganizationSetting, setOrganizationSettings } from '../settings/organization-settings';
 
 const router = Router();
 
@@ -121,7 +122,9 @@ router.post('/oauth/callback', async (req: AuthRequest, res: Response) => {
       return res.status(400).json({ error: 'FACEBOOK_TOKEN_EXCHANGE_FAILED', message: llData.error?.message || 'Long-lived token exchange failed.' });
     }
 
-    // Store long-lived user token in Redis (never sent to frontend)
+    // Persist the long-lived user token encrypted for future Page discovery,
+    // and cache it in Redis for the current flow. It is never returned.
+    await setOrganizationSettings(organizationId, { FACEBOOK_USER_ACCESS_TOKEN: llData.access_token });
     await redis.set(`user_token:${organizationId}:${req.userId}`, llData.access_token, USER_TOKEN_TTL);
 
     res.json({ success: true, organizationId });
@@ -158,6 +161,7 @@ router.post('/token/connect', async (req: AuthRequest, res: Response) => {
       return res.status(400).json({ error: 'FACEBOOK_TOKEN_EXCHANGE_FAILED', message: llData.error?.message || 'Không thể xác thực access token.' });
     }
     const ttl = Math.max(300, Math.min(Number(llData.expires_in) || USER_TOKEN_TTL, 5184000));
+    await setOrganizationSettings(req.organizationId!, { FACEBOOK_USER_ACCESS_TOKEN: llData.access_token });
     await redis.set(`user_token:${req.organizationId}:${req.userId}`, llData.access_token, ttl);
     res.json({ success: true });
   } catch (err) {
@@ -174,9 +178,15 @@ router.get('/pages/discover', async (req: AuthRequest, res: Response) => {
       return res.status(403).json({ error: 'ORGANIZATION_ACCESS_DENIED' });
     }
 
-    const userToken = await redis.get(`user_token:${req.organizationId}:${req.userId}`);
+    let userToken = await redis.get(`user_token:${req.organizationId}:${req.userId}`);
     if (!userToken) {
-      return res.status(400).json({ error: 'FACEBOOK_OAUTH_STATE_EXPIRED', message: 'No valid Facebook session. Please reconnect via OAuth.' });
+      userToken = await getOrganizationSetting(req.organizationId!, 'FACEBOOK_USER_ACCESS_TOKEN');
+      if (userToken) {
+        await redis.set(`user_token:${req.organizationId}:${req.userId}`, userToken, USER_TOKEN_TTL);
+      }
+    }
+    if (!userToken) {
+      return res.status(400).json({ error: 'FACEBOOK_TOKEN_NOT_CONFIGURED', message: 'Chưa lưu Facebook User Access Token trong Cài đặt hệ thống.' });
     }
 
     const pagesRes = await fetch(

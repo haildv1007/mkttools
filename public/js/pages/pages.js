@@ -83,6 +83,7 @@ window.MKTPageModules.pages = () => ({
             FACEBOOK_REDIRECT_URI_MISMATCH: 'Phiên kết nối Facebook không hợp lệ. Vui lòng thử lại.',
             FACEBOOK_REDIRECT_URI_NOT_ALLOWED: 'Địa chỉ callback Facebook chưa được cho phép trong cấu hình hệ thống.',
             FACEBOOK_TOKEN_EXCHANGE_FAILED: 'Không thể hoàn tất kết nối với Facebook. Vui lòng thử lại.',
+            FACEBOOK_TOKEN_NOT_CONFIGURED: 'Chưa lưu Facebook User Access Token. Vui lòng nhập token tại Cài đặt hệ thống.',
             FACEBOOK_PAGE_NOT_FOUND: 'Không tìm thấy Page trong phiên kết nối hiện tại. Vui lòng kết nối lại Facebook.',
             ORGANIZATION_ACCESS_DENIED: 'Bạn không có quyền quản lý kết nối Facebook của tổ chức này.',
             SUBSCRIPTION_EXPIRED: 'Gói dịch vụ của tổ chức đã hết hạn.',
@@ -181,6 +182,14 @@ window.MKTPageModules.pages = () => ({
         this.fbTokenError = '';
         this.fbTokenLoading = false;
         this.showFbTokenModal = true;
+    },
+    async discoverSavedFacebookPages() {
+        await this.discoverFacebookPages(true);
+        if (this.facebookErrorCode === 'FACEBOOK_TOKEN_NOT_CONFIGURED') {
+            this.facebookModalOpen = false;
+            this.navigate('settings');
+            this.showToast('Hãy lưu Facebook User Access Token tại Cài đặt hệ thống trước.', 'error');
+        }
     },
     async connectFacebookToken() {
         const accessToken = this.fbShortToken.trim();
