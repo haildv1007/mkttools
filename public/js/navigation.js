@@ -1,7 +1,11 @@
 window.MKTNavigation = {
-    routes: { dashboard: '/dashboard', campaigns: '/campaigns', content: '/content', import: '/import', pages: '/pages', settings: '/settings', organization: '/organization', activity: '/activity' },
+    routes: { dashboard: '/dashboard', campaigns: '/campaigns', content: '/content', import: '/import', pages: '/pages', settings: '/settings', organization: '/organization' },
     pageFromLocation() {
         const path = window.location.pathname.replace(/\/+$/, '') || '/';
+        if (path === '/activity') {
+            history.replaceState({ page: 'dashboard' }, '', '/dashboard');
+            return 'dashboard';
+        }
         return Object.entries(this.routes).find(([, route]) => route === path)?.[0] || 'dashboard';
     },
     state() {
@@ -41,13 +45,6 @@ window.MKTNavigation = {
                     this.loadPages();
                 if (page === 'settings' && !options.skipDataLoad)
                     this.loadSettings();
-                if (page === 'activity') {
-                    this.actOpen = true;
-                    if (!this.actItems.length)
-                        this.loadActivity();
-                }
-                else if (options.fromPopState)
-                    this.actOpen = false;
             },
         };
     },

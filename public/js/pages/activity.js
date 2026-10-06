@@ -1,5 +1,10 @@
 window.MKTPageModules = window.MKTPageModules || {};
 window.MKTPageModules.activity = () => ({
+    toggleActivity() {
+        this.actOpen = !this.actOpen;
+        if (this.actOpen && !this.actItems.length)
+            this.loadActivity();
+    },
     async loadActivity(append = false) {
         if (this.actLoading)
             return;
@@ -61,4 +66,3 @@ window.MKTPageModules.activity = () => ({
         return d + ' ngày trước';
     }
 });
-

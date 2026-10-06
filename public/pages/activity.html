@@ -10,7 +10,7 @@
           <span class="font-semibold text-sm">Hoạt động</span>
           <span x-show="actRunning > 0" class="text-[10px] px-1.5 py-0.5 bg-brand-100 text-brand-600 rounded-full font-medium" x-text="actRunning + ' đang chạy'"></span>
         </div>
-        <button @click="actOpen=false; if(page==='activity') navigate('dashboard')" class="text-gray-400 hover:text-gray-600 transition">
+        <button @click="actOpen=false" class="text-gray-400 hover:text-gray-600 transition">
           <i class="ri-close-line text-lg"></i>
         </button>
       </div>

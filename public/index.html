@@ -167,9 +167,9 @@
 
       <div class="app-sidebar-footer">
         <!-- Activity Button -->
-        <button @click="navigate('activity')"
+        <button @click="toggleActivity()"
           class="sidebar-link app-activity-link relative"
-          :class="page==='activity' && 'active'">
+          :class="actOpen && 'active'">
           <i class="ri-pulse-line text-lg"></i>
           <span class="text-sm font-medium">Hoạt động</span>
           <span x-show="actRunning > 0"

@@ -201,6 +201,18 @@ describe('Content list optimization', () => {
   });
 
   describe('Frontend performance', () => {
+    it('activity is a persistent overlay, not a navigable page', () => {
+      const index = fs.readFileSync('public/index.html', 'utf8');
+      const navigation = fs.readFileSync('public/js/navigation.js', 'utf8');
+      const activity = fs.readFileSync('public/js/pages/activity.js', 'utf8');
+      expect(index).toContain('@click="toggleActivity()"');
+      expect(index).toContain(':class="actOpen && \'active\'"');
+      expect(index).not.toContain("navigate('activity')");
+      expect(navigation).not.toContain("activity: '/activity'");
+      expect(navigation).toContain("path === '/activity'");
+      expect(activity).toContain('toggleActivity()');
+    });
+
     it('hydrates a lightweight row before opening the edit form', () => {
       const js = fs.readFileSync('public/js/pages/content.js', 'utf8');
       const editBlock = js.substring(js.indexOf('async editContent('), js.indexOf('async saveContent()'));
