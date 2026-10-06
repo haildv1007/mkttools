@@ -10,6 +10,7 @@
             <template x-if="db?.fb_errors?.length">
               <p class="text-xs text-red-500 mt-0.5"><i class="ri-error-warning-line"></i> <span x-text="db.fb_errors[0]"></span><span x-show="db.fb_errors.length>1" x-text="' (+' + (db.fb_errors.length-1) + ' lỗi khác)'"></span></p>
             </template>
+            <p x-show="dashboardError" class="mt-0.5 text-xs text-red-500"><i class="ri-error-warning-line"></i> <span x-text="dashboardError"></span></p>
           </div>
           <div class="flex flex-wrap items-center gap-2">
             <div x-show="currentScope.type!=='page'" class="relative" @click.outside="dbPageDrop=false">

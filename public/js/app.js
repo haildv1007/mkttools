@@ -80,6 +80,7 @@ function app() {
             dashboardUpcoming: [],
             dashboardRecent: [],
             dashboardLoading: false,
+            dashboardError: '',
             fbSyncing: false,
             fbInsights: null,
             fbInsightsLoading: false,
@@ -268,7 +269,7 @@ function app() {
                     if (this.currentScope.type === 'page')
                         this.importForm.pageId = this.currentScope.id;
                     if (this.page === 'dashboard') {
-                        this.loadDashboard();
+                        await this.loadDashboard();
                         this.loadCampaigns({ preferCache: true });
                     } else {
                         this.navigate(this.page, { replace: true, skipDataLoad: true });

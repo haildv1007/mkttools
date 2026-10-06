@@ -58,12 +58,13 @@ window.MKTPageModules.dashboard = () => ({
             this._dashboardAbort = null;
         }
     },
-    async loadDashboard() {
+    async loadDashboard(attempt = 0) {
         this.cancelDashboardRequests();
         const requestId = ++this._dashboardRequestId;
         const controller = new AbortController();
         this._dashboardAbort = controller;
         this.dashboardLoading = true;
+        this.dashboardError = '';
         try {
             const params = new URLSearchParams();
             if (this.dbFilter.pageId)
@@ -87,7 +88,7 @@ window.MKTPageModules.dashboard = () => ({
                 });
             }
             const signal = controller.signal;
-            const db = await this.api('/dashboard/stats/dashboard?' + params.toString(), { signal });
+            const db = await this.api('/dashboard/stats/dashboard?' + params.toString(), { signal, timeoutMs: 30000 });
             if (signal.aborted || requestId !== this._dashboardRequestId) return;
             this.db = db;
             this._dashboardCache.set(cacheKey, { data: db, savedAt: Date.now() });
@@ -106,6 +107,14 @@ window.MKTPageModules.dashboard = () => ({
         }
         catch (e) {
             if (e?.name === 'AbortError') return;
+            if (requestId !== this._dashboardRequestId) return;
+            if (attempt < 1 && this.page === 'dashboard') {
+                await new Promise(resolve => setTimeout(resolve, 350));
+                if (requestId === this._dashboardRequestId) return this.loadDashboard(attempt + 1);
+                return;
+            }
+            this.dashboardError = e?.message || 'Không thể tải dữ liệu tổng quan.';
+            this.showToast(this.dashboardError, 'error');
         }
         if (!controller.signal.aborted) this.dashboardLoading = false;
     },
