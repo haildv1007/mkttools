@@ -27,4 +27,18 @@ describe('customer-facing localization', () => {
     expect(runtime).toContain("url.searchParams.set('lang', 'en')");
     expect(runtime).toContain("mktkit\\.(com|vn)");
   });
+
+  it('places language controls in the interface instead of beside support', () => {
+    expect(read('public/index.html')).toContain('mkt-locale-switcher--sidebar');
+    expect(read('public/auth.html')).toContain('mkt-locale-switcher--auth');
+    expect(read('public/mktkit/index.html')).toContain('mkt-locale-switcher--header');
+    const css = read('public/css/i18n.css');
+    expect(css).not.toContain('bottom: 27px');
+  });
+
+  it('keeps bottom support clear of application toasts', () => {
+    expect(read('public/index.html')).toContain('fixed top-6 right-6 z-[80]');
+    expect(read('public/pages/organization.html')).toContain('fixed right-5 top-5');
+    expect(read('public/css/support-widget.css')).toContain('z-index:60');
+  });
 });

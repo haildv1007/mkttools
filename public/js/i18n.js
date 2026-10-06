@@ -382,11 +382,13 @@
       switcher = document.createElement('div');
       switcher.dataset.localeSwitcher = '';
       switcher.dataset.i18nIgnore = '';
-      switcher.className = 'mkt-locale-switcher';
-      switcher.setAttribute('role', 'group');
-      switcher.setAttribute('aria-label', 'Language');
-      switcher.innerHTML = '<button type="button" data-locale="vi">VI</button><span aria-hidden="true">/</span><button type="button" data-locale="en">EN</button>';
+      switcher.className = 'mkt-locale-switcher mkt-locale-switcher--floating';
       document.body.appendChild(switcher);
+    }
+    switcher.setAttribute('role', 'group');
+    switcher.setAttribute('aria-label', 'Language');
+    if (!switcher.querySelector('[data-locale]')) {
+      switcher.innerHTML = '<button type="button" data-locale="vi">VI</button><span aria-hidden="true">/</span><button type="button" data-locale="en">EN</button>';
     }
     switcher.querySelectorAll('[data-locale]').forEach((button) => {
       const active = button.dataset.locale === locale;

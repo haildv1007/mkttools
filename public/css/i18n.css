@@ -1,20 +1,20 @@
 .mkt-locale-switcher {
-  position: fixed;
-  right: 86px;
-  bottom: 27px;
-  z-index: 10000;
   display: flex;
   align-items: center;
   gap: 5px;
-  padding: 6px 9px;
+  width: max-content;
+  padding: 5px 8px;
   border: 1px solid rgba(148, 163, 184, .35);
   border-radius: 999px;
-  background: rgba(255, 255, 255, .96);
+  background: #fff;
   color: #94a3b8;
-  box-shadow: 0 5px 18px rgba(15, 23, 42, .12);
   font: 600 11px/1 Inter, ui-sans-serif, system-ui, sans-serif;
-  backdrop-filter: blur(8px);
 }
+
+.mkt-locale-switcher--floating { position: fixed; top: 16px; right: 16px; z-index: 55; box-shadow: 0 5px 18px rgba(15, 23, 42, .12); }
+.mkt-locale-switcher--sidebar { margin: 2px 11px 7px auto; background: #f8fafc; }
+.mkt-locale-switcher--header { flex: none; }
+.mkt-locale-switcher--auth { margin: 0 0 10px auto; }
 
 .mkt-locale-switcher button {
   padding: 3px 4px;
@@ -34,5 +34,5 @@
 }
 
 @media (max-width: 640px) {
-  .mkt-locale-switcher { right: 72px; bottom: 19px; }
+  .mkt-locale-switcher--floating { top: 10px; right: 10px; }
 }

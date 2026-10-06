@@ -37,6 +37,7 @@ svg { display: block; }
 .primary-nav a span { margin-left: 3px; color: #7a879b; }
 .primary-nav a:hover, .primary-nav a[aria-current="page"] { color: var(--blue); }
 .primary-nav a[aria-current="page"]::after { content: ""; position: absolute; right: 0; bottom: -1px; left: 0; height: 2px; background: var(--blue); }
+.header-utilities { display: flex; justify-content: flex-end; align-items: center; gap: 16px; }
 .header-actions { display: flex; justify-content: flex-end; align-items: center; gap: 22px; }
 .login-link { color: #17233a; font-size: 14px; font-weight: 650; }
 .menu-button { display: none; border: 0; background: transparent; padding: 8px; }
@@ -318,7 +319,7 @@ svg { display: block; }
 }
 
 @media (max-width: 900px) {
-  .header-inner { grid-template-columns: 1fr auto; }
+  .header-inner { grid-template-columns: 1fr auto auto; gap: 12px; }
   .menu-button { display: block; }
   .primary-nav { display: none; position: absolute; top: 70px; right: 0; left: 0; flex-direction: column; align-items: stretch; gap: 0; padding: 12px 24px 20px; border-bottom: 1px solid var(--line); background: #fff; }
   .primary-nav.open { display: flex; }

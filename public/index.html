@@ -169,6 +169,7 @@
       </nav>
 
       <div class="app-sidebar-footer">
+        <div data-locale-switcher data-i18n-ignore class="mkt-locale-switcher mkt-locale-switcher--sidebar"></div>
         <!-- Activity Button -->
         <button @click="toggleActivity()"
           class="sidebar-link app-activity-link relative"
@@ -528,7 +529,7 @@
     </div>
   </div>
 
-  <div x-show="toast.show" x-transition class="fixed bottom-6 right-6 z-50"
+  <div x-show="toast.show" x-transition class="fixed top-6 right-6 z-[80]"
     @click="toast.show=false">
     <div class="px-4 py-3 rounded-lg shadow-lg text-white text-sm font-medium"
       :class="toast.type === 'success' ? 'bg-green-500' : toast.type === 'error' ? 'bg-red-500' : 'bg-brand-500'">
