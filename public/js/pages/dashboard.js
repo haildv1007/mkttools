@@ -95,26 +95,28 @@ window.MKTPageModules.dashboard = () => ({
                 cache: 'no-store',
             });
             if (signal.aborted || requestId !== this._dashboardRequestId) return;
-            this.db = db;
             const hasDashboardData = Boolean(
                 db?.chart_performance?.some(d => d.viewers || d.media_views || d.engagement || d.posts_count)
                 || db?.top_contents?.length
                 || db?.recent_posts?.length
-                || Object.values(db?.pipeline_summary || {}).some(value => Number(value) > 0)
+                || Object.values(db?.pipeline_summary || {}).some(value => Number(value?.count ?? value?.value ?? value) > 0)
             );
             if (hasDashboardData)
                 this._dashboardCache.set(cacheKey, { data: db, savedAt: Date.now() });
             else
                 this._dashboardCache.delete(cacheKey);
 
-            // A first-load request can overlap scope/session bootstrap on a
-            // cold page. Reconcile one genuinely empty response once, using a
-            // fresh no-store request. Legitimately empty dashboards stop here.
-            if (!this._dashboardHasLoaded && !hasDashboardData && attempt < 1 && this.scopePages.length) {
-                await new Promise(resolve => setTimeout(resolve, 400));
+            // On a cold page the organization/scope can be accepted before its
+            // first aggregate read is ready. Do the same fresh request that a
+            // manual Reset/navigation performs, without exposing the transient
+            // empty payload or requiring user interaction.
+            if (!this._dashboardHasLoaded && !hasDashboardData && attempt < 2 && this.scopePages.length) {
+                const retryDelay = attempt === 0 ? 1000 : 2000;
+                await new Promise(resolve => setTimeout(resolve, retryDelay));
                 if (requestId === this._dashboardRequestId) return this.loadDashboard(attempt + 1);
                 return;
             }
+            this.db = db;
             this._dashboardHasLoaded = true;
             requestAnimationFrame(() => {
                 if (requestId === this._dashboardRequestId) this.renderPerfChart();
