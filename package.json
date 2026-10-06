@@ -13,7 +13,8 @@
     "queue:worker": "tsx src/queues/worker.ts",
     "bot": "tsx src/modules/telegram-bot/index.ts",
     "lint": "eslint src/",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "audit:i18n": "node scripts/audit-customer-i18n.cjs"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.39.0",

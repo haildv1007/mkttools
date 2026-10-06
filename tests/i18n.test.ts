@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
+import { execFileSync } from 'node:child_process';
 
 const root = resolve(__dirname, '..');
 const read = (path: string) => readFileSync(resolve(root, path), 'utf8');
@@ -40,5 +41,13 @@ describe('customer-facing localization', () => {
     expect(read('public/index.html')).toContain('fixed top-6 right-6 z-[80]');
     expect(read('public/pages/organization.html')).toContain('fixed right-5 top-5');
     expect(read('public/css/support-widget.css')).toContain('z-index:60');
+  });
+
+  it('has an English translation for every static Vietnamese customer UI string', () => {
+    const output = execFileSync(process.execPath, [resolve(root, 'scripts/audit-customer-i18n.cjs')], {
+      cwd: root,
+      encoding: 'utf8',
+    });
+    expect(output).toContain('Untranslated static customer UI strings: 0');
   });
 });
