@@ -751,16 +751,26 @@ window.MKTPageModules.content = () => ({
         try {
             const scheduledAt = `${this.contentForm.scheduledDate}T${this.contentForm.scheduledTime || '09:00'}:00`;
             const isManual = this.contentForm.mode === 'manual';
+            const fileImages = this.contentForm.images.filter(i => i.file);
+            const urlImages = this.contentForm.images.filter(i => i.url && !i.file);
+            const hasImages = fileImages.length > 0 || urlImages.length > 0;
+            const hasVideo = !!(this.contentForm.videoFile || this.contentForm.manualVideoUrl || this.contentForm.videoUrl);
+            if (isManual && hasImages && hasVideo) {
+                this.contentFormError = 'Vui lòng chỉ nhập ảnh hoặc video cho một bài viết';
+                return;
+            }
+            const inferredContentType = isManual
+                ? (hasVideo ? 'VIDEO' : (hasImages ? 'IMAGE' : 'TEXT'))
+                : this.contentForm.contentType;
             const payload = {
                 pageId: this.contentForm.pageId,
                 topic: this.contentForm.topic,
-                contentType: this.contentForm.contentType,
+                contentType: inferredContentType,
                 scheduledAt,
                 notes: this.contentForm.notes,
                 imageDescriptions: this.contentForm.imageDescriptions,
             };
             if (isManual) {
-                const urlImages = this.contentForm.images.filter(i => i.url && !i.file);
                 Object.assign(payload, {
                     generatedText: this.contentForm.generatedText,
                     imageUrl: urlImages.length > 0 ? urlImages[0].url : '',
@@ -788,7 +798,6 @@ window.MKTPageModules.content = () => ({
                 contentId = created.id;
                 this.showToast(isManual ? 'Thêm content có sẵn → Chờ duyệt' : 'Thêm content thành công');
             }
-            const fileImages = this.contentForm.images.filter(i => i.file);
             if (fileImages.length > 0 && contentId) {
                 const form = new FormData();
                 fileImages.forEach(i => form.append('images', i.file));

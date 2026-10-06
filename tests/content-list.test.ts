@@ -221,6 +221,15 @@ describe('Content list optimization', () => {
       expect(editBlock).toContain("!['AI', 'AI_GEN'].includes(item.source)");
     });
 
+    it('hides manual content type selection and infers it from uploaded media', () => {
+      const html = fs.readFileSync('public/pages/content.html', 'utf8');
+      const js = fs.readFileSync('public/js/pages/content.js', 'utf8');
+      expect(html).toContain('<div x-show="contentForm.mode===\'ai\'">\n                <label class="block text-sm font-medium text-gray-700 mb-1">Loại content</label>');
+      expect(html).toContain("contentForm.mode==='manual' || contentForm.contentType === 'VIDEO'");
+      expect(js).toContain("? (hasVideo ? 'VIDEO' : (hasImages ? 'IMAGE' : 'TEXT'))");
+      expect(js).toContain('Vui lòng chỉ nhập ảnh hoặc video cho một bài viết');
+    });
+
     it('bulk publish does not inspect generatedText omitted by the list DTO', () => {
       const js = fs.readFileSync('public/js/pages/content.js', 'utf8');
       const publishBlock = js.substring(js.indexOf('async bulkPublish()'), js.indexOf('async bulkDelete()'));

@@ -1220,7 +1220,7 @@
             </div>
 
             <div class="grid grid-cols-2 gap-4">
-              <div>
+              <div :class="contentForm.mode==='manual' ? 'col-span-2' : ''">
                 <label class="block text-sm font-medium text-gray-700 mb-1">Page <span class="text-red-500">*</span></label>
                 <div class="relative">
                   <select x-model="contentForm.pageId"
@@ -1237,7 +1237,7 @@
                   <i x-show="!contentForm.pageId" class="ri-store-2-line absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"></i>
                 </div>
               </div>
-              <div>
+              <div x-show="contentForm.mode==='ai'">
                 <label class="block text-sm font-medium text-gray-700 mb-1">Loại content</label>
                 <select x-model="contentForm.contentType"
                   class="w-full px-4 py-2.5 border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-brand-500 text-sm">
@@ -1285,8 +1285,8 @@
                 class="w-full px-4 py-2.5 border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-brand-500 text-sm"></textarea>
             </div>
 
-            <!-- Image upload (chỉ hiện khi manual + IMAGE, hoặc khi đang edit có ảnh) -->
-            <div x-show="contentForm.contentType === 'IMAGE' && (contentForm.mode==='manual' || (contentForm.mode==='ai' && contentForm.images.length > 0)) && !(contentForm._locked && contentForm.mode==='ai')">
+            <!-- Existing content tự nhận diện loại theo media người dùng nhập. -->
+            <div x-show="(contentForm.mode==='manual' || (contentForm.contentType === 'IMAGE' && contentForm.mode==='ai' && contentForm.images.length > 0)) && !(contentForm._locked && contentForm.mode==='ai')">
               <label class="block text-sm font-medium text-gray-700 mb-1">Ảnh <span class="text-xs text-gray-400 font-normal">(tối đa 10 ảnh, kéo để sắp xếp)</span></label>
               <!-- Image list with drag reorder -->
               <div class="space-y-2 mb-2">
@@ -1338,8 +1338,8 @@
               </div>
             </div>
 
-            <!-- Video: upload hoặc URL (cả 2 mode, khi contentType=VIDEO) -->
-            <div x-show="contentForm.contentType === 'VIDEO'">
+            <!-- Existing content luôn cho phép nhập video; loại content được suy luận khi lưu. -->
+            <div x-show="contentForm.mode==='manual' || contentForm.contentType === 'VIDEO'">
               <label class="block text-sm font-medium text-gray-700 mb-1">Video</label>
               <div x-show="!contentForm.videoUrl && !contentForm.videoFile">
                 <div class="flex gap-2 mb-2">
@@ -1374,7 +1374,7 @@
                 <video :src="contentForm.videoUrl" controls class="rounded-lg w-full max-h-48 bg-black"></video>
                 <div class="flex items-center gap-2">
                   <span class="text-xs text-green-600 flex items-center gap-1"><i class="ri-check-line"></i> Đã có video</span>
-                  <button @click="contentForm.videoUrl=''" type="button" class="text-xs text-red-500 hover:text-red-700">Xóa video</button>
+                  <button @click="contentForm.videoUrl=''; contentForm.manualVideoUrl=''" type="button" class="text-xs text-red-500 hover:text-red-700">Xóa video</button>
                 </div>
               </div>
               <div x-show="contentForm.videoFile && !contentForm.videoUrl" class="flex items-center gap-2 mt-1">

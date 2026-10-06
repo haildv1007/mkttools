@@ -561,6 +561,7 @@
     'Lọc:': 'Filter:', 'mục đã chọn': 'items selected', 'nội dung': 'items',
     'Số người xem duy nhất của nội dung theo Facebook.': 'Unique viewers for the Content on Facebook.',
     'Sửa bài viết': 'Edit post', 'Sửa Content': 'Edit Content', 'Thêm Content mới': 'Add new Content',
+    'Vui lòng chỉ nhập ảnh hoặc video cho một bài viết': 'Please add either images or a video to one post, not both',
     'Tổng comments trên bài viết.': 'Total comments on the post.',
     'Tổng lượt click trên bài viết theo Facebook.': 'Total post clicks on Facebook.',
     'Tổng reactions trên bài viết.': 'Total reactions on the post.',
