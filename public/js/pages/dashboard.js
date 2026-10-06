@@ -152,7 +152,12 @@ window.MKTPageModules.dashboard = () => ({
                 syncBody.scopeType = this.currentScope.type;
                 syncBody.scopeId = this.currentScope.id;
             }
-            const result = await this.api('/dashboard/stats/fb-sync', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(syncBody) });
+            const result = await this.api('/dashboard/stats/fb-sync', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(syncBody),
+                timeoutMs: 300000,
+            });
             const msg = `Sync xong: ${result.synced}/${result.total} bài` + (result.errors?.length ? ` (${result.errors.length} lỗi)` : '');
             alert(msg);
             await this.loadDashboard();

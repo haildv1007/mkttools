@@ -51,6 +51,8 @@ const imageUpload = multer({
 });
 
 const router = Router();
+const activeFacebookSyncs = new Set<string>();
+const FACEBOOK_SYNC_CONCURRENCY = 8;
 
 function isOrganizationAdmin(req: AuthRequest): boolean {
   return req.organizationRole === 'OWNER' || req.organizationRole === 'ADMIN';
@@ -2210,6 +2212,12 @@ router.get('/stats/fb-metric-test', async (req: AuthRequest, res: Response) => {
 
 // --- Manual FB Metrics Sync ---
 router.post('/stats/fb-sync', async (req: AuthRequest, res: Response) => {
+  const syncKey = req.organizationId;
+  if (!syncKey) return res.status(403).json({ error: 'NO_ORGANIZATION' });
+  if (activeFacebookSyncs.has(syncKey)) {
+    return res.status(409).json({ error: 'FACEBOOK_SYNC_IN_PROGRESS', message: 'Một phiên đồng bộ Facebook đang chạy. Vui lòng chờ hoàn tất.' });
+  }
+  activeFacebookSyncs.add(syncKey);
   try {
     const { pageId } = req.body || {};
     const where: Record<string, unknown> = {
@@ -2249,10 +2257,17 @@ router.post('/stats/fb-sync', async (req: AuthRequest, res: Response) => {
       else byPage.set(item.pageId, { page: item.page, items: [item] });
     }
 
-    for (const [, { page, items: pageItems }] of byPage) {
+    const syncQueue = [...byPage.values()].flatMap(({ page, items: pageItems }) => {
       const token = decryptPageToken(page.accessToken);
+      return pageItems.map(item => ({ page, item, token }));
+    });
+    let queueIndex = 0;
 
-      for (const item of pageItems) {
+    async function syncWorker() {
+      while (queueIndex < syncQueue.length) {
+        const entry = syncQueue[queueIndex++];
+        if (!entry) return;
+        const { page, item, token } = entry;
         try {
           // Fetch basic engagement
           const url = `https://graph.facebook.com/v21.0/${item.socialPostId}?fields=reactions.summary(true),comments.summary(true),shares&access_token=${encodeURIComponent(token)}`;
@@ -2316,6 +2331,9 @@ router.post('/stats/fb-sync', async (req: AuthRequest, res: Response) => {
       }
     }
 
+    const workerCount = Math.min(FACEBOOK_SYNC_CONCURRENCY, syncQueue.length);
+    await Promise.all(Array.from({ length: workerCount }, () => syncWorker()));
+
     // Clear in-memory cache so dashboard picks up fresh DB data
     fbCache.clear();
 
@@ -2329,6 +2347,8 @@ router.post('/stats/fb-sync', async (req: AuthRequest, res: Response) => {
     });
   } catch (err) {
     res.status(500).json({ error: err instanceof Error ? err.message : 'Sync failed' });
+  } finally {
+    activeFacebookSyncs.delete(syncKey);
   }
 });
 
