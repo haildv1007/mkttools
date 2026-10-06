@@ -77,7 +77,6 @@ window.MKTPageModules.pages = () => ({
         const messages = {
             FACEBOOK_APP_NOT_CONFIGURED: 'Facebook App chưa được cấu hình. Vui lòng cấu hình App ID và App Secret trong Cài đặt hệ thống.',
             FACEBOOK_PERMISSION_INSUFFICIENT: 'Tài khoản Facebook chưa cấp đủ quyền để quản lý Pages.',
-            FACEBOOK_PAGE_OWNED_BY_OTHER_ORGANIZATION: 'Page này đã được kết nối với một tổ chức khác.',
             FACEBOOK_OAUTH_STATE_INVALID: 'Phiên kết nối Facebook đã hết hạn. Vui lòng thử lại.',
             FACEBOOK_OAUTH_STATE_EXPIRED: 'Phiên kết nối Facebook đã hết hạn. Vui lòng thử lại.',
             FACEBOOK_REDIRECT_URI_MISMATCH: 'Phiên kết nối Facebook không hợp lệ. Vui lòng thử lại.',
@@ -222,7 +221,7 @@ window.MKTPageModules.pages = () => ({
             const result = await this.facebookApi('/pages/discover');
             this.facebookPages = Array.isArray(result.pages) ? result.pages : [];
             this.facebookSelectedIds = selectExisting
-                ? this.facebookPages.filter((page) => page.alreadyImported && !page.ownedByOtherOrg).map((page) => page.facebookPageId)
+                ? this.facebookPages.filter((page) => page.alreadyImported).map((page) => page.facebookPageId)
                 : [];
             this.facebookSearch = '';
             this.facebookPhase = 'selection';
@@ -236,13 +235,12 @@ window.MKTPageModules.pages = () => ({
         }
     },
     isFacebookPageSelectable(page) {
-        // Same-organization Pages remain selectable so a fresh token can
-        // replace the expired token without deleting the Page or its content.
-        return !page.ownedByOtherOrg;
+        // Every Page returned by the current OAuth discovery is selectable.
+        // Facebook/Business Manager is the authority for whether this user
+        // may access a shared Page. Each organization stores its own token.
+        return Boolean(page?.facebookPageId);
     },
     facebookPageStateLabel(page) {
-        if (page.ownedByOtherOrg)
-            return 'Thuộc tổ chức khác';
         if (page.alreadyImported)
             return 'Đã kết nối';
         return 'Chưa kết nối';

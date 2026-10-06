@@ -173,12 +173,12 @@ describe('Facebook V0 Backend', () => {
       expect(html).toContain('Lấy Pages đã lưu');
     });
 
-    it('existing same-organization Pages can be selected to refresh their token', () => {
+    it('every Page returned by OAuth can be selected, including BM-shared Pages', () => {
       const js = fs.readFileSync('public/js/pages/pages.js', 'utf8');
       const selectable = js.substring(js.indexOf('isFacebookPageSelectable('), js.indexOf('facebookPageStateLabel('));
-      expect(selectable).toContain('return !page.ownedByOtherOrg');
-      expect(selectable).not.toContain('!page.alreadyImported');
-      expect(js).toContain('page.alreadyImported && !page.ownedByOtherOrg');
+      expect(selectable).toContain('Boolean(page?.facebookPageId)');
+      expect(selectable).not.toContain('ownedByOtherOrg');
+      expect(js).toContain('page.alreadyImported).map');
       expect(js).toContain('await this.discoverFacebookPages(true)');
     });
 
@@ -207,9 +207,11 @@ describe('Facebook V0 Backend', () => {
       expect(importMatch![0]).not.toContain('req.body.accessToken');
     });
 
-    it('import rejects pages owned by another organization', () => {
+    it('allows a BM-shared Page in multiple organizations while scoping duplicates to the current organization', () => {
       const source = fs.readFileSync('src/modules/facebook/index.ts', 'utf8');
-      expect(source).toContain('FACEBOOK_PAGE_OWNED_BY_OTHER_ORGANIZATION');
+      expect(source).not.toContain('FACEBOOK_PAGE_OWNED_BY_OTHER_ORGANIZATION');
+      expect(source).toContain('organizationId: req.organizationId!');
+      expect(source).toContain('where: { platform: \'FACEBOOK\', externalId: fbPageId, organizationId: req.organizationId }');
     });
   });
 

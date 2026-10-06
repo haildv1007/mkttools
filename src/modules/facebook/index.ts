@@ -305,13 +305,21 @@ router.get('/pages/discover', async (req: AuthRequest, res: Response) => {
       if (resolved) pagesData.push(resolved);
     }
 
-    // Check which pages are already imported
+    // A Facebook Page can be shared with more than one Business/organization.
+    // Only mark the Page as imported when it already exists in the current
+    // organization; another tenant's connection must not block a valid token
+    // discovered through the current user's OAuth session.
     const externalIds = pagesData.map(p => p.id);
     const existingPages = await prisma.page.findMany({
-      where: { platform: 'FACEBOOK', externalId: { in: externalIds }, isActive: true },
-      select: { externalId: true, organizationId: true },
+      where: {
+        organizationId: req.organizationId!,
+        platform: 'FACEBOOK',
+        externalId: { in: externalIds },
+        isActive: true,
+      },
+      select: { externalId: true },
     });
-    const importedMap = new Map(existingPages.map(p => [p.externalId, p.organizationId]));
+    const importedIds = new Set(existingPages.map(p => p.externalId));
 
     // Store page tokens in Redis for import step (never sent to frontend)
     for (const p of pagesData) {
@@ -323,8 +331,7 @@ router.get('/pages/discover', async (req: AuthRequest, res: Response) => {
       name: p.name,
       pictureUrl: p.picture?.data?.url || null,
       category: p.category || null,
-      alreadyImported: importedMap.get(p.id) === req.organizationId,
-      ownedByOtherOrg: importedMap.has(p.id) && importedMap.get(p.id) !== req.organizationId,
+      alreadyImported: importedIds.has(p.id),
     }));
 
     res.json({ pages });
@@ -364,15 +371,6 @@ router.post('/pages/import', async (req: AuthRequest, res: Response) => {
 
       // Encrypt token before storing
       const encryptedToken = encryptPageToken(pageToken);
-
-      // Check cross-org ownership
-      const existingOther = await prisma.page.findFirst({
-        where: { platform: 'FACEBOOK', externalId: fbPageId, isActive: true, organizationId: { not: req.organizationId } },
-      });
-      if (existingOther) {
-        results.push({ facebookPageId: fbPageId, status: 'error', error: 'FACEBOOK_PAGE_OWNED_BY_OTHER_ORGANIZATION' });
-        continue;
-      }
 
       // Check same-org duplicate
       const existingSame = await prisma.page.findFirst({
