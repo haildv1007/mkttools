@@ -524,6 +524,70 @@
     'Tuần trước': 'Last week', 'Tháng trước': 'Last month', 'Tùy chọn...': 'Custom...'
   });
 
+  Object.assign(translations.en, {
+    'AI Text (Viết bài)': 'AI Text (Writing)',
+    'AI Image (Tạo ảnh)': 'AI Image (Generation)',
+    'Chọn nhà cung cấp và model cho AI tạo nội dung': 'Choose a provider and model for AI content generation',
+    'Chọn nhà cung cấp và model cho AI tạo hình ảnh': 'Choose a provider and model for AI image generation',
+    'Chọn từ danh sách': 'Choose from list',
+    'Nhập Model ID khác': 'Enter another Model ID',
+    'Thay đổi': 'Change',
+    'Chưa cấu hình': 'Not configured',
+    'Cần nhập lại': 'Needs re-entry',
+    'Sử dụng cho AI text': 'Used for AI text',
+    'Đã cấu hình - để trống nếu không muốn thay đổi': 'Configured — leave blank to keep unchanged',
+    'Đã lưu token dài hạn và mã hóa trên server - để trống nếu không muốn thay đổi': 'A long-lived token is encrypted on the server — leave blank to keep unchanged',
+    'Không giới hạn Page': 'Unlimited Pages',
+    'Không giới hạn Pages': 'Unlimited Pages',
+    'Không giới hạn thành viên': 'Unlimited members',
+    'Tất cả Page': 'All Pages',
+    'Tất cả Page trong WS': 'All Pages in workspace',
+    'Top Content theo Engagement': 'Top Content by Engagement'
+  });
+
+  Object.assign(translations.en, {
+    '· Toàn bộ Organization': '· Entire organization',
+    'Chưa gán gói': 'No plan assigned', 'Chưa xác minh': 'Unverified', 'Đã xác minh': 'Verified',
+    'Đặt mật khẩu': 'Set password', 'Đổi mật khẩu': 'Change password', 'Kết thúc:': 'Ends:',
+    'Không thời hạn': 'No expiration', 'page đã chọn': 'Pages selected', 'Sửa Workspace': 'Edit Workspace',
+    'Tạo Workspace mới': 'Create new Workspace', 'Không giới hạn': 'Unlimited', 'tháng': 'months', 'thành viên': 'members', 'bài': 'posts',
+    'đang chạy': 'running', 'Hàng loạt': 'Bulk', 'Hệ thống': 'System', 'Mã lỗi:': 'Error code:',
+    '(ảnh': '(image', '⏳ Chờ đến lượt': '⏳ Queued', '✓ Hoàn tất': '✓ Completed', '✕ Thất bại': '✕ Failed',
+    '⟳ Đang đăng': '⟳ Publishing', '⟳ Đang gen': '⟳ Generating', 'Chỉ văn bản': 'Text only',
+    'Có ảnh': 'Has image', 'Có video': 'Has video', 'Đã copy': 'Copied',
+    'Đã thêm vào hàng đợi gen': 'Added to the generation queue',
+    'Engagement chia cho số Người xem duy nhất.': 'Engagement divided by unique viewers.',
+    'Ghim trái': 'Pin left', 'gốc': 'original', 'Kết quả từ': 'Results from', 'Lịch sử': 'History',
+    'Lọc:': 'Filter:', 'mục đã chọn': 'items selected', 'nội dung': 'items',
+    'Số người xem duy nhất của nội dung theo Facebook.': 'Unique viewers for the Content on Facebook.',
+    'Sửa bài viết': 'Edit post', 'Sửa Content': 'Edit Content', 'Thêm Content mới': 'Add new Content',
+    'Tổng comments trên bài viết.': 'Total comments on the post.',
+    'Tổng lượt click trên bài viết theo Facebook.': 'Total post clicks on Facebook.',
+    'Tổng reactions trên bài viết.': 'Total reactions on the post.',
+    'Tổng shares trên bài viết.': 'Total shares on the post.',
+    'Tổng số lượt nội dung được xem/displayed/played; một người có thể tạo nhiều lượt xem.': 'Total times the Content was viewed, displayed, or played; one person may generate multiple views.',
+    'Xem đầy đủ': 'View full details', '· sync lần cuối': '· last synced',
+    'Engagement / Người xem × 100': 'Engagement / Viewers × 100', 'lỗi khác)': 'other errors)',
+    'Tổng lượt click trên bài viết theo Facebook': 'Total post clicks on Facebook',
+    'Tổng số lượt nội dung được xem/displayed/played; một người có thể tạo nhiều lượt xem': 'Total times the Content was viewed, displayed, or played; one person may generate multiple views',
+    'Tùy chọn': 'Custom', 'Σ Eng:': 'Σ Engagement:', 'Σ Viewers:': 'Σ Viewers:',
+    'Gồm: Ngày, Giờ, Chủ đề, Loại, Bài viết, Link ảnh/video': 'Includes: Date, Time, Topic, Type, Post, Image/video URL',
+    'Gồm: Ngày, Giờ, Chủ đề, Loại, Ghi chú, Mô tả ảnh': 'Includes: Date, Time, Topic, Type, Notes, Image description',
+    '● Đang hoạt động': '● Active', 'Chưa đặt tên': 'Unnamed', 'Đang dùng thử': 'Trial active',
+    'Đang tạo đơn...': 'Creating order...', 'Đơn thanh toán đã hủy': 'Payment order cancelled',
+    'Tạo lại thanh toán': 'Create payment again', 'Thanh toán thành công!': 'Payment successful!',
+    'Tiếp tục thanh toán': 'Continue payment', 'Vui lòng liên hệ quản trị viên để được tư vấn.': 'Please contact an administrator for assistance.',
+    'Xem chi tiết': 'View details', 'Chỉnh sửa Page': 'Edit Page', 'Đã kết nối thành công': 'Connected successfully',
+    'Đang chuyển hướng...': 'Redirecting...', 'Đang kiểm tra...': 'Checking...', 'Đang xóa...': 'Deleting...',
+    'Kết nối': 'Connect', 'Không thể kết nối Pages': 'Unable to connect Pages',
+    'Kiểm tra và lấy Pages': 'Check and load Pages', 'Pages vào MKT Tools.': 'Pages to MKT Tools.',
+    'Tài khoản này không có Page nào có thể quản lý.': 'This account has no manageable Pages.',
+    'API key đã sẵn sàng': 'API key is ready', 'Chưa cấu hình App Secret': 'App Secret is not configured',
+    'Chưa có API key cho nhà cung cấp này': 'No API key for this provider',
+    'Khi lưu, hệ thống tự xác thực, đổi sang token dài hạn và mã hóa trên server.': 'When saved, the system validates it, exchanges it for a long-lived token, and encrypts it on the server.',
+    'Lưu API key': 'Save API key'
+  });
+
   function normalizeLocale(value) {
     const locale = String(value || '').toLowerCase().split('-')[0];
     return SUPPORTED.includes(locale) ? locale : null;
@@ -550,6 +614,21 @@
     const replacements = [
       [/^(\d+) Pages$/, '$1 Pages'],
       [/^(\d+) Page$/, '$1 Page'],
+      [/^(\d+) thành viên$/, '$1 members'],
+      [/^(\d+)\s*\/\s*(\d+|∞) thành viên$/, '$1 / $2 members'],
+      [/^(\d+) tháng$/, '$1 months'],
+      [/^\/\s*(\d+) tháng$/, '/ $1 months'],
+      [/^(\d+)\/(\d+) bài$/, '$1/$2 posts'],
+      [/^(\d+) bài$/, '$1 posts'],
+      [/^(\d+) page đã chọn$/i, '$1 Pages selected'],
+      [/^(\d+) mục đã chọn$/, '$1 items selected'],
+      [/^\(\+(\d+) lỗi khác\)$/, '(+$1 other errors)'],
+      [/^Đã kết nối thành công (\d+) Pages vào MKT Tools\.$/, 'Successfully connected $1 Pages to MKT Tools.'],
+      [/^(\d+|∞) Pages, (\d+|∞) thành viên$/, '$1 Pages, $2 members'],
+      [/^(\d+) Pages · (\d+) thành viên$/, '$1 Pages · $2 members'],
+      [/^Không giới hạn Pages · Không giới hạn thành viên$/, 'Unlimited Pages · Unlimited members'],
+      [/^(\d+) Pages · Không giới hạn thành viên$/, '$1 Pages · Unlimited members'],
+      [/^Không giới hạn Pages · (\d+) thành viên$/, 'Unlimited Pages · $1 members'],
       [/^(\d+) phút đọc$/, '$1 min read'],
       [/^(\d+) ngày qua$/, 'Last $1 days'],
       [/^(\d+) phút$/, '$1 minutes'],
@@ -558,7 +637,7 @@
       [/^(\d+) nội dung$/, '$1 items'],
       [/^Kết quả từ (\d+) nội dung$/, 'Results from $1 items'],
       [/^Dữ liệu hiệu suất từ Facebook · sync lần cuối (.+)$/, 'Facebook performance data · last synced $1'],
-      [/^ · sync lần cuối (.+)$/, ' · last synced $1'],
+      [/^· sync lần cuối (.+)$/, '· last synced $1'],
       [/^Dùng thử · Còn (.+)$/, 'Trial · $1 remaining'],
       [/^Còn (.+)$/, '$1 remaining'],
       [/^Hết hạn: (.+)$/, 'Expires: $1'],
@@ -599,8 +678,14 @@
     }
     for (const attr of ATTRIBUTES) {
       if (!element.hasAttribute(attr)) continue;
-      if (!(attr in sources)) sources[attr] = element.getAttribute(attr);
-      const next = locale === 'vi' ? sources[attr] : lookup(sources[attr]);
+      const current = element.getAttribute(attr);
+      let state = sources[attr];
+      if (!state || current !== state.rendered) {
+        state = { source: current, rendered: current };
+        sources[attr] = state;
+      }
+      const next = locale === 'vi' ? state.source : lookup(state.source);
+      state.rendered = next;
       if (element.getAttribute(attr) !== next) element.setAttribute(attr, next);
     }
   }
@@ -681,11 +766,12 @@
     const observer = new MutationObserver((mutations) => {
       for (const mutation of mutations) {
         if (mutation.type === 'characterData') translateTextNode(mutation.target);
+        if (mutation.type === 'attributes') translateElement(mutation.target);
         mutation.addedNodes.forEach(translateTree);
       }
       updateLinks();
     });
-    observer.observe(document.body, { childList: true, subtree: true, characterData: true });
+    observer.observe(document.body, { childList: true, subtree: true, characterData: true, attributes: true, attributeFilter: ATTRIBUTES });
   }
 
   window.MKTI18n = { get locale() { return locale; }, setLocale, t: lookup, translate: translateTree };

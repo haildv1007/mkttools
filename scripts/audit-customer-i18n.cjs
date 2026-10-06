@@ -28,6 +28,13 @@ function add(file, raw) {
   unresolved.get(file).add(value);
 }
 
+function addStringLiterals(file, expression) {
+  for (const match of expression.matchAll(/'((?:\\.|[^'\\])*)'|"((?:\\.|[^"\\])*)"|`((?:\\.|[^`\\])*)`/g)) {
+    const value = match[1] ?? match[2] ?? match[3] ?? '';
+    if (!value.includes('${')) add(file, value);
+  }
+}
+
 for (const file of htmlFiles) {
   const source = fs.readFileSync(path.join(root, file), 'utf8')
     .replace(/<script[\s\S]*?<\/script>/gi, '')
@@ -35,14 +42,14 @@ for (const file of htmlFiles) {
     .replace(/<!--[\s\S]*?-->/g, '');
   for (const match of source.matchAll(/>([^<>]+)</g)) add(file, match[1]);
   for (const match of source.matchAll(/(?:placeholder|title|aria-label|alt)=(['"])(.*?)\1/g)) add(file, match[2]);
+  for (const match of source.matchAll(/\s(?:x-[\w:-]+|:[\w:-]+|@[\w.:-]+)=(?:"([^"]*)"|'([^']*)')/g)) {
+    addStringLiterals(file, match[1] ?? match[2] ?? '');
+  }
 }
 
 for (const file of jsFiles) {
   const source = fs.readFileSync(path.join(root, file), 'utf8');
-  for (const match of source.matchAll(/'((?:\\.|[^'\\])*)'|"((?:\\.|[^"\\])*)"|`((?:\\.|[^`\\])*)`/g)) {
-    const value = match[1] ?? match[2] ?? match[3] ?? '';
-    if (!value.includes('${')) add(file, value);
-  }
+  addStringLiterals(file, source);
 }
 
 let count = 0;
