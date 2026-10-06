@@ -7,6 +7,7 @@
     </div>
     <div class="pages-header-actions">
       <button @click="openManualPageForm()" class="pages-secondary-button"><i class="ri-add-line"></i><span>Thêm Page thủ công</span></button>
+      <button @click="openFacebookTokenModal()" class="pages-secondary-button"><i class="ri-key-2-line"></i><span>Nhập Access Token</span></button>
       <button @click="startFacebookConnect()" :disabled="facebookStarting" class="pages-primary-button">
         <i class="ri-loader-4-line animate-spin" x-show="facebookStarting"></i><i class="ri-facebook-fill" x-show="!facebookStarting"></i>
         <span x-text="facebookStarting ? 'Đang chuyển hướng...' : 'Kết nối Facebook'"></span>
@@ -66,6 +67,21 @@
         <div x-show="pageError" class="pages-inline-error" x-text="pageError"></div>
       </div>
       <div class="pages-modal-footer"><button @click="showPageModal=false" class="pages-cancel-button">Hủy</button><button @click="savePage()" class="pages-primary-button"><span x-text="editingPage ? 'Cập nhật' : 'Thêm Page'"></span></button></div>
+    </div>
+  </div>
+
+  <!-- Manual Facebook token flow for apps awaiting Meta review -->
+  <div x-show="showFbTokenModal" x-cloak class="pages-modal-backdrop" @click.self="showFbTokenModal=false">
+    <div class="pages-modal pages-modal--small" role="dialog" aria-modal="true" aria-labelledby="facebook-token-title">
+      <button @click="showFbTokenModal=false" class="pages-modal-close" aria-label="Đóng"><i class="ri-close-line"></i></button>
+      <h3 id="facebook-token-title">Kết nối bằng Access Token</h3>
+      <p class="pages-modal-subtitle">Dùng tạm trong thời gian Facebook App chưa hoàn tất review. Token chỉ được gửi về server và không hiển thị lại.</p>
+      <div class="pages-info-box mt-4"><i class="ri-information-line"></i><span>Tạo token từ Graph API Explorer với các quyền <b>pages_show_list</b>, <b>pages_read_engagement</b> và <b>pages_manage_posts</b>.</span></div>
+      <div class="pages-form-stack mt-4">
+        <label>Facebook User Access Token<textarea x-model.trim="fbShortToken" rows="5" autocomplete="off" spellcheck="false" placeholder="Dán access token từ Graph API Explorer..." class="pages-control pages-textarea pages-id"></textarea></label>
+        <div x-show="fbTokenError" class="pages-inline-error" x-text="fbTokenError"></div>
+      </div>
+      <div class="pages-modal-footer"><button @click="showFbTokenModal=false" :disabled="fbTokenLoading" class="pages-cancel-button">Hủy</button><button @click="connectFacebookToken()" :disabled="fbTokenLoading || !fbShortToken.trim()" class="pages-primary-button"><i x-show="fbTokenLoading" class="ri-loader-4-line animate-spin"></i><span x-text="fbTokenLoading ? 'Đang kiểm tra...' : 'Kiểm tra và lấy Pages'"></span></button></div>
     </div>
   </div>
 

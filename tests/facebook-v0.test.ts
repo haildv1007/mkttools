@@ -156,6 +156,23 @@ describe('Facebook V0 Backend', () => {
   // Preserved: existing security checks
   // ============================================================
   describe('Page tokens are never returned in API responses (code inspection)', () => {
+    it('manual token flow stores the exchanged token in Redis and returns no token', () => {
+      const source = fs.readFileSync('src/modules/facebook/index.ts', 'utf8');
+      const route = source.match(/router\.post\('\/token\/connect'[\s\S]*?res\.json\(\{ success: true \}\)/);
+      expect(route).toBeTruthy();
+      expect(route![0]).toContain('redis.set(`user_token:');
+      expect(route![0]).not.toMatch(/res\.json\([^)]*access_token/);
+    });
+
+    it('manual token UI sends the token only to the server bridge', () => {
+      const js = fs.readFileSync('public/js/pages/pages.js', 'utf8');
+      const html = fs.readFileSync('public/pages/pages.html', 'utf8');
+      expect(js).toContain("facebookApi('/token/connect'");
+      expect(js).toContain('await this.discoverFacebookPages()');
+      expect(html).toContain('Nhập Access Token');
+      expect(html).toContain('Token chỉ được gửi về server');
+    });
+
     it('discover endpoint returns only safe metadata, never access_token', () => {
       const source = fs.readFileSync('src/modules/facebook/index.ts', 'utf8');
       const discoverMatch = source.match(/router\.get\('\/pages\/discover'[\s\S]*?res\.json\(\{ pages \}\)/);

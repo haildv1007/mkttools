@@ -176,6 +176,34 @@ window.MKTPageModules.pages = () => ({
             }
         }
     },
+    openFacebookTokenModal() {
+        this.fbShortToken = '';
+        this.fbTokenError = '';
+        this.fbTokenLoading = false;
+        this.showFbTokenModal = true;
+    },
+    async connectFacebookToken() {
+        const accessToken = this.fbShortToken.trim();
+        if (!accessToken || this.fbTokenLoading)
+            return;
+        this.fbTokenLoading = true;
+        this.fbTokenError = '';
+        try {
+            await this.facebookApi('/token/connect', {
+                method: 'POST',
+                body: JSON.stringify({ accessToken }),
+            });
+            this.fbShortToken = '';
+            this.showFbTokenModal = false;
+            await this.discoverFacebookPages();
+        }
+        catch (error) {
+            this.fbTokenError = error.message || this.facebookErrorMessage(error);
+        }
+        finally {
+            this.fbTokenLoading = false;
+        }
+    },
     async discoverFacebookPages() {
         this.facebookModalOpen = true;
         this.facebookPhase = 'discovering';

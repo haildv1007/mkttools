@@ -130,6 +130,41 @@ router.post('/oauth/callback', async (req: AuthRequest, res: Response) => {
   }
 });
 
+// Manual token bridge for apps that are still in Meta development/review mode.
+// The submitted user token is exchanged and stored server-side; no Facebook
+// token is ever returned to the browser.
+router.post('/token/connect', async (req: AuthRequest, res: Response) => {
+  try {
+    if (!isAdmin(req)) {
+      return res.status(403).json({ error: 'ORGANIZATION_ACCESS_DENIED', message: 'Chỉ Owner/Admin được quản lý kết nối Facebook.' });
+    }
+    const shortToken = typeof req.body?.accessToken === 'string' ? req.body.accessToken.trim() : '';
+    if (!shortToken || shortToken.length > 4096) {
+      return res.status(400).json({ error: 'FACEBOOK_TOKEN_REQUIRED', message: 'Vui lòng nhập access token hợp lệ.' });
+    }
+    const config = await resolveFacebookAppConfig(req.organizationId!);
+    if (!config) {
+      return res.status(400).json({ error: 'FACEBOOK_APP_NOT_CONFIGURED', message: 'Chưa cấu hình Facebook App ID / Secret trong Cài đặt tổ chức.' });
+    }
+    const llRes = await fetch(
+      `${FB_GRAPH}/oauth/access_token?` +
+      `grant_type=fb_exchange_token` +
+      `&client_id=${encodeURIComponent(config.appId)}` +
+      `&client_secret=${encodeURIComponent(config.appSecret)}` +
+      `&fb_exchange_token=${encodeURIComponent(shortToken)}`
+    );
+    const llData = await llRes.json() as { access_token?: string; expires_in?: number; error?: { message: string } };
+    if (!llData.access_token) {
+      return res.status(400).json({ error: 'FACEBOOK_TOKEN_EXCHANGE_FAILED', message: llData.error?.message || 'Không thể xác thực access token.' });
+    }
+    const ttl = Math.max(300, Math.min(Number(llData.expires_in) || USER_TOKEN_TTL, 5184000));
+    await redis.set(`user_token:${req.organizationId}:${req.userId}`, llData.access_token, ttl);
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: 'INTERNAL_ERROR', message: err instanceof Error ? err.message : 'Không thể kết nối access token.' });
+  }
+});
+
 // ------------------------------------------------------------------
 // 3. Discover Facebook Pages
 // ------------------------------------------------------------------
