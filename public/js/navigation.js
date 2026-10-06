@@ -52,7 +52,7 @@ window.MKTNavigation = {
         const names = ['dashboard', 'campaigns', 'content', 'import', 'pages', 'settings', 'organization', 'activity'];
         const host = document.getElementById('page-fragments');
         const fragments = await Promise.all(names.map(async (name) => {
-            const response = await fetch(`/pages/${name}.html`);
+            const response = await fetch(`/pages/${name}.html?v=20261006.3`, { cache: 'no-store' });
             if (!response.ok)
                 throw new Error(`Unable to load ${name} page`);
             return response.text();

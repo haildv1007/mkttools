@@ -145,7 +145,18 @@ app.use([
   '/admin', '/dashboard', '/organization', '/settings', '/content', '/campaigns', '/import', '/pages', '/billing', '/account',
 ], noindex);
 // Do not redirect the /pages application route to the public/pages asset directory.
-app.use(express.static(path.join(__dirname, '../public'), { redirect: false, index: false }));
+app.use(express.static(path.join(__dirname, '../public'), {
+  redirect: false,
+  index: false,
+  setHeaders(res, filePath) {
+    // App shell assets change independently of their stable filenames. Force
+    // browsers/CDNs to revalidate so a deploy cannot leave an open tab running
+    // stale dashboard logic for hours.
+    if (/\.(?:html|js|css)$/i.test(filePath)) {
+      res.setHeader('Cache-Control', 'public, no-cache, must-revalidate');
+    }
+  },
+}));
 const authPage = (_req: express.Request, res: express.Response) => res.sendFile(path.join(__dirname, '../public/auth.html'));
 app.get(['/login', '/register', '/forgot-password', '/reset-password/:token', '/verify-email/:token', '/auth/callback', '/onboarding', '/join/:token'], authPage);
 app.get(['/admin', '/admin/*'], (_req, res) => {
