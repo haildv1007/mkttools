@@ -201,7 +201,10 @@ router.get('/stats', async (req: AuthRequest, res: Response) => {
 
 router.get('/stats/dashboard', async (req: AuthRequest, res: Response) => {
   try {
-    res.setHeader('Cache-Control', 'private, max-age=15, stale-while-revalidate=30');
+    // Dashboard filters must always reflect the current scope and date range.
+    // Browser caching previously allowed an empty bootstrap response to be
+    // reused until the user changed a filter (and therefore changed the URL).
+    res.setHeader('Cache-Control', 'private, no-store, max-age=0');
     const { pageId, campaignId, dateFrom, dateTo, days: daysParam, scopeType, scopeId } = req.query;
     const days = parseInt(daysParam as string, 10) || 30;
 
