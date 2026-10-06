@@ -10,7 +10,7 @@ describe('customer-facing localization', () => {
   it('loads the shared locale runtime across the public-to-app flow', () => {
     for (const page of ['public/mktkit/index.html', 'public/auth.html', 'public/index.html', 'public/billing.html']) {
       const html = read(page);
-      expect(html, `${page} should load i18n.js`).toContain('/js/i18n.js?v=1');
+      expect(html, `${page} should load the versioned i18n.js runtime`).toMatch(/\/js\/i18n\.js\?v=\d+/);
       expect(html, `${page} should load i18n.css`).toContain('/css/i18n.css?v=1');
     }
   });
