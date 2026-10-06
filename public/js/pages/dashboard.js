@@ -164,7 +164,26 @@ window.MKTPageModules.dashboard = () => ({
             const y = top + plotH * (1 - r);
             return `<line x1="${left}" y1="${y}" x2="${width-right}" y2="${y}" stroke="#eef2f7"/><text x="${left-8}" y="${y+3}" text-anchor="end" font-size="10" fill="#94a3b8">${Math.round(maxMetric*r)}</text>`;
         }).join('');
-        wrap.innerHTML = `<svg viewBox="0 0 ${width} ${height}" preserveAspectRatio="none" class="block h-full w-full" role="img" aria-label="Biểu đồ hiệu suất">${grid}${bars}${line('viewers','#3b82f6')}${line('media_views','#06b6d4')}${line('engagement','#8b5cf6')}${xTicks}</svg>`;
+        const hitWidth = Math.max(10, plotW / Math.max(data.length - 1, 1));
+        const hitAreas = data.map((d, i) => `<rect class="perf-chart-hit" data-index="${i}" x="${Math.max(left, x(i)-hitWidth/2).toFixed(1)}" y="${top}" width="${hitWidth.toFixed(1)}" height="${plotH}" fill="transparent"/>`).join('');
+        wrap.innerHTML = `<svg viewBox="0 0 ${width} ${height}" preserveAspectRatio="none" class="block h-full w-full" role="img" aria-label="Biểu đồ hiệu suất">${grid}${bars}${line('viewers','#3b82f6')}${line('media_views','#06b6d4')}${line('engagement','#8b5cf6')}${xTicks}${hitAreas}</svg><div class="perf-chart-tooltip pointer-events-none absolute z-10 hidden min-w-[150px] rounded-lg border border-gray-100 bg-white px-3 py-2 text-[11px] shadow-lg"></div>`;
+        const tooltip = wrap.querySelector('.perf-chart-tooltip');
+        const showTooltip = (event) => {
+            const hit = event.target.closest?.('.perf-chart-hit');
+            if (!hit || !tooltip) return;
+            const item = data[Number(hit.dataset.index)];
+            if (!item) return;
+            const p = item.date.split('-');
+            tooltip.innerHTML = `<div class="mb-1 font-semibold text-gray-800">${p[2]}/${p[1]}/${p[0]}</div><div class="grid grid-cols-[1fr_auto] gap-x-4 gap-y-1 text-gray-500"><span>Người xem</span><b class="text-blue-600">${item.viewers || 0}</b><span>Lượt xem</span><b class="text-cyan-600">${item.media_views || 0}</b><span>Engagement</span><b class="text-violet-600">${item.engagement || 0}</b><span>Bài đăng</span><b class="text-indigo-600">${item.posts_count || 0}</b></div>`;
+            tooltip.classList.remove('hidden');
+            const bounds = wrap.getBoundingClientRect();
+            const tipWidth = tooltip.offsetWidth || 160;
+            const tipHeight = tooltip.offsetHeight || 100;
+            tooltip.style.left = `${Math.max(4, Math.min(event.clientX - bounds.left + 12, bounds.width - tipWidth - 4))}px`;
+            tooltip.style.top = `${Math.max(4, Math.min(event.clientY - bounds.top + 12, bounds.height - tipHeight - 4))}px`;
+        };
+        wrap.onpointermove = showTooltip;
+        wrap.onpointerleave = () => tooltip?.classList.add('hidden');
     },
     getCampaignEngagement(campaignId, type) {
         if (!this.fbInsights?.pages)
