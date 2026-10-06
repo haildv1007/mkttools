@@ -268,14 +268,24 @@ function app() {
                     await this.loadScopePages();
                     if (this.currentScope.type === 'page')
                         this.importForm.pageId = this.currentScope.id;
-                    if (this.page === 'dashboard') {
-                        await this.loadDashboard();
-                        this.loadCampaigns({ preferCache: true });
+                    const loadInitialDashboard = this.page === 'dashboard';
+                    if (loadInitialDashboard) {
+                        // Finish all scope-dependent bootstrap work before the
+                        // first dashboard request. Previously this request ran
+                        // mid-initialization and returned an empty snapshot;
+                        // navigating away and back worked because bootstrap had
+                        // completed by then.
+                        await this.loadCampaigns({ preferCache: true });
                     } else {
                         this.navigate(this.page, { replace: true, skipDataLoad: true });
                     }
                     this.fetchActiveItems();
                     this.initSocket();
+                    if (loadInitialDashboard) {
+                        await new Promise(resolve => this.$nextTick(resolve));
+                        await new Promise(resolve => setTimeout(resolve, 0));
+                        await this.loadDashboard();
+                    }
                 }
                 window.addEventListener('resize', () => this.dgCalcHeight());
                 this.$watch('actOpen', (v) => {
