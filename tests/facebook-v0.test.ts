@@ -230,6 +230,38 @@ describe('Facebook V0 Backend', () => {
     });
   });
 
+  describe('Business Manager Page discovery', () => {
+    it('requests the permissions used by discovery, publishing, comments, and insights', () => {
+      const source = fs.readFileSync('src/modules/facebook/index.ts', 'utf8');
+      for (const permission of [
+        'business_management',
+        'pages_show_list',
+        'pages_read_engagement',
+        'pages_read_user_content',
+        'pages_manage_posts',
+        'read_insights',
+      ]) {
+        expect(source).toContain(`'${permission}'`);
+      }
+    });
+
+    it('discovers directly assigned, business-owned, and partner-shared Pages', () => {
+      const source = fs.readFileSync('src/modules/facebook/index.ts', 'utf8');
+      expect(source).toContain("'me/accounts'");
+      expect(source).toContain("'me/businesses'");
+      expect(source).toContain("['owned_pages', 'client_pages']");
+    });
+
+    it('never returns Page access tokens to the browser', () => {
+      const source = fs.readFileSync('src/modules/facebook/index.ts', 'utf8');
+      const discoverMatch = source.match(/router\.get\('\/pages\/discover'[\s\S]*?res\.json\(\{ pages \}\)/);
+      expect(discoverMatch).toBeTruthy();
+      const responseMap = discoverMatch![0].match(/const pages = pagesData\.map\(p => \(\{[\s\S]*?\}\)\)/);
+      expect(responseMap).toBeTruthy();
+      expect(responseMap![0]).not.toContain('access_token');
+    });
+  });
+
   describe('Publisher loads tokens server-side (existing)', () => {
     it('publishContent resolves page token from DB, not job payload', () => {
       const source = fs.readFileSync('src/modules/publisher/index.ts', 'utf8');

@@ -12,13 +12,71 @@ import { getOrganizationSetting, setOrganizationSettings } from '../settings/org
 const router = Router();
 
 const FB_GRAPH = 'https://graph.facebook.com/v21.0';
-const FB_OAUTH_SCOPES = 'pages_show_list,pages_read_engagement,pages_manage_posts';
+const FB_OAUTH_SCOPES = [
+  'business_management',
+  'pages_show_list',
+  'pages_read_engagement',
+  'pages_read_user_content',
+  'pages_manage_posts',
+  'read_insights',
+].join(',');
 
 const USER_TOKEN_TTL = 3300; // 55 min
 const DISCOVERED_TOKEN_TTL = 1800; // 30 min
 
 function isAdmin(req: AuthRequest): boolean {
   return roleAtLeast(req.organizationRole, 'ADMIN');
+}
+
+type FacebookPageAsset = {
+  id: string;
+  name: string;
+  access_token?: string;
+  picture?: { data?: { url?: string } };
+  category?: string;
+};
+
+type FacebookBusiness = { id: string; name?: string };
+
+async function fetchGraphCollection<T>(path: string, fields: string, accessToken: string): Promise<T[]> {
+  const rows: T[] = [];
+  let url: string | null = `${FB_GRAPH}/${path}?fields=${encodeURIComponent(fields)}&limit=100&access_token=${encodeURIComponent(accessToken)}`;
+  let pageCount = 0;
+
+  while (url && pageCount < 20) {
+    const response = await fetch(url);
+    const payload = await response.json() as {
+      data?: T[];
+      paging?: { next?: string };
+      error?: { message?: string; code?: number };
+    };
+    if (!response.ok || payload.error || !payload.data) {
+      const error = new Error(payload.error?.message || `Facebook Graph request failed for ${path}`) as Error & { graphCode?: number };
+      error.graphCode = payload.error?.code;
+      throw error;
+    }
+    rows.push(...payload.data);
+    const next = payload.paging?.next;
+    if (!next) break;
+    const nextUrl = new URL(next);
+    if (nextUrl.protocol !== 'https:' || nextUrl.hostname !== 'graph.facebook.com') {
+      throw new Error('Facebook returned an invalid pagination URL.');
+    }
+    url = nextUrl.toString();
+    pageCount += 1;
+  }
+
+  return rows;
+}
+
+async function resolvePageAccessToken(page: FacebookPageAsset, userToken: string): Promise<FacebookPageAsset | null> {
+  if (page.access_token) return page;
+  const response = await fetch(
+    `${FB_GRAPH}/${encodeURIComponent(page.id)}?fields=id,name,access_token,picture,category&access_token=${encodeURIComponent(userToken)}`
+  );
+  const payload = await response.json() as FacebookPageAsset & { error?: { message?: string } };
+  if (!response.ok || payload.error || !payload.access_token) return null;
+  return payload;
 }
 
 // ------------------------------------------------------------------
@@ -189,17 +247,17 @@ router.get('/pages/discover', async (req: AuthRequest, res: Response) => {
       return res.status(400).json({ error: 'FACEBOOK_TOKEN_NOT_CONFIGURED', message: 'Chưa lưu Facebook User Access Token trong Cài đặt hệ thống.' });
     }
 
-    const pagesRes = await fetch(
-      `${FB_GRAPH}/me/accounts?fields=id,name,access_token,picture,category&access_token=${encodeURIComponent(userToken)}`
-    );
-    const pagesData = await pagesRes.json() as {
-      data?: Array<{ id: string; name: string; access_token: string; picture?: { data?: { url?: string } }; category?: string }>;
-      error?: { message: string; code?: number };
-    };
-
-    if (pagesData.error || !pagesData.data) {
-      const msg = pagesData.error?.message || '';
-      if (pagesData.error?.code === 190) {
+    let directPages: FacebookPageAsset[];
+    try {
+      directPages = await fetchGraphCollection<FacebookPageAsset>(
+        'me/accounts',
+        'id,name,access_token,picture,category',
+        userToken
+      );
+    } catch (error) {
+      const graphError = error as Error & { graphCode?: number };
+      const msg = graphError.message || '';
+      if (graphError.graphCode === 190) {
         return res.status(400).json({ error: 'FACEBOOK_TOKEN_EXCHANGE_FAILED', message: 'Facebook token expired. Please reconnect.' });
       }
       if (msg.includes('permission')) {
@@ -208,8 +266,47 @@ router.get('/pages/discover', async (req: AuthRequest, res: Response) => {
       return res.status(400).json({ error: 'FACEBOOK_TOKEN_EXCHANGE_FAILED', message: msg || 'Failed to fetch pages.' });
     }
 
+    // Business-owned and partner-shared Pages do not always appear in
+    // /me/accounts. Discover them through every Business the user manages.
+    // A missing business_management grant must not hide directly assigned
+    // Pages, so business discovery remains additive for legacy/manual tokens.
+    const businessPages: FacebookPageAsset[] = [];
+    try {
+      const businesses = await fetchGraphCollection<FacebookBusiness>('me/businesses', 'id,name', userToken);
+      for (const business of businesses) {
+        for (const edge of ['owned_pages', 'client_pages']) {
+          try {
+            const assets = await fetchGraphCollection<FacebookPageAsset>(
+              `${encodeURIComponent(business.id)}/${edge}`,
+              'id,name,access_token,picture,category',
+              userToken
+            );
+            businessPages.push(...assets);
+          } catch {
+            // A user can administer a Business without access to every edge.
+            // Continue discovering assets from the remaining Businesses/edges.
+          }
+        }
+      }
+    } catch {
+      // Backwards compatibility for tokens created before business_management
+      // was granted: direct /me/accounts discovery still works.
+    }
+
+    const pageById = new Map<string, FacebookPageAsset>();
+    for (const page of [...directPages, ...businessPages]) {
+      const current = pageById.get(page.id);
+      if (!current || (!current.access_token && page.access_token)) pageById.set(page.id, page);
+    }
+
+    const pagesData: FacebookPageAsset[] = [];
+    for (const page of pageById.values()) {
+      const resolved = await resolvePageAccessToken(page, userToken);
+      if (resolved) pagesData.push(resolved);
+    }
+
     // Check which pages are already imported
-    const externalIds = pagesData.data.map(p => p.id);
+    const externalIds = pagesData.map(p => p.id);
     const existingPages = await prisma.page.findMany({
       where: { platform: 'FACEBOOK', externalId: { in: externalIds }, isActive: true },
       select: { externalId: true, organizationId: true },
@@ -217,11 +314,11 @@ router.get('/pages/discover', async (req: AuthRequest, res: Response) => {
     const importedMap = new Map(existingPages.map(p => [p.externalId, p.organizationId]));
 
     // Store page tokens in Redis for import step (never sent to frontend)
-    for (const p of pagesData.data) {
-      await redis.set(`discovered_page:${req.organizationId}:${p.id}`, p.access_token, DISCOVERED_TOKEN_TTL);
+    for (const p of pagesData) {
+      await redis.set(`discovered_page:${req.organizationId}:${p.id}`, p.access_token!, DISCOVERED_TOKEN_TTL);
     }
 
-    const pages = pagesData.data.map(p => ({
+    const pages = pagesData.map(p => ({
       facebookPageId: p.id,
       name: p.name,
       pictureUrl: p.picture?.data?.url || null,
