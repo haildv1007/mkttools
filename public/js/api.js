@@ -12,7 +12,13 @@ window.MKTApi = {
             headers['X-Organization-Id'] = organizationId;
         const url = path.startsWith('/api/') ? path : `/api${path}`;
         const method = String(options.method || 'GET').toUpperCase();
-        const requestKey = method === 'GET' ? `${organizationId || '-'}:${url}` : '';
+        // A caller-provided signal means the caller owns this request's
+        // lifecycle. Never deduplicate it with another request: the previous
+        // promise may have just been aborted while a replacement request for
+        // the same URL is starting (dashboard bootstrap/filter changes).
+        const requestKey = method === 'GET' && !options.signal
+            ? `${organizationId || '-'}:${url}`
+            : '';
         if (requestKey && this._inflight.has(requestKey))
             return this._inflight.get(requestKey);
 
