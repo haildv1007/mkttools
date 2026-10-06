@@ -173,6 +173,15 @@ describe('Facebook V0 Backend', () => {
       expect(html).toContain('Token chỉ được gửi về server');
     });
 
+    it('existing same-organization Pages can be selected to refresh their token', () => {
+      const js = fs.readFileSync('public/js/pages/pages.js', 'utf8');
+      const selectable = js.substring(js.indexOf('isFacebookPageSelectable('), js.indexOf('facebookPageStateLabel('));
+      expect(selectable).toContain('return !page.ownedByOtherOrg');
+      expect(selectable).not.toContain('!page.alreadyImported');
+      expect(js).toContain('page.alreadyImported && !page.ownedByOtherOrg');
+      expect(js).toContain('await this.discoverFacebookPages(true)');
+    });
+
     it('discover endpoint returns only safe metadata, never access_token', () => {
       const source = fs.readFileSync('src/modules/facebook/index.ts', 'utf8');
       const discoverMatch = source.match(/router\.get\('\/pages\/discover'[\s\S]*?res\.json\(\{ pages \}\)/);

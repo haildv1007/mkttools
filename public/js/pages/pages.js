@@ -195,7 +195,7 @@ window.MKTPageModules.pages = () => ({
             });
             this.fbShortToken = '';
             this.showFbTokenModal = false;
-            await this.discoverFacebookPages();
+            await this.discoverFacebookPages(true);
         }
         catch (error) {
             this.fbTokenError = error.message || this.facebookErrorMessage(error);
@@ -204,7 +204,7 @@ window.MKTPageModules.pages = () => ({
             this.fbTokenLoading = false;
         }
     },
-    async discoverFacebookPages() {
+    async discoverFacebookPages(selectExisting = false) {
         this.facebookModalOpen = true;
         this.facebookPhase = 'discovering';
         this.facebookError = '';
@@ -212,7 +212,9 @@ window.MKTPageModules.pages = () => ({
         try {
             const result = await this.facebookApi('/pages/discover');
             this.facebookPages = Array.isArray(result.pages) ? result.pages : [];
-            this.facebookSelectedIds = [];
+            this.facebookSelectedIds = selectExisting
+                ? this.facebookPages.filter((page) => page.alreadyImported && !page.ownedByOtherOrg).map((page) => page.facebookPageId)
+                : [];
             this.facebookSearch = '';
             this.facebookPhase = 'selection';
         }
@@ -225,7 +227,9 @@ window.MKTPageModules.pages = () => ({
         }
     },
     isFacebookPageSelectable(page) {
-        return !page.alreadyImported && !page.ownedByOtherOrg;
+        // Same-organization Pages remain selectable so a fresh token can
+        // replace the expired token without deleting the Page or its content.
+        return !page.ownedByOtherOrg;
     },
     facebookPageStateLabel(page) {
         if (page.ownedByOtherOrg)
