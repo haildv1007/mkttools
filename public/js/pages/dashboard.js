@@ -193,11 +193,11 @@ window.MKTPageModules.dashboard = () => ({
         const xTicks = data.map((d, i) => {
             if (i % tickStep !== 0 && i !== data.length - 1) return '';
             const p = d.date.split('-');
-            return `<text x="${x(i).toFixed(1)}" y="${height - 25}" text-anchor="middle" font-size="10" fill="#94a3b8">${p[2]}/${p[1]}</text>`;
+            return `<text x="${x(i).toFixed(1)}" y="${height - 25}" text-anchor="middle" font-size="11" font-weight="500" fill="#64748b">${p[2]}/${p[1]}</text>`;
         }).join('');
         const grid = [0, .25, .5, .75, 1].map(r => {
             const y = top + plotH * (1 - r);
-            return `<line x1="${left}" y1="${y}" x2="${width-right}" y2="${y}" stroke="#eef2f7"/><text x="${left-8}" y="${y+3}" text-anchor="end" font-size="10" fill="#94a3b8">${Math.round(maxMetric*r)}</text>`;
+            return `<line x1="${left}" y1="${y}" x2="${width-right}" y2="${y}" stroke="#e8edf3"/><text x="${left-8}" y="${y+3}" text-anchor="end" font-size="11" font-weight="500" fill="#64748b">${Math.round(maxMetric*r)}</text>`;
         }).join('');
         const hitWidth = Math.max(10, plotW / Math.max(data.length - 1, 1));
         const hitAreas = data.map((d, i) => `<rect class="perf-chart-hit" data-index="${i}" x="${Math.max(left, x(i)-hitWidth/2).toFixed(1)}" y="${top}" width="${hitWidth.toFixed(1)}" height="${plotH}" fill="transparent"/>`).join('');
