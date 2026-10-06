@@ -1,7 +1,8 @@
 [x-cloak] { display: none !important; }
     .app-sidebar{width:256px;background:#fff;border-right:1px solid #e5e7eb;color:#0f172a}
     .app-sidebar-header{height:80px;display:flex;align-items:center;padding:0 20px;border-bottom:1px solid #eef2f7}
-    .app-logo-mark{display:flex;width:42px;height:42px;flex:none;align-items:center;justify-content:center;border-radius:11px;background:#2563eb;color:#fff;font-size:21px}
+    .app-logo-mark{display:flex;width:42px;height:42px;flex:none;align-items:center;justify-content:center;overflow:hidden;border-radius:11px;background:#2563eb;color:#fff;font-size:21px}
+    .app-logo-mark img{width:100%;height:100%;object-fit:contain}
     .app-brand-name{font-size:16px;font-weight:700;line-height:21px;color:#0f172a}
     .app-version{font-size:12px;line-height:16px;color:#94a3b8}
     .platform-admin-link{display:flex;min-height:36px;align-items:center;gap:9px;margin:7px 15px 3px;padding:0 2px;border-radius:8px;color:#7c6aa5;font-size:12px;font-weight:500;transition:background-color .15s,color .15s}

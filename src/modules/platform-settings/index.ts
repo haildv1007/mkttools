@@ -402,7 +402,7 @@ router.put('/seo', async (req: AuthRequest, res: Response) => {
 router.post('/seo/upload/:kind', seoImageUpload.single('image'), async (req: AuthRequest, res: Response) => {
   const kind = String(req.params.kind);
   const definitions: Record<string, { key: string; filename: string }> = {
-    logo: { key: 'logoUrl', filename: 'logo.png' },
+    logo: { key: 'logoUrl', filename: 'logo.webp' },
     favicon: { key: 'faviconUrl', filename: 'favicon.png' },
     og: { key: 'ogImageUrl', filename: 'open-graph.jpg' },
   };
@@ -419,7 +419,7 @@ router.post('/seo/upload/:kind', seoImageUpload.single('image'), async (req: Aut
     } else if (kind === 'og') {
       await image.resize(1200, 630, { fit: 'cover', position: 'centre' }).jpeg({ quality: 88 }).toFile(outputPath);
     } else {
-      await image.resize({ width: 1200, height: 400, fit: 'inside', withoutEnlargement: true }).png().toFile(outputPath);
+      await image.resize({ width: 256, height: 256, fit: 'inside', withoutEnlargement: true }).webp({ quality: 84, effort: 4 }).toFile(outputPath);
     }
     const publicUrl = `/uploads/seo/${definition.filename}?v=${Date.now()}`;
     await saveFields('seo', { [definition.key]: publicUrl }, req.userId);

@@ -20,7 +20,7 @@
 
 <div x-show="!denied && ready" class="flex min-h-screen">
   <aside class="w-52 bg-white border-r border-gray-200 p-3 flex flex-col gap-1 shrink-0">
-    <div class="font-bold text-base px-2 py-2" data-platform-name-suffix=" Admin">MKT Tools Admin</div>
+    <div class="font-bold text-base px-2 py-2 flex items-center gap-2"><span class="w-8 h-8 rounded-lg bg-brand-500 text-white flex items-center justify-center overflow-hidden shrink-0"><img data-platform-logo hidden alt="" width="32" height="32" decoding="async" class="w-full h-full object-contain"><i data-platform-logo-fallback class="ri-megaphone-line"></i></span><span data-platform-name-suffix=" Admin">MKT Tools Admin</span></div>
     <template x-for="n in nav" :key="n.id">
       <button @click="go(n.id)" class="text-left px-3 py-2 rounded-lg" :class="view===n.id?'bg-brand-50 text-brand-600 font-medium':'hover:bg-gray-100'">
         <i :class="n.icon" class="mr-2"></i><span x-text="n.label"></span>

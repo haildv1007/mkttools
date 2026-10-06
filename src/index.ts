@@ -107,8 +107,15 @@ app.get('/api/platform-config', (_req, res) => {
       return ['http:', 'https:'].includes(parsed.protocol) ? parsed.toString() : '';
     } catch { return ''; }
   };
+  const safeAssetUrl = (key: string): string => {
+    const value = getPlatformSetting(key).trim();
+    if (value.startsWith('/uploads/seo/')) return value;
+    return safeUrl(key);
+  };
   res.json({
     productName,
+    logoUrl: safeAssetUrl('seo.logoUrl'),
+    faviconUrl: safeAssetUrl('seo.faviconUrl'),
     support: {
       enabled: ['true', '1'].includes(getPlatformSetting('support.enabled')),
       title: getPlatformSetting('support.title'),
